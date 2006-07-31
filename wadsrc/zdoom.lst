@@ -271,6 +271,7 @@ decorate.gzd				gzd/decorate.gzd
 
 decorate.txt				decorate/decorate.txt
 
+actors/shared/blood.txt						decorate/shared/blood.txt
 actors/shared/debris.txt					decorate/shared/debris.txt
 actors/shared/splashes.txt					decorate/shared/splashes.txt
 
