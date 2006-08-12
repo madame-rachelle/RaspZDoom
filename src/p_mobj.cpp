@@ -98,6 +98,7 @@ static FRandom pr_ripperblood ("RipperBlood");
 static FRandom pr_chunk ("Chunk");
 static FRandom pr_checkmissilespawn ("CheckMissileSpawn");
 static FRandom pr_spawnmissile ("SpawnMissile");
+static FRandom pr_missiledamage ("MissileDamage");
  FRandom pr_slam ("SkullSlam");
 static FRandom pr_multiclasschoice ("MultiClassChoice");
 static FRandom pr_rockettrail("RocketTrail");
@@ -261,7 +262,7 @@ void AActor::Serialize (FArchive &arc)
 		<< momz
 		<< tics
 		<< state
-		<< damage
+		<< Damage
 		<< flags
 		<< flags2
 		<< flags3
@@ -891,6 +892,16 @@ void AActor::ObtainInventory (AActor *other)
 	InventoryID = other->InventoryID;
 	other->Inventory = NULL;
 	other->InventoryID = 0;
+
+	if (other->IsKindOf(RUNTIME_CLASS(APlayerPawn)) && this->IsKindOf(RUNTIME_CLASS(APlayerPawn)))
+	{
+		APlayerPawn *you = static_cast<APlayerPawn *>(other);
+		APlayerPawn *me = static_cast<APlayerPawn *>(this);
+		me->InvFirst = you->InvFirst;
+		me->InvSel = you->InvSel;
+		you->InvFirst = NULL;
+		you->InvSel = NULL;
+	}
 
 	AInventory *item = Inventory;
 	while (item != NULL)
@@ -2261,9 +2272,6 @@ void P_NightmareRespawn (AActor *mobj)
 }
 
 
-//
-// [RH] Some new functions to work with Thing IDs. ------->
-//
 AActor *AActor::TIDHash[128];
 
 //
@@ -2328,8 +2336,6 @@ void AActor::RemoveFromHash ()
 	tid = 0;
 }
 
-// <------- [RH] End new functions
-
 angle_t AActor::AngleIncrements ()
 {
 	return ANGLE_45;
@@ -2341,6 +2347,35 @@ void AActor::PreExplode ()
 
 void AActor::GetExplodeParms (int &damage, int &dist, bool &hurtSource)
 {
+}
+
+//==========================================================================
+//
+// AActor :: GetMissileDamage
+//
+// If the actor's damage amount is an expression, evaluate it and return
+// the result. Otherwise, return ((random() & mask) + add) * damage.
+//
+//==========================================================================
+
+int AActor::GetMissileDamage (int mask, int add)
+{
+	if ((Damage & 0xC0000000) == 0x40000000)
+	{
+		return EvalExpressionI (Damage & 0x3FFFFFFF, this);
+	}
+	if (Damage == 0)
+	{
+		return 0;
+	}
+	else if (mask == 0)
+	{
+		return add * Damage;
+	}
+	else
+	{
+		return ((pr_missiledamage() & mask) + add) * Damage;
+	}
 }
 
 void AActor::Howl ()
@@ -2367,7 +2402,7 @@ void AActor::HitFloor ()
 
 bool AActor::Slam (AActor *thing)
 {
-	int dam = ((pr_slam()%8)+1) * damage;
+	int dam = GetMissileDamage (7, 1);
 	P_DamageMobj (thing, this, this, dam, MOD_HIT);
 	P_TraceBleed (dam, thing, this);
 	flags &= ~MF_SKULLFLY;
@@ -2844,7 +2879,7 @@ void AActor::Tick ()
 	// won't hurt anything. Don't do this if damage is 0! That way, you can
 	// still have missiles that go straight up and down through actors without
 	// damaging anything.
-	if ((flags & MF_MISSILE) && (momx|momy) == 0 && damage != 0)
+	if ((flags & MF_MISSILE) && (momx|momy) == 0 && Damage != 0)
 	{
 		momx = 1;
 	}
