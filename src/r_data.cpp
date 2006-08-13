@@ -284,7 +284,12 @@ FTexture * FTextureManager::DoCreateTexture (int lumpnum, int usetype)
 				goto check_generic;	// give DevIL a try on this texture!
 				//return -1;
 			}
-			if (colortype != 0 && colortype != 3)
+			if (!((1 << colortype) & 0x5D))
+			{
+				goto check_generic;	// give DevIL a try on this texture!
+				//return -1;
+			}
+			if (!((1 << bitdepth) & 0x116))
 			{
 				goto check_generic;	// give DevIL a try on this texture!
 				//return -1;
@@ -1932,8 +1937,38 @@ FPNGTexture::FPNGTexture (int lumpnum, int width, int height,
 	}
 	StartOfIDAT = lump.Tell() - 8;
 
-	if (colortype == 3)
+	switch (colortype)
 	{
+	case 4:		// Grayscale + Alpha
+		bMasked = true;
+		// intentional fall-through
+
+	case 0:		// Grayscale
+		if (!bAlphaTexture)
+		{
+			if (GrayMap[0] == GrayMap[255])
+			{ // Initialize the GrayMap
+				for (i = 0; i < 256; ++i)
+				{
+					GrayMap[i] = ColorMatcher.Pick (i, i, i);
+				}
+			}
+			if (colortype == 0 && havetRNS && trans[0] != 0)
+			{
+				bMasked = true;
+				PaletteSize = 256;
+				PaletteMap = new BYTE[256];
+				memcpy (PaletteMap, GrayMap, 256);
+				PaletteMap[trans[0]] = 0;
+			}
+			else
+			{
+				PaletteMap = GrayMap;
+			}
+		}
+		break;
+
+	case 3:		// Paletted
 		PaletteMap = new BYTE[PaletteSize];
 		GPalette.MakeRemap (palette, PaletteMap, trans, PaletteSize);
 		for (i = 0; i < PaletteSize; ++i)
@@ -1948,31 +1983,11 @@ FPNGTexture::FPNGTexture (int lumpnum, int width, int height,
 				bAlphaChannel = true;
 			}
 		}
-	}
-	else if (colortype == 0)
-	{
-		if (!bAlphaTexture)
-		{
-			if (GrayMap[0] == GrayMap[255])
-			{ // Initialize the GrayMap
-				for (i = 0; i < 256; ++i)
-				{
-					GrayMap[i] = ColorMatcher.Pick (i, i, i);
-				}
-			}
-			if (havetRNS && trans[0] != 0)
-			{
-				bMasked = true;
-				PaletteSize = 256;
-				PaletteMap = new BYTE[256];
-				memcpy (PaletteMap, GrayMap, 256);
-				PaletteMap[trans[0]] = 0;
-			}
-			else
-			{
-				PaletteMap = GrayMap;
-			}
-		}
+		break;
+
+	case 6:		// RGB + Alpha
+		bMasked = true;
+		break;
 	}
 }
 
@@ -2047,33 +2062,111 @@ void FPNGTexture::MakeTexture ()
 		DWORD len, id;
 		lump.Seek (StartOfIDAT, SEEK_SET);
 		lump >> len >> id;
-		M_ReadIDAT (&lump, Pixels, Width, Height, Width, BitDepth, ColorType, Interlace, BigLong((unsigned int)len));
 
-		if (Width == Height)
+		if (ColorType == 0 || ColorType == 3)	/* Grayscale and paletted */
 		{
-			if (PaletteMap != NULL)
+			M_ReadIDAT (&lump, Pixels, Width, Height, Width, BitDepth, ColorType, Interlace, BigLong((unsigned int)len));
+
+			if (Width == Height)
 			{
-				FlipSquareBlockRemap (Pixels, Width, Height, PaletteMap);
+				if (PaletteMap != NULL)
+				{
+					FlipSquareBlockRemap (Pixels, Width, Height, PaletteMap);
+				}
+				else
+				{
+					FlipSquareBlock (Pixels, Width, Height);
+				}
 			}
 			else
 			{
-				FlipSquareBlock (Pixels, Width, Height);
+				BYTE *newpix = new BYTE[Width*Height];
+				if (PaletteMap != NULL)
+				{
+					FlipNonSquareBlockRemap (newpix, Pixels, Width, Height, PaletteMap);
+				}
+				else
+				{
+					FlipNonSquareBlock (newpix, Pixels, Width, Height, Width);
+				}
+				BYTE *oldpix = Pixels;
+				Pixels = newpix;
+				delete[] oldpix;
 			}
 		}
-		else
+		else		/* RGB and/or Alpha present */
 		{
-			BYTE *newpix = new BYTE[Width*Height];
-			if (PaletteMap != NULL)
+			int bytesPerPixel = ColorType == 2 ? 3 : ColorType == 4 ? 2 : 4;
+			BYTE *tempix = new BYTE[Width * Height * bytesPerPixel];
+			BYTE *in, *out;
+			int x, y, pitch, backstep;
+
+			M_ReadIDAT (&lump, tempix, Width, Height, Width*bytesPerPixel, BitDepth, ColorType, Interlace, BigLong((unsigned int)len));
+			in = tempix;
+			out = Pixels;
+
+			// Convert from source format to paletted, column-major.
+			// Formats with alpha maps are reduced to only 1 bit of alpha.
+			switch (ColorType)
 			{
-				FlipNonSquareBlockRemap (newpix, Pixels, Width, Height, PaletteMap);
+			case 2:		// RGB
+				pitch = Width * 3;
+				backstep = Height * pitch - 3;
+				for (x = Width; x > 0; --x)
+				{
+					for (y = Height; y > 0; --y)
+					{
+						*out++ = RGB32k[in[0]>>3][in[1]>>3][in[2]>>3];
+						in += pitch;
+					}
+					in -= backstep;
+				}
+				break;
+
+			case 4:		// Grayscale + Alpha
+				pitch = Width * 2;
+				backstep = Height * pitch - 2;
+				if (PaletteMap != NULL)
+				{
+					for (x = Width; x > 0; --x)
+					{
+						for (y = Height; y > 0; --y)
+						{
+							*out++ = in[1] < 128 ? 0 : PaletteMap[in[0]];
+							in += pitch;
+						}
+						in -= backstep;
+					}
+				}
+				else
+				{
+					for (x = Width; x > 0; --x)
+					{
+						for (y = Height; y > 0; --y)
+						{
+							*out++ = in[1] < 128 ? 0 : in[0];
+							in += pitch;
+						}
+						in -= backstep;
+					}
+				}
+				break;
+
+			case 6:		// RGB + Alpha
+				pitch = Width * 4;
+				backstep = Height * pitch - 4;
+				for (x = Width; x > 0; --x)
+				{
+					for (y = Height; y > 0; --y)
+					{
+						*out++ = in[3] < 128 ? 0 : RGB32k[in[0]>>3][in[1]>>3][in[2]>>3];
+						in += pitch;
+					}
+					in -= backstep;
+				}
+				break;
 			}
-			else
-			{
-				FlipNonSquareBlock (newpix, Pixels, Width, Height, Width);
-			}
-			BYTE *oldpix = Pixels;
-			Pixels = newpix;
-			delete[] oldpix;
+			delete[] tempix;
 		}
 	}
 	if (Spans == NULL)
