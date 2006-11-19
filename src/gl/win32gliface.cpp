@@ -231,6 +231,8 @@ static void CALLBACK DoPrintText(const char * out)
 	PrintString(PRINT_HIGH, out);
 }
 
+IMPLEMENT_CLASS(Win32GLFrameBuffer)
+
 Win32GLFrameBuffer::Win32GLFrameBuffer(int width, int height, int bits, int refreshHz, bool fullscreen) : BaseWinFB(width, height) 
 {
 	static int localmultisample=-1;
@@ -473,6 +475,10 @@ bool Win32GLFrameBuffer::SetContrast(float contrast)
 	return true;
 }
 
+HRESULT Win32GLFrameBuffer::GetHR() 
+{ 
+	return 0; 
+}
 
 void Win32GLFrameBuffer::Blank () 
 {

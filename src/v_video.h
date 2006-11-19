@@ -183,6 +183,8 @@ protected:
 
 	bool ClipBox (int &left, int &top, int &width, int &height, const byte *&src, const int srcpitch) const;
 
+	DCanvas() {}
+
 private:
 	// Keep track of canvases, for automatic destruction at exit
 	DCanvas *Next;
@@ -204,6 +206,8 @@ public:
 
 protected:
 	BYTE *MemBuffer;
+
+	DSimpleCanvas() {}
 };
 
 // A canvas that represents the actual display. The video code is responsible
@@ -235,8 +239,8 @@ public:
 	// gamma changing. (Always true for now, since palettes can always be
 	// gamma adjusted.)
 	virtual bool SetGamma (float gamma) = 0;
-	virtual bool SetBrightness (float bright) = 0;
-	virtual bool SetContrast (float contrast) = 0;
+	virtual bool SetBrightness (float bright) { return false; }
+	virtual bool SetContrast (float contrast) { return false; }
 
 	// Sets a color flash. RGB is the color, and amount is 0-256, with 256
 	// being all flash and 0 being no flash. Returns false if the hardware
@@ -253,6 +257,9 @@ public:
 	// Returns true if running fullscreen.
 	virtual bool IsFullscreen () = 0;
 
+	// Changes the vsync setting, if supported by the device.
+	virtual void SetVSync (bool vsync);
+
 #ifdef _WIN32
 	virtual void PaletteChanged () = 0;
 	virtual int QueryNewPalette () = 0;
@@ -261,6 +268,8 @@ public:
 protected:
 	void DrawRateStuff ();
 	void CopyFromBuff (BYTE *src, int srcPitch, int width, int height, BYTE *dest);
+
+	DFrameBuffer () {}
 
 private:
 	DWORD LastMS, LastSec, FrameCount, LastCount, LastTic;

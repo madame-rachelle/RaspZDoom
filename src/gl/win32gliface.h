@@ -84,13 +84,17 @@ public:
 
 class Win32GLFrameBuffer : public BaseWinFB
 {
+	DECLARE_CLASS(Win32GLFrameBuffer, BaseWinFB)
+
 public:
+	Win32GLFrameBuffer() {}
 	Win32GLFrameBuffer(int width, int height, int bits, int refreshHz, bool fullscreen);
 	virtual ~Win32GLFrameBuffer();
 
 	// unused but must be defined
 	virtual void Blank ();
 	virtual bool PaintToWindow ();
+	virtual HRESULT GetHR();
 
 	virtual bool CreateResources ();
 	virtual void ReleaseResources ();
