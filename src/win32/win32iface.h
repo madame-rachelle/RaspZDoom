@@ -153,6 +153,7 @@ public:
 	int QueryNewPalette ();
 	void PaletteChanged ();
 	void SetVSync (bool vsync);
+	void NewRefreshRate();
 	HRESULT GetHR ();
 
 	void Blank ();
@@ -237,6 +238,7 @@ public:
 	void Blank ();
 	bool PaintToWindow ();
 	void SetVSync (bool vsync);
+	void NewRefreshRate();
 	HRESULT GetHR ();
 
 private:
