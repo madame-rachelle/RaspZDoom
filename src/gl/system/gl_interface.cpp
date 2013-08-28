@@ -45,7 +45,7 @@
 #include "gl/system/gl_cvars.h"
 #include "doomerrors.h"
 
-#if defined (unix) || defined (__APPLE__)
+#if defined (__unix__) || defined (__APPLE__)
 #include <SDL.h>
 #define wglGetProcAddress(x) (*SDL_GL_GetProcAddress)(x)
 #endif
@@ -124,7 +124,7 @@ static void APIENTRY LoadExtensions()
 	if (strcmp(version, "1.2") < 0) 
 	{
 		vid_renderer = 0;
-		I_FatalError("Unsupported OpenGL version.\nAt least GL 1.2 is required to run "GAMENAME".\nFalling back to software renderer.\n");
+		I_FatalError("Unsupported OpenGL version.\nAt least GL 1.2 is required to run " GAMENAME ".\nFalling back to software renderer.\n");
 	}
 
 	// This loads any function pointers and flags that require a vaild render context to
