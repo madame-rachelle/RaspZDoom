@@ -1147,6 +1147,10 @@ add_executable( zdoom WIN32 MACOSX_BUNDLE
 	gl/renderer/gl_renderer.cpp
 	gl/renderer/gl_renderstate.cpp
 	gl/renderer/gl_lightdata.cpp
+	gl/hqnx/init.cpp
+	gl/hqnx/hq2x.cpp
+	gl/hqnx/hq3x.cpp
+	gl/hqnx/hq4x.cpp
 	gl/textures/gl_hwtexture.cpp
 	gl/textures/gl_texture.cpp
 	gl/textures/gl_material.cpp
