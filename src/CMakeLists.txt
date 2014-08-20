@@ -642,6 +642,10 @@ if( NOT USE_D3D9 )
 		win32/win32video.cpp )
 else ( NOT USE_D3D9 )
 	set( PLAT_WIN32_SOURCES
+		gl/hqnx_asm/hq2x_asm.cpp
+		gl/hqnx_asm/hq3x_asm.cpp
+		gl/hqnx_asm/hq4x_asm.cpp
+		gl/hqnx_asm/hqnx_asm_Image.cpp
 		win32/eaxedit.cpp
 		win32/fb_d3d9.cpp
 		win32/fb_d3d9_wipe.cpp
@@ -820,6 +824,8 @@ file( GLOB HEADER_FILES
 	textures/*.h
 	thingdef/*.h
 	xlat/*.h
+	gl/hqnx/*.h
+	gl/hqnx_asm/*.h
 	gl/xbr/*.h
 	*.h
 )
