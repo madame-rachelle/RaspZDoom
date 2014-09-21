@@ -60,6 +60,7 @@ EXTERN_CVAR (Bool, r_drawplayersprites)
 EXTERN_CVAR(Float, transsouls)
 EXTERN_CVAR (Bool, st_scale)
 EXTERN_CVAR(Int, gl_fuzztype)
+EXTERN_CVAR (Bool, r_deathcamera)
 
 
 //==========================================================================
@@ -188,7 +189,8 @@ void FGLRenderer::DrawPlayerSprites(sector_t * viewsector, bool hudModelStep)
 	if (!player ||
 		!r_drawplayersprites ||
 		!camera->player ||
-		(players[consoleplayer].cheats & CF_CHASECAM))
+		(player->cheats & CF_CHASECAM) || 
+		(r_deathcamera && camera->health <= 0))
 		return;
 
 	/*
