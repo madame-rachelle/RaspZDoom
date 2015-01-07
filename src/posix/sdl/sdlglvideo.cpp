@@ -1,8 +1,6 @@
 
 // HEADER FILES ------------------------------------------------------------
 
-#include <iostream>
-
 #include "doomtype.h"
 
 #include "templates.h"
@@ -49,6 +47,7 @@ extern IVideo *Video;
 // extern int vid_renderer;
 
 EXTERN_CVAR (Float, Gamma)
+EXTERN_CVAR (Int, vid_adapter)
 EXTERN_CVAR (Int, vid_displaybits)
 EXTERN_CVAR (Int, vid_renderer)
 
@@ -160,14 +159,19 @@ bool SDLGLVideo::NextMode (int *width, int *height, bool *letterbox)
 	}
 	else
 	{
-		SDL_Rect **modes = SDL_ListModes (NULL, SDL_FULLSCREEN|SDL_HWSURFACE);
-		if (modes != NULL && modes[IteratorMode] != NULL)
+		SDL_DisplayMode mode = {}, oldmode = {};
+		if(IteratorMode != 0)
+			SDL_GetDisplayMode(vid_adapter, IteratorMode-1, &oldmode);
+		do
 		{
-			*width = modes[IteratorMode]->w;
-			*height = modes[IteratorMode]->h;
+			if (SDL_GetDisplayMode(vid_adapter, IteratorMode, &mode) != 0)
+				return false;
 			++IteratorMode;
-			return true;
-		}
+		} while(mode.w == oldmode.w && mode.h == oldmode.h);
+
+		*width = mode.w;
+		*height = mode.h;
+		return true;
 	}
 	return false;
 }
@@ -186,11 +190,11 @@ DFrameBuffer *SDLGLVideo::CreateFrameBuffer (int width, int height, bool fullscr
 		if (fb->Width == width &&
 			fb->Height == height)
 		{
-			bool fsnow = (fb->Screen->flags & SDL_FULLSCREEN) != 0;
+			bool fsnow = (SDL_GetWindowFlags (fb->Screen) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
 	
 			if (fsnow != fullscreen)
 			{
-				SDL_WM_ToggleFullScreen (fb->Screen);
+				SDL_SetWindowFullscreen (fb->Screen, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 			}
 			return old;
 		}
@@ -363,38 +367,37 @@ SDLGLFB::SDLGLFB (void *, int width, int height, int, int, bool fullscreen)
 		return;
 	}
 
-	// Mac OS X version will crash when entering fullscreen mode with BPP <= 8
-	// Also it may crash with BPP == 16 on some configurations
-	// It seems 24 and 32 bits are safe values
-	// So value of vid_displaybits is ignored and hardcoded constant is used instead
-		
-	Screen = SDL_SetVideoMode (width, height,
-#if defined(__APPLE__)
-		32,
-#else // ! __APPLE__
-		vid_displaybits,
-#endif // __APPLE__
-		SDL_HWSURFACE|SDL_HWPALETTE|SDL_OPENGL | SDL_GL_DOUBLEBUFFER|SDL_ANYFORMAT|
-		(fullscreen ? SDL_FULLSCREEN : 0));
+	FString caption;
+	caption.Format(GAMESIG " %s (%s)", GetVersionString(), GetGitTime());
+	Screen = SDL_CreateWindow (caption,
+		SDL_WINDOWPOS_UNDEFINED_DISPLAY(vid_adapter), SDL_WINDOWPOS_UNDEFINED_DISPLAY(vid_adapter),
+		width, height, (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0)|SDL_WINDOW_OPENGL);
 
 	if (Screen == NULL)
 		return;
 
-	m_supportsGamma = -1 != SDL_GetGammaRamp(m_origGamma[0], m_origGamma[1], m_origGamma[2]);
-	
-#if defined(__APPLE__)
-	// Need to set title here because a window is not created yet when calling the same function from main()
-	char caption[100];
-	mysnprintf(caption, countof(caption), GAMESIG " %s (%s)", GetVersionString(), GetGitTime());
-	SDL_WM_SetCaption(caption, NULL);
-#endif // __APPLE__
+	GLContext = SDL_GL_CreateContext(Screen);
+	if (GLContext == NULL)
+		return;
+
+	m_supportsGamma = -1 != SDL_GetWindowGammaRamp(Screen, m_origGamma[0], m_origGamma[1], m_origGamma[2]);
 }
 
 SDLGLFB::~SDLGLFB ()
 {
-	if (m_supportsGamma) 
+	if (Screen)
 	{
-		SDL_SetGammaRamp(m_origGamma[0], m_origGamma[1], m_origGamma[2]);
+		if (m_supportsGamma)
+		{
+			SDL_SetWindowGammaRamp(Screen, m_origGamma[0], m_origGamma[1], m_origGamma[2]);
+		}
+
+		if (GLContext)
+		{
+			SDL_GL_DeleteContext(GLContext);
+		}
+
+		SDL_DestroyWindow(Screen);
 	}
 }
 
@@ -428,7 +431,7 @@ bool SDLGLFB::CanUpdate ()
 
 void SDLGLFB::SetGammaTable(WORD *tbl)
 {
-	SDL_SetGammaRamp(&tbl[0], &tbl[256], &tbl[512]);
+	SDL_SetWindowGammaRamp(Screen, &tbl[0], &tbl[256], &tbl[512]);
 }
 
 bool SDLGLFB::Lock(bool buffered)
@@ -462,7 +465,7 @@ bool SDLGLFB::IsLocked ()
 
 bool SDLGLFB::IsFullscreen ()
 {
-	return (Screen->flags & SDL_FULLSCREEN) != 0;
+	return (SDL_GetWindowFlags (Screen) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
 }
 
 
@@ -485,6 +488,6 @@ void SDLGLFB::NewRefreshRate ()
 
 void SDLGLFB::SwapBuffers()
 {
-	SDL_GL_SwapBuffers ();
+	SDL_GL_SwapWindow (Screen);
 }
 
