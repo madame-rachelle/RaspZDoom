@@ -705,6 +705,7 @@ set( PLAT_SDL_SOURCES
 	posix/sdl/i_system.cpp
 	posix/sdl/i_timer.cpp
 	posix/sdl/sdlvideo.cpp
+	posix/sdl/sdlglvideo.cpp
 	posix/sdl/st_start.cpp )
 set( PLAT_OSX_SOURCES
 	posix/osx/iwadpicker_cocoa.mm
