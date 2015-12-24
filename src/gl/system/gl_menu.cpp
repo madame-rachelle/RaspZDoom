@@ -119,4 +119,19 @@ void gl_SetupMenu()
 			}
 		}
 	}
+
+#ifndef _MSC_VER
+	FOptionValues **opt = OptionValues.CheckKey("HqResizeModes");
+	if (opt != NULL) 
+	{
+		for(int i = (*opt)->mValues.Size()-1; i>=0; i--)
+		{
+			// Delete HQnX resize modes for non MSVC targets
+			if (((*opt)->mValues[i].Value >= 7.0) && ((*opt)->mValues[i].Value <= 9.0))
+			{
+				(*opt)->mValues.Delete(i);
+			}
+		}
+	}
+#endif
 }
