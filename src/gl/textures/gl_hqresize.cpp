@@ -39,7 +39,7 @@
 #include "gl/textures/gl_texture.h"
 #include "c_cvars.h"
 #include "gl/hqnx/hqx.h"
-#ifdef _MSC_VER
+#ifdef HAVE_MMX
 #include "gl/hqnx_asm/hqnx_asm.h"
 #endif
 #include "gl/xbr/xbrz.h"
@@ -47,8 +47,16 @@
 
 CUSTOM_CVAR(Int, gl_texture_hqresize, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
-	if (self < 0 || self > 12)
+	if (self < 0 || self > 15)
+	{
 		self = 0;
+	}
+	#ifndef HAVE_MMX
+		// This is to allow the menu option to work properly so that these filters can be skipped while cycling through them.
+		if (self == 7) self = 10;
+		if (self == 8) self = 10;
+		if (self == 9) self = 6;
+	#endif
 	GLRenderer->FlushTextures();
 }
 
@@ -183,8 +191,7 @@ static unsigned char *scaleNxHelper( void (*scaleNxFunction) ( uint32* , uint32*
 	return newBuffer;
 }
 
-// [BB] hqnx scaling is only supported with the MS compiler.
-#ifdef _MSC_VER
+#ifdef HAVE_MMX
 static unsigned char *hqNxAsmHelper( void (*hqNxFunction) ( int*, unsigned char*, int, int, int ),
 							  const int N,
 							  unsigned char *inputBuffer,
@@ -321,7 +328,7 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FTexture *inputTexture, u
 		outWidth = inWidth;
 		outHeight = inHeight;
 		int type = gl_texture_hqresize;
-#ifdef _MSC_VER
+#ifdef HAVE_MMX
 		// ASM-hqNx does not preserve the alpha channel so fall back to C-version for such textures
 		if (!hasAlpha && type > 3 && type <= 6)
 		{
@@ -343,7 +350,7 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FTexture *inputTexture, u
 			return hqNxHelper( &hq3x_32, 3, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		case 6:
 			return hqNxHelper( &hq4x_32, 4, inputBuffer, inWidth, inHeight, outWidth, outHeight );
-#ifdef _MSC_VER
+#ifdef HAVE_MMX
 		case 7:
 			return hqNxAsmHelper( &HQnX_asm::hq2x_32, 2, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		case 8:

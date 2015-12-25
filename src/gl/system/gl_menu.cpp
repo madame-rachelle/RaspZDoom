@@ -120,7 +120,7 @@ void gl_SetupMenu()
 		}
 	}
 
-#ifndef _MSC_VER
+#ifndef HAVE_MMX
 	FOptionValues **opt = OptionValues.CheckKey("HqResizeModes");
 	if (opt != NULL) 
 	{
