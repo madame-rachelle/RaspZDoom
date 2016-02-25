@@ -728,7 +728,7 @@ void GLFlat::ProcessSector(sector_t * frontsector)
 				if (rover->flags&FF_FOG && gl_fixedcolormap) continue;
 				if (rover->flags&(FF_INVERTPLANES|FF_BOTHPLANES))
 				{
-					fixed_t ff_top=rover->top.plane->ZatPoint(CenterSpot(sector));
+					fixed_t ff_top=rover->top.plane->ZatPoint(sector->centerspot);
 					if (ff_top<lastceilingheight)
 					{
 						if (FIXED2FLOAT(viewz) <= rover->top.plane->ZatPoint(FIXED2FLOAT(viewx), FIXED2FLOAT(viewy)))
@@ -742,7 +742,7 @@ void GLFlat::ProcessSector(sector_t * frontsector)
 				}
 				if (!(rover->flags&FF_INVERTPLANES))
 				{
-					fixed_t ff_bottom=rover->bottom.plane->ZatPoint(CenterSpot(sector));
+					fixed_t ff_bottom=rover->bottom.plane->ZatPoint(sector->centerspot);
 					if (ff_bottom<lastceilingheight)
 					{
 						if (FIXED2FLOAT(viewz)<=rover->bottom.plane->ZatPoint(FIXED2FLOAT(viewx), FIXED2FLOAT(viewy)))
@@ -768,7 +768,7 @@ void GLFlat::ProcessSector(sector_t * frontsector)
 				if (rover->flags&FF_FOG && gl_fixedcolormap) continue;
 				if (rover->flags&(FF_INVERTPLANES|FF_BOTHPLANES))
 				{
-					fixed_t ff_bottom=rover->bottom.plane->ZatPoint(CenterSpot(sector));
+					fixed_t ff_bottom=rover->bottom.plane->ZatPoint(sector->centerspot);
 					if (ff_bottom>lastfloorheight || (rover->flags&FF_FIX))
 					{
 						if (FIXED2FLOAT(viewz) >= rover->bottom.plane->ZatPoint(FIXED2FLOAT(viewx), FIXED2FLOAT(viewy)))
@@ -789,7 +789,7 @@ void GLFlat::ProcessSector(sector_t * frontsector)
 				}
 				if (!(rover->flags&FF_INVERTPLANES))
 				{
-					fixed_t ff_top=rover->top.plane->ZatPoint(CenterSpot(sector));
+					fixed_t ff_top=rover->top.plane->ZatPoint(sector->centerspot);
 					if (ff_top>lastfloorheight)
 					{
 						if (FIXED2FLOAT(viewz) >= rover->top.plane->ZatPoint(FIXED2FLOAT(viewx), FIXED2FLOAT(viewy)))
