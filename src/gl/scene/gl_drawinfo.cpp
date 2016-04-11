@@ -579,7 +579,7 @@ inline int GLDrawList::CompareSprites(SortNode * a,SortNode * b)
 //
 //==========================================================================
 static GLDrawList * gd;
-int __cdecl CompareSprite(const void * a,const void * b)
+int CompareSprite(const void * a,const void * b)
 {
 	return gd->CompareSprites(*(SortNode**)a,*(SortNode**)b);
 }
@@ -790,7 +790,7 @@ void GLDrawList::Draw(int pass)
 //==========================================================================
 static GLDrawList * sortinfo;
 
-static int __cdecl dicmp (const void *a, const void *b)
+static int dicmp (const void *a, const void *b)
 {
 	const GLDrawItem * di[2];
 	FMaterial * tx[2];
