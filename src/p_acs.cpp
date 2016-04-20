@@ -9403,7 +9403,7 @@ scriptwait:
 				{
 					if (activator->player)
 					{
-						if (P_UndoPlayerMorph(activator->player, activator->player, force))
+						if (P_UndoPlayerMorph(activator->player, activator->player, 0, force))
 						{
 							changes++;
 						}
@@ -9429,7 +9429,7 @@ scriptwait:
 					{
 						if (actor->player)
 						{
-							if (P_UndoPlayerMorph(activator->player, actor->player, force))
+							if (P_UndoPlayerMorph(activator->player, actor->player, 0, force))
 							{
 								changes++;
 							}
