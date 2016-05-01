@@ -48,7 +48,6 @@ public:
 	void GetFlash(PalEntry &rgb, int &amount);
 	int GetPageCount();
 	bool Begin2D(bool copy3d);
-	void GetHitlist(BYTE *hitlist);
 	void GameRestart();
 
 	// Retrieves a buffer containing image data for a screenshot.
