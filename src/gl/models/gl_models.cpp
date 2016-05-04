@@ -314,6 +314,7 @@ void gl_InitModels()
 		{
 			if (sc.Compare("model"))
 			{
+				path = "";
 				sc.MustGetString();
 				memset(&smf, 0, sizeof(smf));
 				smf.xscale=smf.yscale=smf.zscale=1.f;
