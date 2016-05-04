@@ -321,7 +321,6 @@ void gl_InitModels()
 				{
 					sc.ScriptError("MODELDEF: Unknown actor type '%s'\n", sc.String);
 				}
-				GetDefaultByType(smf.type)->hasmodel=true;
 				sc.MustGetStringName("{");
 				while (!sc.CheckString("}"))
 				{
@@ -534,6 +533,7 @@ void gl_InitModels()
 							if (map[c]) continue;
 							smf.frame=c;
 							SpriteModelFrames.Push(smf);
+							GetDefaultByType(smf.type)->hasmodel = true;
 							map[c]=1;
 						}
 					}
