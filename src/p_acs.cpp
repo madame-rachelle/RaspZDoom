@@ -1353,9 +1353,13 @@ static int CheckInventory (AActor *activator, const char *type, bool max)
 	if (max)
 	{
 		if (item)
+		{
 			return item->MaxAmount;
-		else
-			return ((AInventory *)GetDefaultByType (info))->MaxAmount;
+		}
+		else if (info != NULL && info->IsDescendantOf(RUNTIME_CLASS(AInventory)))
+		{
+			return ((AInventory *)GetDefaultByType(info))->MaxAmount;
+		}
 	}
 	return item ? item->Amount : 0;
 }
