@@ -4019,6 +4019,7 @@ void DLevelScript::DoSetActorProperty (AActor *actor, int property, int value)
 
 	case APROP_Friction:
 		actor->Friction = value;
+		break;
 
 	default:
 		// do nothing.
