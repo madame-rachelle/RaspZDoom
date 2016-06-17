@@ -838,10 +838,10 @@ void gl_RenderModel(GLSprite * spr, int cm)
 //
 //===========================================================================
 
-void gl_RenderHUDModel(pspdef_t *psp, float ofsX, float ofsY, int cm)
+void gl_RenderHUDModel(DPSprite *psp, float ofsX, float ofsY, int cm)
 {
 	AActor * playermo=players[consoleplayer].camera;
-	FSpriteModelFrame *smf = gl_FindModelFrame(playermo->player->ReadyWeapon->GetClass(), psp->state->sprite, psp->state->GetFrame(), false);
+	FSpriteModelFrame *smf = gl_FindModelFrame(playermo->player->ReadyWeapon->GetClass(), psp->GetState()->sprite, psp->GetState()->GetFrame(), false);
 
 	// [BB] No model found for this sprite, so we can't render anything.
 	if ( smf == NULL )
@@ -881,7 +881,7 @@ void gl_RenderHUDModel(pspdef_t *psp, float ofsX, float ofsY, int cm)
 	glRotatef(smf->pitchoffset, 0, 0, 1);
 	glRotatef(-smf->rolloffset, 1, 0, 0);
 
-	gl_RenderFrameModels( smf, psp->state, psp->tics, playermo->player->ReadyWeapon->GetClass(), cm, NULL, 0 );
+	gl_RenderFrameModels( smf, psp->GetState(), psp->GetTics(), playermo->player->ReadyWeapon->GetClass(), cm, NULL, 0 );
 
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
@@ -898,10 +898,11 @@ void gl_RenderHUDModel(pspdef_t *psp, float ofsX, float ofsY, int cm)
 
 bool gl_IsHUDModelForPlayerAvailable (player_t * player)
 {
-	if ( (player == NULL) || (player->ReadyWeapon == NULL) || (player->psprites[0].state == NULL) )
+	DPSprite *psp = player->FindPSprite(PSP_WEAPON);
+	if ( (player == NULL) || (player->ReadyWeapon == NULL) || (psp->GetState() == NULL) )
 		return false;
 
-	FState* state = player->psprites[0].state;
+	FState* state = psp->GetState();
 	FSpriteModelFrame *smf = gl_FindModelFrame(player->ReadyWeapon->GetClass(), state->sprite, state->GetFrame(), false);
 	return ( smf != NULL );
 }

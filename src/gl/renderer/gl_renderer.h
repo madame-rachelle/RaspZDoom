@@ -11,9 +11,9 @@ class FCanvasTexture;
 class FFlatVertexBuffer;
 class OpenGLFrameBuffer;
 struct FDrawInfo;
-struct pspdef_t;
 class FShaderManager;
 class GLPortal;
+class DPSprite;
 
 inline float DEG2RAD(float deg)
 {
@@ -99,7 +99,7 @@ public:
 	void DrawScene(bool toscreen = false);
 	void DrawBlend(sector_t * viewsector);
 
-	void DrawPSprite (player_t * player,pspdef_t *psp,float sx, float sy, int cm_index, bool hudModelStep, int OverrideShader);
+	void DrawPSprite (player_t * player, DPSprite *psp, float sx, float sy, int cm_index, bool hudModelStep, int OverrideShader);
 	void DrawPlayerSprites(sector_t * viewsector, bool hudModelStep);
 	void DrawTargeterSprites();
 
