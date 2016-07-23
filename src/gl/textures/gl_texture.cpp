@@ -69,7 +69,7 @@ CCMD(gl_flush)
 
 CUSTOM_CVAR(Int, gl_texture_filter, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG|CVAR_NOINITCALL)
 {
-	if (self < 0 || self > 5) self=4;
+	if (self < 0 || self > 6) self=4;
 	if (GLRenderer != NULL) GLRenderer->FlushTextures();
 }
 
@@ -104,6 +104,7 @@ TexFilter_s TexFilter[]={
 	{GL_LINEAR_MIPMAP_NEAREST,		GL_LINEAR,		true},
 	{GL_LINEAR_MIPMAP_LINEAR,		GL_LINEAR,		true},
 	{GL_NEAREST_MIPMAP_LINEAR,		GL_NEAREST,		true},
+	{GL_LINEAR_MIPMAP_LINEAR,		GL_NEAREST,		true},
 };
 
 int TexFormat[]={
