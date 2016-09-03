@@ -820,6 +820,7 @@ file( GLOB HEADER_FILES
 	textures/*.h
 	thingdef/*.h
 	xlat/*.h
+	gl/xbr/*.h
 	*.h
 )
 
@@ -926,6 +927,8 @@ add_executable( zdoom WIN32 MACOSX_BUNDLE
 	${SYSTEM_SOURCES}
 	${X86_SOURCES}
 	x86.cpp
+	gl/xbr/xbrz.cpp
+	gl/xbr/xbrz_old.cpp
 	actorptrselect.cpp
 	am_map.cpp
 	b_bot.cpp
