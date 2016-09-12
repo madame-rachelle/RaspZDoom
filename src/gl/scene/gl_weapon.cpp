@@ -79,8 +79,6 @@ void FGLRenderer::DrawPSprite (player_t * player, DPSprite *psp, float sx, float
 	float			scale;
 	float			scalex;
 	float			ftexturemid;
-	                      // 4:3  16:9   16:10  17:10    5:4  17:10    21:9
-	static float xratio[] = {1.f, 3.f/4, 5.f/6, 40.f/51, 1.f, 40.f/51, 4.f/7};
 	
 	// [BB] In the HUD model step we just render the model and break out. 
 	if ( hudModelStep )
@@ -103,7 +101,7 @@ void FGLRenderer::DrawPSprite (player_t * player, DPSprite *psp, float sx, float
 	float vh = (float)viewheight;
 
 	// calculate edges of the shape
-	scalex = xratio[WidescreenRatio] * vw / 320;
+	scalex = (320.0f / (240.0f * WidescreenRatio)) * vw / 320;
 
 	tx = sx - (160 + tex->GetScaledLeftOffset(GLUSE_PATCH));
 	x1 = tx * scalex + vw/2;
