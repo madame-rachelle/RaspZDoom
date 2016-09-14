@@ -72,8 +72,8 @@ struct FakeCmap
 };
 
 TArray<FakeCmap> fakecmaps;
-FColormap realcolormaps;
-FColormap realfbcolormaps; //[SP] For fullbright use
+FSWColormap realcolormaps;
+FSWColormap realfbcolormaps; //[SP] For fullbright use
 size_t numfakecmaps;
 
 

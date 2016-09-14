@@ -121,7 +121,7 @@ double			FocalLengthX;
 double			FocalLengthY;
 FDynamicColormap*basecolormap;		// [RH] colormap currently drawing with
 int				fixedlightlev;
-FColormap		*fixedcolormap;
+FSWColormap		*fixedcolormap;
 FSpecialColormap *realfixedcolormap;
 double			WallTMapScale2;
 
