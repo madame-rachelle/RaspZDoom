@@ -933,10 +933,18 @@ static bool IsActorACountItem(AActor *mo)
 	return mo->IsKindOf(RUNTIME_CLASS(AInventory)) && mo->flags&MF_SPECIAL && mo->flags&MF_COUNTITEM;
 }
 
-static void PrintFilteredActorList(const ActorTypeChecker IsActorType, const char *FilterName)
+// [SP] for all actors
+static bool IsActor(AActor *mo)
+{
+	return true;
+}
+
+// [SP] modified - now allows showing count only, new arg must be passed. Also now still counts regardless, if lists are printed.
+static void PrintFilteredActorList(const ActorTypeChecker IsActorType, const char *FilterName, bool countOnly)
 {
 	AActor *mo;
 	const PClass *FilterClass = NULL;
+	int counter = 0;
 
 	if (FilterName != NULL)
 	{
@@ -953,11 +961,35 @@ static void PrintFilteredActorList(const ActorTypeChecker IsActorType, const cha
 	{
 		if ((FilterClass == NULL || mo->IsA(FilterClass)) && IsActorType(mo))
 		{
-			Printf ("%s at (%d,%d,%d)\n",
-				mo->GetClass()->TypeName.GetChars(),
-				mo->X() >> FRACBITS, mo->Y() >> FRACBITS, mo->Z() >> FRACBITS);
+			counter++;
+			if (!countOnly)
+			{
+				Printf ("%s at (%d,%d,%d)\n",
+					mo->GetClass()->TypeName.GetChars(),
+					mo->X() >> FRACBITS, mo->Y() >> FRACBITS, mo->Z() >> FRACBITS);
+			}
 		}
 	}
+	Printf("%i match(s) found.\n", counter);
+}
+
+//-----------------------------------------------------------------------------
+//
+//
+//
+//-----------------------------------------------------------------------------
+CCMD(actorlist) // [SP] print all actors (this can get quite big?)
+{
+	if (CheckCheatmode ()) return;
+
+	PrintFilteredActorList(IsActor, argv.argc() > 1 ? argv[1] : NULL, false);
+}
+
+CCMD(actornum) // [SP] count all actors
+{
+	if (CheckCheatmode ()) return;
+
+	PrintFilteredActorList(IsActor, argv.argc() > 1 ? argv[1] : NULL, true);
 }
 
 //-----------------------------------------------------------------------------
@@ -969,7 +1001,14 @@ CCMD(monster)
 {
 	if (CheckCheatmode ()) return;
 
-	PrintFilteredActorList(IsActorAMonster, argv.argc() > 1 ? argv[1] : NULL);
+	PrintFilteredActorList(IsActorAMonster, argv.argc() > 1 ? argv[1] : NULL, false);
+}
+
+CCMD(monsternum) // [SP] count monsters
+{
+	if (CheckCheatmode ()) return;
+
+	PrintFilteredActorList(IsActorAMonster, argv.argc() > 1 ? argv[1] : NULL, true);
 }
 
 //-----------------------------------------------------------------------------
@@ -981,7 +1020,14 @@ CCMD(items)
 {
 	if (CheckCheatmode ()) return;
 
-	PrintFilteredActorList(IsActorAnItem, argv.argc() > 1 ? argv[1] : NULL);
+	PrintFilteredActorList(IsActorAnItem, argv.argc() > 1 ? argv[1] : NULL, false);
+}
+
+CCMD(itemsnum) // [SP] # of any items
+{
+	if (CheckCheatmode ()) return;
+
+	PrintFilteredActorList(IsActorAnItem, argv.argc() > 1 ? argv[1] : NULL, true);
 }
 
 //-----------------------------------------------------------------------------
@@ -993,7 +1039,14 @@ CCMD(countitems)
 {
 	if (CheckCheatmode ()) return;
 
-	PrintFilteredActorList(IsActorACountItem, argv.argc() > 1 ? argv[1] : NULL);
+	PrintFilteredActorList(IsActorACountItem, argv.argc() > 1 ? argv[1] : NULL, false);
+}
+
+CCMD(countitemsnum) // [SP] # of counted items
+{
+	if (CheckCheatmode ()) return;
+
+	PrintFilteredActorList(IsActorACountItem, argv.argc() > 1 ? argv[1] : NULL, true);
 }
 
 //-----------------------------------------------------------------------------
