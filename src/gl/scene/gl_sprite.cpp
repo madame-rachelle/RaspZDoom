@@ -586,7 +586,7 @@ void GLSprite::Process(AActor* thing, sector_t * sector, bool thruportal)
 	if (thing == GLRenderer->mViewActor || (thing == players[consoleplayer].camera && !r_showviewer)) return;
 
 	// Don't waste time projecting sprites that are definitely not visible.
-	if (thing == NULL || thing->sprite == 0 || !thing->IsVisibleToPlayer())
+	if (thing == NULL || thing->sprite == 0 || !thing->IsVisibleToPlayer() || !thing->IsInsideVisibleAngles())
 	{
 		return;
 	}
