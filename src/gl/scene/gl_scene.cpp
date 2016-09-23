@@ -56,6 +56,7 @@
 #include "a_hexenglobal.h"
 #include "p_local.h"
 #include "gl/gl_functions.h"
+#include "serializer.h"
 
 #include "gl/system/gl_interface.h"
 #include "gl/system/gl_framebuffer.h"
@@ -1014,7 +1015,7 @@ void FGLRenderer::RenderView (player_t* player)
 //
 //===========================================================================
 
-void FGLRenderer::WriteSavePic (player_t *player, FILE *file, int width, int height)
+void FGLRenderer::WriteSavePic (player_t *player, FileWriter *file, int width, int height)
 {
 	GL_IRECT bounds;
 
@@ -1054,10 +1055,10 @@ struct FGLInterface : public FRenderer
 	bool UsesColormap() const;
 	void PrecacheTexture(FTexture *tex, int cache);
 	void RenderView(player_t *player);
-	void WriteSavePic (player_t *player, FILE *file, int width, int height);
+	void WriteSavePic (player_t *player, FileWriter *file, int width, int height);
 	void StateChanged(AActor *actor);
-	void StartSerialize(FArchive &arc);
-	void EndSerialize(FArchive &arc);
+	void StartSerialize(FSerializer &arc);
+	void EndSerialize(FSerializer &arc);
 	void RenderTextureView (FCanvasTexture *self, AActor *viewpoint, int fov);
 	sector_t *FakeFlat(sector_t *sec, sector_t *tempsec, int *floorlightlevel, int *ceilinglightlevel, bool back);
 	void SetFogParams(int _fogdensity, PalEntry _outsidefogcolor, int _outsidefogdensity, int _skyfog);
@@ -1120,20 +1121,22 @@ void FGLInterface::StateChanged(AActor *actor)
 //
 //===========================================================================
 
-void FGLInterface::StartSerialize(FArchive &arc)
+void FGLInterface::StartSerialize(FSerializer &arc)
 {
 	gl_DeleteAllAttachedLights();
+	if (arc.BeginObject("glinfo"))
+	{
+		arc("fogdensity", fogdensity)
+			("outsidefogdensity", outsidefogdensity)
+			("skyfog", skyfog)
+			.EndObject();
+	}
 }
 
-void gl_SerializeGlobals(FArchive &arc)
-{
-	arc << fogdensity << outsidefogdensity << skyfog;
-}
-
-void FGLInterface::EndSerialize(FArchive &arc)
+void FGLInterface::EndSerialize(FSerializer &arc)
 {
 	gl_RecreateAllAttachedLights();
-	if (arc.IsLoading()) gl_InitPortals();
+	if (arc.isReading()) gl_InitPortals();
 }
 
 //===========================================================================
@@ -1168,7 +1171,7 @@ void FGLInterface::ClearBuffer(int color)
 //
 //===========================================================================
 
-void FGLInterface::WriteSavePic (player_t *player, FILE *file, int width, int height)
+void FGLInterface::WriteSavePic (player_t *player, FileWriter *file, int width, int height)
 {
 	GLRenderer->WriteSavePic(player, file, width, height);
 }

@@ -121,7 +121,7 @@ public:
 	void SetupLevel();
 
 	void SetFixedColormap (player_t *player);
-	void WriteSavePic (player_t *player, FILE *file, int width, int height);
+	void WriteSavePic (player_t *player, FileWriter *file, int width, int height);
 	void EndDrawScene(sector_t * viewsector);
 	void Flush() {}
 
