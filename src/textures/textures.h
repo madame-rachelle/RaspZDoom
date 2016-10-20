@@ -329,8 +329,6 @@ public:
 		FTexture *Brightmap;
 		FTexture *DecalTexture;					// This is needed for decals of UseType TEX_MiscPatch-
 		PalEntry GlowColor;
-		PalEntry FloorSkyColor;
-		PalEntry CeilingSkyColor;
 		int GlowHeight;
 		FloatRect *areas;
 		int areacount;
@@ -341,7 +339,6 @@ public:
 		bool bGlowing:1;						// Texture glows
 		bool bFullbright:1;						// always draw fullbright
 		bool bSkybox:1;							// This is a skybox
-		bool bSkyColorDone:1;					// Fill color for sky
 		char bBrightmapChecked:1;				// Set to 1 if brightmap has been checked
 		bool bDisableFullbright:1;				// This texture will not be displayed as fullbright sprite
 		bool bNoFilter:1;
@@ -356,7 +353,6 @@ public:
 	virtual void PrecacheGL();
 	virtual void UncacheGL();
 	void GetGlowColor(float *data);
-	//PalEntry GetSkyCapColor(bool bottom);
 	bool isGlowing() { return gl_info.bGlowing; }
 	bool isFullbright() { return gl_info.bFullbright; }
 	void CreateDefaultBrightmap();
