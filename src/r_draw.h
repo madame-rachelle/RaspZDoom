@@ -246,6 +246,8 @@ extern "C" void	R_DrawFuzzColumnP_ASM (void);
 extern "C" void	R_DrawSpanP_ASM (void);
 extern "C" void R_DrawSpanMaskedP_ASM (void);
 
+void	R_DrawColumnHorizP_C(void);
+
 #else
 
 void	R_DrawColumnHorizP_C (void);
