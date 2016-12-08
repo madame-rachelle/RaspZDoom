@@ -589,6 +589,7 @@ enum
 	WOF_KEEPX =		1,
 	WOF_KEEPY =		1 << 1,
 	WOF_ADD =		1 << 2,
+	WOF_INTERPOLATE = 1 << 3,
 };
 
 // Flags for psprite layers
