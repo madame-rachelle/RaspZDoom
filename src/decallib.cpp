@@ -1230,6 +1230,7 @@ DThinker *FDecalStretcherAnim::CreateThinker (DBaseDecal *actor, side_t *wall) c
 	}
 	else
 	{
+		thinker->GoalX = 0;
 		thinker->bStretchX = false;
 	}
 	if (GoalY >= 0)
@@ -1239,6 +1240,7 @@ DThinker *FDecalStretcherAnim::CreateThinker (DBaseDecal *actor, side_t *wall) c
 	}
 	else
 	{
+		thinker->GoalY = 0;
 		thinker->bStretchY = false;
 	}
 	thinker->bStarted = false;
