@@ -86,6 +86,7 @@ enum
 	CP_SETTAG,
 	CP_SETTHINGFLAGS,
 	CP_SETVERTEX,
+	CP_SETTHINGSKILLS,
 };
 
 // EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
@@ -357,6 +358,15 @@ void ParseCompatibility()
 				CompatParams.Push(int(sc.Float * 256));	// do not use full fixed here so that it can eventually handle larger levels
 				flags.CompatFlags[SLOT_BCOMPAT] |= BCOMPATF_REBUILDNODES;
 			}
+			else if (sc.Compare("setthingskills"))
+			{
+				if (flags.ExtCommandIndex == ~0u) flags.ExtCommandIndex = CompatParams.Size();
+				CompatParams.Push(CP_SETTHINGSKILLS);
+				sc.MustGetNumber();
+				CompatParams.Push(sc.Number);
+				sc.MustGetNumber();
+				CompatParams.Push(sc.Number);
+			}
 			else
 			{
 				sc.UnGet();
@@ -619,6 +629,15 @@ void SetCompatibilityParams()
 						vertexes[CompatParams[i + 1]].p.Y = CompatParams[i + 3] / 256.;
 					}
 					i += 4;
+					break;
+				}
+				case CP_SETTHINGSKILLS:
+				{
+					if ((unsigned)CompatParams[i + 1] < MapThingsConverted.Size())
+					{
+						MapThingsConverted[CompatParams[i + 1]].SkillFilter = CompatParams[i + 2];
+					}
+					i += 3;
 					break;
 				}
 			}
