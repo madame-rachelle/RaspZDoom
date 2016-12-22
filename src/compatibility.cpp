@@ -79,7 +79,7 @@ enum
 	CP_SETSPECIAL,
 	CP_CLEARSPECIAL,
 	CP_SETACTIVATION,
-	CP_SECTORFLOOROFFSET,
+	CP_SETSECTOROFFSET,
 	CP_SETSECTORSPECIAL,
 	CP_SETWALLYSCALE,
 	CP_SETWALLTEXTURE,
@@ -165,6 +165,11 @@ static const char *const LineSides[] =
 static const char *const WallTiers[] =
 {
 	"Top", "Mid", "Bot", NULL
+};
+
+static const char *const SectorPlanes[] =
+{
+	"floor", "ceil", NULL
 };
 
 static TArray<int> CompatParams;
@@ -290,12 +295,14 @@ void ParseCompatibility()
 				sc.MustGetNumber();
 				CompatParams.Push(sc.Number);
 			}
-			else if (sc.Compare("sectorflooroffset"))
+			else if (sc.Compare("setsectoroffset"))
 			{
 				if (flags.ExtCommandIndex == ~0u) flags.ExtCommandIndex = CompatParams.Size();
-				CompatParams.Push(CP_SECTORFLOOROFFSET);
+				CompatParams.Push(CP_SETSECTOROFFSET);
 				sc.MustGetNumber();
 				CompatParams.Push(sc.Number);
+				sc.MustGetString();
+				CompatParams.Push(sc.MustMatchString(SectorPlanes));
 				sc.MustGetFloat();
 				CompatParams.Push(int(sc.Float*65536.));
 			}
@@ -573,15 +580,19 @@ void SetCompatibilityParams()
 					i += 3;
 					break;
 				}
-				case CP_SECTORFLOOROFFSET:
+				case CP_SETSECTOROFFSET:
 				{
 					if (CompatParams[i+1] < numsectors)
 					{
 						sector_t *sec = &sectors[CompatParams[i+1]];
-						sec->floorplane.ChangeHeight(CompatParams[i+2]);
-						sec->ChangePlaneTexZ(sector_t::floor, CompatParams[i+2] / 65536.);
+						const double delta = CompatParams[i + 3] / 65536.0;
+						secplane_t& plane = sector_t::floor == CompatParams[i + 2] 
+							? sec->floorplane 
+							: sec->ceilingplane;
+						plane.ChangeHeight(delta);
+						sec->ChangePlaneTexZ(CompatParams[i + 2], delta);
 					}
-					i += 3;
+					i += 4;
 					break;
 				}
 				case CP_SETSECTORSPECIAL:
