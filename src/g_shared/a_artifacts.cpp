@@ -1933,7 +1933,7 @@ void APowerMorph::InitEffect( )
 		PClassActor *morph_flash = PClass::FindActor(MorphFlash);
 		PClassActor *unmorph_flash = PClass::FindActor(UnMorphFlash);
 		PClassPlayerPawn *player_class = dyn_cast<PClassPlayerPawn>(PClass::FindClass (PlayerClass));
-		if (P_MorphPlayer(realplayer, realplayer, player_class, -1/*INDEFINITELY*/, MorphStyle, morph_flash, unmorph_flash))
+		if (P_MorphPlayer(realplayer, realplayer, player_class, INT_MAX/*INDEFINITELY*/, MorphStyle, morph_flash, unmorph_flash))
 		{
 			Owner = realplayer->mo;				// Replace the new owner in our owner; safe because we are not attached to anything yet
 			ItemFlags |= IF_CREATECOPYMOVED;	// Let the caller know the "real" owner has changed (to the morphed actor)
