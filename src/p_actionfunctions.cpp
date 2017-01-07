@@ -2651,6 +2651,12 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetInventory)
 		ACTION_RETURN_BOOL(false);
 	}
 
+	// Do not run this function on voodoo dolls because the way they transfer the inventory to the player will not work with the code below.
+	if (mobj->player != nullptr)
+	{
+		mobj = mobj->player->mo;
+	}
+
 	AInventory *item = mobj->FindInventory(itemtype);
 
 	if (item != nullptr)
