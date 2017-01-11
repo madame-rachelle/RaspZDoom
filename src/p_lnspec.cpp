@@ -3600,6 +3600,7 @@ static lnSpecFunc LineSpecials[] =
 	/* 270 */ LS_Stairs_BuildDownDoom,
 	/* 271 */ LS_Stairs_BuildUpDoomSync,
 	/* 272 */ LS_Stairs_BuildDownDoomSync,
+	/* 273 */ LS_Stairs_BuildUpDoomCrush,
 
 };
 
