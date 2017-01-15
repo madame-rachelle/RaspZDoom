@@ -160,6 +160,7 @@ xx(FlameThrower)
 xx(MiniMissileLauncher)
 xx(StrifeGrenadeLauncher)
 xx(Mauler)
+xx(Ammo)
 
 xx(AcolyteBlue)
 xx(SpectralLightningV1)
