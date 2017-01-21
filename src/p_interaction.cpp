@@ -955,7 +955,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 
 	if (target == NULL || !((target->flags & MF_SHOOTABLE) || (target->flags6 & MF6_VULNERABLE)))
 	{ // Shouldn't happen
-		return -1;
+		return 0;
 	}
 
 	//Rather than unnecessarily call the function over and over again, let's be a little more efficient.
@@ -967,14 +967,14 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 	{
 		if (inflictor == NULL || !(inflictor->flags4 & MF4_SPECTRAL))
 		{
-			return -1;
+			return 0;
 		}
 	}
 	if (target->health <= 0)
 	{
 		if (inflictor && mod == NAME_Ice && !(inflictor->flags7 & MF7_ICESHATTER))
 		{
-			return -1;
+			return 0;
 		}
 		else if (target->flags & MF_ICECORPSE) // frozen
 		{
@@ -982,7 +982,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 			target->flags6 |= MF6_SHATTERING;
 			target->Vel.Zero();
 		}
-		return -1;
+		return 0;
 	}
 	// [MC] Changed it to check rawdamage here for consistency, even though that doesn't actually do anything
 	// different here. At any rate, invulnerable is being checked before type factoring, which is then being 
@@ -1003,7 +1003,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 					goto fakepain;
 				}
 				else
-					return -1;
+					return 0;
 			}
 		}
 		else
@@ -1014,7 +1014,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				if (fakedPain)
 					plrDontThrust = 1;
 				else
-					return -1;
+					return 0;
 			}
 		}
 		
@@ -1044,7 +1044,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 		if (target->flags2 & MF2_DORMANT)
 		{
 			// Invulnerable, and won't wake up
-			return -1;
+			return 0;
 		}
 
 		if (!telefragDamage || (target->flags7 & MF7_LAXTELEFRAGDMG)) // TELEFRAG_DAMAGE may only be reduced with LAXTELEFRAGDMG or it may not guarantee its effect.
@@ -1062,19 +1062,19 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 					if (player != NULL)
 					{
 						if (!deathmatch && inflictor->FriendPlayer > 0)
-							return -1;
+							return 0;
 					}
 					else if (target->flags4 & MF4_SPECTRAL)
 					{
 						if (inflictor->FriendPlayer == 0 && !target->IsHostile(inflictor))
-							return -1;
+							return 0;
 					}
 				}
 
 				damage = inflictor->DoSpecialDamage(target, damage, mod);
 				if (damage < 0)
 				{
-					return -1;
+					return 0;
 				}
 			}
 
@@ -1117,7 +1117,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 					{
 						goto fakepain;
 					}
-					return -1;
+					return 0;
 				}
 			}
 		}
@@ -1129,7 +1129,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 	if (damage < 0)
 	{
 		// any negative value means that something in the above chain has cancelled out all damage and all damage effects, including pain.
-		return -1;
+		return 0;
 	}
 	// Push the target unless the source's weapon's kickback is 0.
 	// (i.e. Gauntlets/Chainsaw)
@@ -1220,7 +1220,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 			damage = (int)(damage * level.teamdamage);
 			if (damage < 0)
 			{
-				return damage;
+				return 0;
 			}
 			else if (damage == 0)
 			{
@@ -1232,7 +1232,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				{
 					goto fakepain;
 				}
-				return -1;
+				return 0;
 			}
 		}
 	}
@@ -1265,14 +1265,14 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				//Make sure no godmodes and NOPAIN flags are found first.
 				//Then, check to see if the player has NODAMAGE or ALLOWPAIN, or inflictor has CAUSEPAIN.
 				if ((player->cheats & CF_GODMODE) || (player->cheats & CF_GODMODE2) || (player->mo->flags5 & MF5_NOPAIN))
-					return -1;
+					return 0;
 				else if ((((player->mo->flags7 & MF7_ALLOWPAIN) || (player->mo->flags5 & MF5_NODAMAGE)) || ((inflictor != NULL) && (inflictor->flags7 & MF7_CAUSEPAIN))))
 				{
 					invulpain = true;
 					goto fakepain;
 				}
 				else
-					return -1;
+					return 0;
 			}
 			// Armor for players.
 			if (!(flags & DMG_NO_ARMOR) && player->mo->Inventory != NULL)
@@ -1292,7 +1292,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				{
 					// [MC] Godmode doesn't need checking here, it's already being handled above.
 					if ((target->flags5 & MF5_NOPAIN) || (inflictor && (inflictor->flags5 & MF5_PAINLESS)))
-						return damage;
+						return 0;
 					
 					// If MF6_FORCEPAIN is set, make the player enter the pain state.
 					if ((inflictor && (inflictor->flags6 & MF6_FORCEPAIN)))
@@ -1303,7 +1303,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 						invulpain = true;
 						goto fakepain;
 					}
-					return damage;
+					return 0;
 				}
 			}
 			
@@ -1367,7 +1367,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				if (fakedPain)
 					goto fakepain;
 				else
-					return damage;
+					return 0;
 			}
 		}
 	
@@ -1439,7 +1439,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 				}
 			}
 			target->Die (source, inflictor, flags);
-			return damage;
+			return MAX(0, damage);
 		}
 	}
 
@@ -1451,7 +1451,7 @@ int P_DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage,
 		if (target->health <= woundhealth)
 		{
 			target->SetState (woundstate);
-			return damage;
+			return MAX(0, damage);
 		}
 	}
 
@@ -1550,9 +1550,9 @@ dopain:
 
 	if (invulpain) //Note that this takes into account all the cheats a player has, in terms of invulnerability.
 	{
-		return -1; //NOW we return -1!
+		return 0; //NOW we return -1!
 	}
-	return damage;
+	return MAX(0, damage);
 }
 
 void P_PoisonMobj (AActor *target, AActor *inflictor, AActor *source, int damage, int duration, int period, FName type)
