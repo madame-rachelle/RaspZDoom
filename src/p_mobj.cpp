@@ -2735,6 +2735,7 @@ void P_NightmareRespawn (AActor *mobj)
 
 	// spawn it
 	mo = AActor::StaticSpawn(mobj->GetClass(), DVector3(mobj->SpawnPoint.X, mobj->SpawnPoint.Y, z), NO_REPLACE, true);
+	mo->health = mobj->SpawnHealth();
 
 	if (z == ONFLOORZ)
 	{
