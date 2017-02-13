@@ -3324,6 +3324,10 @@ bool P_BounceActor(AActor *mo, AActor *BlockingMobj, bool ontop)
 		|| ((mo->flags6 & MF6_NOBOSSRIP) && (BlockingMobj->flags2 & MF2_BOSS))) && (BlockingMobj->flags2 & MF2_REFLECTIVE))
 		|| ((BlockingMobj->player == NULL) && (!(BlockingMobj->flags3 & MF3_ISMONSTER)))))
 	{
+		// Rippers should not bounce off shootable actors, since they rip through them.
+		if ((mo->flags & MF_MISSILE) && (mo->flags2 & MF2_RIP) && BlockingMobj->flags & MF_SHOOTABLE)
+			return true;
+
 		if (mo->bouncecount > 0 && --mo->bouncecount == 0) return false;
 
 		if (mo->flags7 & MF7_HITTARGET)	mo->target = BlockingMobj;
@@ -3334,6 +3338,7 @@ bool P_BounceActor(AActor *mo, AActor *BlockingMobj, bool ontop)
 		{
 			DAngle angle = BlockingMobj->AngleTo(mo) + ((pr_bounce() % 16) - 8);
 			double speed = mo->VelXYToSpeed() * mo->wallbouncefactor; // [GZ] was 0.75, using wallbouncefactor seems more consistent
+			if (fabs(speed) < EQUAL_EPSILON) speed = 0;
 			mo->Angles.Yaw = angle;
 			mo->VelFromAngle(speed);
 			mo->PlayBounceSound(true);
@@ -3360,7 +3365,7 @@ bool P_BounceActor(AActor *mo, AActor *BlockingMobj, bool ontop)
 
 			if (mo->BounceFlags & (BOUNCE_HereticType | BOUNCE_MBF))
 			{
-				mo->Vel.Z -= 2. / dot;
+				mo->Vel.Z -= 2. * dot;
 				if (!(mo->BounceFlags & BOUNCE_MBF)) // Heretic projectiles die, MBF projectiles don't.
 				{
 					mo->flags |= MF_INBOUNCE;
@@ -3376,7 +3381,7 @@ bool P_BounceActor(AActor *mo, AActor *BlockingMobj, bool ontop)
 			else // Don't run through this for MBF-style bounces
 			{
 				// The reflected velocity keeps only about 70% of its original speed
-				mo->Vel.Z = (mo->Vel.Z - 2. / dot) * mo->bouncefactor;
+				mo->Vel.Z = (mo->Vel.Z - 2. * dot) * mo->bouncefactor;
 			}
 
 			mo->PlayBounceSound(true);
