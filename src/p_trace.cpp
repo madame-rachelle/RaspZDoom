@@ -40,6 +40,7 @@
 #include "p_maputl.h"
 #include "r_defs.h"
 #include "p_spec.h"
+#include "p_terrain.h"
 
 //==========================================================================
 //
@@ -132,6 +133,13 @@ static void GetPortalTransition(DVector3 &pos, sector_t *&sec)
 			else break;
 		}
 	}
+}
+
+static bool isLiquid(F3DFloor *ff)
+{
+	if (ff->flags & FF_SWIMMABLE) return true;
+	auto terrain = ff->model->GetTerrain(ff->flags & FF_INVERTPLANES ? sector_t::floor : sector_t::ceiling);
+	return Terrains[terrain].IsLiquid && Terrains[terrain].Splash != -1;
 }
 
 //==========================================================================
@@ -299,9 +307,9 @@ void FTraceInfo::Setup3DFloors()
 			if (!(rover->flags&FF_EXISTS))
 				continue;
 
-			if (rover->flags&FF_SWIMMABLE && Results->Crossed3DWater == NULL)
+			if (Results->Crossed3DWater == NULL)
 			{
-				if (Check3DFloorPlane(rover, false))
+				if (Check3DFloorPlane(rover, false) && isLiquid(rover))
 				{
 					// only consider if the plane is above the actual floor.
 					if (rover->top.plane->ZatPoint(Results->HitPos) > bf)
@@ -766,7 +774,7 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 		{
 			for (auto rover : CurSector->e->XFloor.ffloors)
 			{
-				if ((rover->flags & FF_EXISTS) && (rover->flags&FF_SWIMMABLE))
+				if ((rover->flags & FF_EXISTS) && isLiquid(rover))
 				{
 					if (Check3DFloorPlane(rover, false))
 					{
