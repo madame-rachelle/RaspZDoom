@@ -9345,7 +9345,10 @@ scriptwait:
 		}
 
 		case PCD_SETMUGSHOTSTATE:
-			StatusBar->SetMugShotState(FBehavior::StaticLookupString(STACK(1)));
+			if (!multiplayer || (activator != NULL && activator->CheckLocalView(consoleplayer)))
+			{
+				StatusBar->SetMugShotState(FBehavior::StaticLookupString(STACK(1)));
+			}
 			sp--;
 			break;
 
