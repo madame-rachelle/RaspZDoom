@@ -1000,16 +1000,17 @@ public:
 	DAngle			SpriteRotation;
 	DRotator		Angles;
 	DVector2		Scale;				// Scaling values; 1 is normal size
+	double			Alpha;				// Since P_CheckSight makes an alpha check this can't be a float. It has to be a double.
 
 	int				sprite;				// used to find patch_t and flip value
 	BYTE			frame;				// sprite frame to draw
-	FRenderStyle	RenderStyle;		// Style to draw this actor with
-	ActorRenderFlags	renderflags;		// Different rendering flags
-	FTextureID		picnum;				// Draw this instead of sprite if valid
 	DWORD			effects;			// [RH] see p_effect.h
-	double			Alpha;				// Since P_CheckSight makes an alpha check this can't be a float. It has to be a double.
+	FRenderStyle	RenderStyle;		// Style to draw this actor with
+	FTextureID		picnum;				// Draw this instead of sprite if valid
 	DWORD			fillcolor;			// Color to draw when STYLE_Shaded
+	DWORD			Translation;
 
+	ActorRenderFlags	renderflags;		// Different rendering flags
 	ActorFlags		flags;
 	ActorFlags2		flags2;			// Heretic flags
 	ActorFlags3		flags3;			// [RH] Hexen/Heretic actor-dependant behavior made flaggable
@@ -1019,7 +1020,7 @@ public:
 	ActorFlags7		flags7;			// WHO WANTS TO BET ON 8!?
 	ActorFlags8		flags8;			// I see your 8, and raise you a bet for 9.
 	double			Floorclip;		// value to use for floor clipping
-	DWORD Translation;
+	double			radius, Height;		// for movement checking
 
 	DAngle			VisibleStartAngle;
 	DAngle			VisibleStartPitch;
@@ -1043,7 +1044,6 @@ public:
 	int				floorterrain;
 	struct sector_t	*ceilingsector;
 	FTextureID		ceilingpic;			// contacted sec ceilingpic
-	double			radius, Height;		// for movement checking
 
 	double			projectilepassheight;	// height for clipping projectile movement against this actor
 	
