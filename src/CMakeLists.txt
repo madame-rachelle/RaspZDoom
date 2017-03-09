@@ -506,6 +506,11 @@ else( X64 )
 	set( CMAKE_C_FLAGS ${SAFE_CMAKE_C_FLAGS} )
 endif( X64 )
 
+# Set up flags for MSVC
+if (MSVC)
+	set( CMAKE_CXX_FLAGS "/MP ${CMAKE_CXX_FLAGS}" )
+endif (MSVC)
+
 # Set up flags for GCC
 
 if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
