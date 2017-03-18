@@ -2032,7 +2032,7 @@ static int PatchPars (int dummy)
 		{
 			while ('\0' != *str)
 			{
-				if (isspace(*str))
+				if (isspace((unsigned char)*str))
 				{
 					return str;
 				}
