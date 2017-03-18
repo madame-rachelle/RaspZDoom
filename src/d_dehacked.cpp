@@ -2028,7 +2028,20 @@ static int PatchPars (int dummy)
 		if (stricmp ("par", Line1))
 			return result;
 
-		space = strchr (Line2, ' ');
+		const auto FindSpace = [](char* str) -> char*
+		{
+			while ('\0' != *str)
+			{
+				if (isspace(*str))
+				{
+					return str;
+				}
+				++str;
+			}
+			return nullptr;
+		};
+
+		space = FindSpace (Line2);
 
 		if (!space) {
 			Printf ("Need data after par.\n");
@@ -2040,7 +2053,7 @@ static int PatchPars (int dummy)
 		while (*space && isspace(*space))
 			space++;
 
-		moredata = strchr (space, ' ');
+		moredata = FindSpace (space);
 
 		if (moredata) {
 			// At least 3 items on this line, must be E?M? format
