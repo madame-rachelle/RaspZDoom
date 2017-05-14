@@ -1486,6 +1486,7 @@ DEFINE_PROPERTY(clearflags, 0, Actor)
 	defaults->flags5 = 0;
 	defaults->flags6 = 0;
 	defaults->flags7 = 0;
+	defaults->flags8 = 0;
 }
 
 //==========================================================================
