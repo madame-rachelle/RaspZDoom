@@ -124,6 +124,8 @@ short			screenheightarray[MAXWIDTH];
 
 EXTERN_CVAR (Bool, r_drawplayersprites)
 EXTERN_CVAR (Bool, r_drawvoxels)
+EXTERN_CVAR (Int, r_detail)
+EXTERN_CVAR (Int, screenblocks)
 
 //
 // INITIALIZATION FUNCTIONS
@@ -1224,15 +1226,21 @@ void R_DrawPSprite (pspdef_t* psp, int pspnum, AActor *owner, fixed_t sx, fixed_
 	// calculate edges of the shape
 	tx = sx-((320/2)<<FRACBITS);
 
-	tx -= tex->GetScaledLeftOffset() << FRACBITS;
-	x1 = (centerxfrac + FixedMul (tx, pspritexscale)) >>FRACBITS;
+	tx -= tex->GetScaledLeftOffset() << FRACBITS;	
+	if (r_detail == 0 || r_detail == 2)
+		x1 = (centerxfrac + FixedMul (tx, pspritexscale)) >>FRACBITS;
+	else
+		x1 = (centerxfrac + FixedMul (tx, pspritexscale/2)) >>FRACBITS;
 
 	// off the right side
 	if (x1 > viewwidth)
 		return; 
 
 	tx += tex->GetScaledWidth() << FRACBITS;
-	x2 = ((centerxfrac + FixedMul (tx, pspritexscale)) >>FRACBITS);
+	if (r_detail == 0 || r_detail == 2)
+		x2 = (centerxfrac + FixedMul (tx, pspritexscale)) >>FRACBITS;
+	else
+		x2 = (centerxfrac + FixedMul (tx, pspritexscale/2)) >>FRACBITS;
 
 	// off the left side
 	if (x2 <= 0)
@@ -1246,7 +1254,7 @@ void R_DrawPSprite (pspdef_t* psp, int pspnum, AActor *owner, fixed_t sx, fixed_
 	vis->texturemid = MulScale16((BASEYCENTER<<FRACBITS) - sy, tex->yScale) + (tex->TopOffset << FRACBITS);
 
 	if (camera->player && (RenderTarget != screen ||
-		viewheight == RenderTarget->GetHeight() ||
+		realviewheight == RenderTarget->GetHeight() ||
 		(RenderTarget->GetWidth() > 320 && !st_scale)))
 	{	// Adjust PSprite for fullscreen views
 		AWeapon *weapon = NULL;
@@ -1256,7 +1264,7 @@ void R_DrawPSprite (pspdef_t* psp, int pspnum, AActor *owner, fixed_t sx, fixed_
 		}
 		if (pspnum <= ps_flash && weapon != NULL && weapon->YAdjust != 0)
 		{
-			if (RenderTarget != screen || viewheight == RenderTarget->GetHeight())
+			if (RenderTarget != screen || realviewheight == RenderTarget->GetHeight())
 			{
 				vis->texturemid -= weapon->YAdjust;
 			}
@@ -1274,19 +1282,28 @@ void R_DrawPSprite (pspdef_t* psp, int pspnum, AActor *owner, fixed_t sx, fixed_
 	vis->x1 = x1 < 0 ? 0 : x1;
 	vis->x2 = x2 >= viewwidth ? viewwidth : x2;
 	vis->xscale = DivScale16(pspritexscale, tex->xScale);
-	vis->yscale = DivScale16(pspriteyscale, tex->yScale);
+	if (r_detail == 0 || r_detail == 2)
+		vis->yscale = DivScale16(pspriteyscale, tex->yScale);
+	else
+		vis->yscale = DivScale16(pspriteyscale/2, tex->yScale);
 	vis->Translation = 0;		// [RH] Use default colors
 	vis->pic = tex;
 	vis->ColormapNum = 0;
 
 	if (flip)
 	{
-		vis->xiscale = -MulScale16(pspritexiscale, tex->xScale);
+		if (r_detail == 0 || r_detail == 2)
+			vis->xiscale = -MulScale16(pspritexiscale, tex->xScale);
+		else
+			vis->xiscale = -MulScale16(pspritexiscale*2, tex->xScale);
 		vis->startfrac = (tex->GetWidth() << FRACBITS) - 1;
 	}
 	else
 	{
-		vis->xiscale = MulScale16(pspritexiscale, tex->xScale);
+		if (r_detail == 0 || r_detail == 2)
+			vis->xiscale = MulScale16(pspritexiscale, tex->xScale);
+		else
+			vis->xiscale = MulScale16(pspritexiscale*2, tex->xScale);
 		vis->startfrac = 0;
 	}
 
@@ -1564,9 +1581,21 @@ void R_DrawRemainingPlayerSprites()
 				colormapstyle.Desaturate = colormap->Desaturate;
 				colormapstyle.FadeLevel = ((vis->Style.colormap - colormap->Maps) >> 8) / float(NUMCOLORMAPS);
 			}
+			double posx,posy;
+			if (r_detail > 1)
+				vis->yscale=(vis->yscale)*2;
+			posx=viewwindowx + VisPSpritesX1[i];
+			posy=viewwindowy + realviewheight/2 - (vis->texturemid / 65536.0) * (vis->yscale / 65536.0) - 0.5;
+			if (r_detail == 1 || r_detail > 2)
+			{
+				if (screenblocks > 9)
+					posx=posx*2;
+				else
+					posx=posx*2 - (10-screenblocks)*((SCREENWIDTH/2)/10);
+			}
 			screen->DrawTexture(vis->pic,
-				viewwindowx + VisPSpritesX1[i],
-				viewwindowy + viewheight/2 - (vis->texturemid / 65536.0) * (vis->yscale / 65536.0) - 0.5,
+				posx,
+				posy,
 				DTA_DestWidthF, FIXED2FLOAT(vis->pic->GetWidth() * vis->xscale),
 				DTA_DestHeightF, FIXED2FLOAT(vis->pic->GetHeight() * vis->yscale),
 				DTA_Translation, TranslationToTable(vis->Translation),
@@ -1575,8 +1604,8 @@ void R_DrawRemainingPlayerSprites()
 				DTA_LeftOffset, 0,
 				DTA_ClipLeft, viewwindowx,
 				DTA_ClipTop, viewwindowy,
-				DTA_ClipRight, viewwindowx + viewwidth,
-				DTA_ClipBottom, viewwindowy + viewheight,
+				DTA_ClipRight, viewwindowx + realviewwidth,
+				DTA_ClipBottom, viewwindowy + realviewheight,
 				DTA_Alpha, vis->Style.alpha,
 				DTA_RenderStyle, vis->Style.RenderStyle,
 				DTA_FillColor, vis->FillColor,
@@ -2514,7 +2543,7 @@ void R_DrawParticle (vissprite_t *vis)
 		fg = fg2rgb[color];
 	}
 
-	spacing = RenderTarget->GetPitch() - countbase;
+	spacing = (RenderTarget->GetPitch()<<detailyshift) - countbase;
 	dest = ylookup[yl] + x1 + dc_destorg;
 
 	do
@@ -2565,6 +2594,11 @@ void R_DrawVoxel(fixed_t globalposx, fixed_t globalposy, fixed_t globalposz, ang
 	// Also do some magic voodoo scaling to make them the right size.
 	daxscale = daxscale / (0xC000 >> 6);
 	dayscale = dayscale / (0xC000 >> 6);
+	if (daxscale <= 0 || dayscale <= 0)
+	{
+		// won't be visible.
+		return;
+	}
 
 	cosang = finecosine[viewang >> ANGLETOFINESHIFT] >> 2;
 	sinang = -finesine[viewang >> ANGLETOFINESHIFT] >> 2;

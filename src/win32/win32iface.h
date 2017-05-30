@@ -37,14 +37,18 @@
 #ifndef DIRECTDRAW_VERSION
 #define DIRECTDRAW_VERSION 0x0300
 #endif
+#ifdef USE_D3D9
 #ifndef DIRECT3D_VERSION
 #define DIRECT3D_VERSION 0x0900
+#endif
 #endif
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <ddraw.h>
+#ifdef USE_D3D9
 #include <d3d9.h>
+#endif
 
 #include "hardware.h"
 
@@ -54,8 +58,10 @@ EXTERN_CVAR (Bool, vid_vsync)
 
 extern HANDLE FPSLimitEvent;
 
+#ifdef USE_D3D9
 class D3DTex;
 class D3DPal;
+#endif
 struct FSoftwareRenderer;
 
 class Win32Video : public IVideo
@@ -64,7 +70,9 @@ class Win32Video : public IVideo
 	Win32Video (int parm);
 	~Win32Video ();
 
+#ifdef USE_D3D9
 	bool InitD3D9();
+#endif	
 	void InitDDraw();
 
 	EDisplayType GetDisplayType () { return DISPLAY_Both; }
@@ -108,13 +116,17 @@ class Win32Video : public IVideo
 	void FreeModes ();
 
 	static HRESULT WINAPI EnumDDModesCB (LPDDSURFACEDESC desc, void *modes);
+#ifdef USE_D3D9
 	void AddD3DModes (UINT adapter, D3DFORMAT format);
+#endif
 	void AddLowResModes ();
 	void AddLetterboxModes ();
 	void ScaleModes (int doubling);
 
 	friend class DDrawFB;
+#ifdef USE_D3D9
 	friend class D3DFB;
+#endif
 };
 
 class BaseWinFB : public DFrameBuffer
@@ -224,6 +236,7 @@ private:
 	DDrawFB() {}
 };
 
+#ifdef USE_D3D9
 class D3DFB : public BaseWinFB
 {
 	DECLARE_CLASS(D3DFB, BaseWinFB)
@@ -504,6 +517,7 @@ enum
 	BQS_SpecialColormap,
 	BQS_InGameColormap,
 };
+#endif
 
 #if 0
 #define STARTLOG		do { if (!dbg) dbg = fopen ("e:/vid.log", "w"); } while(0)

@@ -580,9 +580,9 @@ void I_DetectOS(void)
 			{
 				osname = (info.wProductType == VER_NT_WORKSTATION) ? "8.1" : "Server 2012 R2";
 			}
-			else if (info.dwMinorVersion == 4)
+			else
 			{
-				osname = (info.wProductType == VER_NT_WORKSTATION) ? "10 (or higher)" : "Server 10 (or higher)";
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "10 (or higher)" : "Server 2016 (or higher)";
 			}
 		}
 		break;
@@ -950,7 +950,7 @@ static void DoPrintStr(const char *cp, HWND edit, HANDLE StdOut)
 			buf[bpos] = 0;
 			if (edit != NULL)
 			{
-				ToEditControl(edit, buf, wbuf, bpos);
+				SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 			}
 			if (StdOut != NULL)
 			{
@@ -1017,7 +1017,7 @@ static void DoPrintStr(const char *cp, HWND edit, HANDLE StdOut)
 		buf[bpos] = 0;
 		if (edit != NULL)
 		{
-			ToEditControl(edit, buf, wbuf, bpos);
+			SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 		}
 		if (StdOut != NULL)
 		{
@@ -1700,33 +1700,26 @@ unsigned int I_MakeRNGSeed()
 // anything worth changing.
 //
 //==========================================================================
-
-FString I_GetLongPathName(FString shortpath)
-{
-	static TOptWin32Proc<DWORD (WINAPI*)(LPCTSTR, LPTSTR, DWORD)>
-		GetLongPathNameA("kernel32.dll", "GetLongPathNameA");
-
-	// Doesn't exist on NT4
-	if (GetLongPathName == NULL)
-		return shortpath;
-
-	DWORD buffsize = GetLongPathNameA.Call(shortpath.GetChars(), NULL, 0);
-	if (buffsize == 0)
-	{ // nothing to change (it doesn't exist, maybe?)
-		return shortpath;
-	}
-	TCHAR *buff = new TCHAR[buffsize];
-	DWORD buffsize2 = GetLongPathNameA.Call(shortpath.GetChars(), buff, buffsize);
-	if (buffsize2 >= buffsize)
-	{ // Failure! Just return the short path
-		delete[] buff;
+/*
+ FString I_GetLongPathName(FString shortpath)
+ {
+	DWORD buffsize = GetLongPathName(shortpath.GetChars(), NULL, 0);
+ 	if (buffsize == 0)
+ 	{ // nothing to change (it doesn't exist, maybe?)
+ 		return shortpath;
+ 	}
+ 	TCHAR *buff = new TCHAR[buffsize];
+	DWORD buffsize2 = GetLongPathName(shortpath.GetChars(), buff, buffsize);
+ 	if (buffsize2 >= buffsize)
+ 	{ // Failure! Just return the short path
+ 		delete[] buff;
 		return shortpath;
 	}
 	FString longpath(buff, buffsize2);
 	delete[] buff;
 	return longpath;
 }
-
+*/
 #if _MSC_VER == 1900 && defined(_USING_V110_SDK71_)
 //==========================================================================
 //

@@ -276,12 +276,12 @@ IWad
 	MustContain = "E1M1","E2M1","E2M2","E2M3","E2M4","E2M5","E2M6","E2M7","E2M8","E2M9",
 		          "E3M1","E3M2","E3M3","E3M4","E3M5","E3M6","E3M7","E3M8","E3M9",
 		          "DPHOOF","BFGGA0","HEADA1","CYBRA1","SPIDA1D1", "E4M2"
-	BannerColors = "54 54 54", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 
 IWad
 {
-	Name = "DOOM Registered"
+	Name = "DOOM"
 	Autoname = "doom.doom1.registered"
 	Game = "Doom"
 	Config = "Doom"
@@ -290,18 +290,18 @@ IWad
 	MustContain = "E1M1","E2M1","E2M2","E2M3","E2M4","E2M5","E2M6","E2M7","E2M8","E2M9",
 		          "E3M1","E3M2","E3M3","E3M4","E3M5","E3M6","E3M7","E3M8","E3M9",
 		          "DPHOOF","BFGGA0","HEADA1","CYBRA1","SPIDA1D1"
-	BannerColors = "54 54 54", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 
 IWad
 {
-	Name = "DOOM Shareware"
+	Name = "DOOM: Knee Deep in the Dead"
 	Game = "Doom"
 	Config = "Doom"
 	Mapinfo = "mapinfo/doom1.txt"
 	Compatibility = "Shareware", "Shorttex"
 	MustContain = "E1M1"
-	BannerColors = "54 54 54", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 
 IWad
@@ -313,7 +313,7 @@ IWad
 	Mapinfo = "mapinfo/tnt.txt"
 	Compatibility = "Shorttex", "Stairs"
 	MustContain = "MAP01", "REDTNT2"
-	BannerColors = "a8 00 00", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 
 IWad
@@ -325,7 +325,7 @@ IWad
 	Mapinfo = "mapinfo/plutonia.txt"
 	Compatibility = "Shorttex"
 	MustContain = "MAP01", "CAMO1"
-	BannerColors = "a8 00 00", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 
 IWad
@@ -341,7 +341,7 @@ IWad
 	Load = "nerve.wad"
 }
 
-// Doom 2 must be last to be checked becaude MAP01 is its only requirement
+// Doom 2 must be last to be checked because MAP01 is its only requirement
 IWad
 {
 	Name = "DOOM 2: Hell on Earth"
@@ -351,7 +351,7 @@ IWad
 	Mapinfo = "mapinfo/doom2.txt"
 	Compatibility = "Shorttex"
 	MustContain = "MAP01"
-	BannerColors = "a8 00 00", "a8 a8 a8"
+	BannerColors = "f0 f0 00", "00 00 a4"
 }
 	
 

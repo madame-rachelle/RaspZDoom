@@ -492,7 +492,8 @@ bool P_TeleportMove(AActor *thing, fixed_t x, fixed_t y, fixed_t z, bool telefra
 
 		// If this teleport was caused by a move, P_TryMove() will handle the
 		// sector transition messages better than we can here.
-		if (!(thing->flags6 & MF6_INTRYMOVE))
+		// This needs to be compatibility optioned because some older maps exploited this missing feature.
+		if (!(thing->flags6 & MF6_INTRYMOVE) && !(i_compatflags2 & COMPATF2_TELEPORT))
 		{
 			thing->CheckSectorTransition(oldsec);
 		}
@@ -1807,7 +1808,7 @@ static void CheckForPushSpecial(line_t *line, int side, AActor *mobj, bool windo
 {
 	if (line->special && !(mobj->flags6 & MF6_NOTRIGGER))
 	{
-		if (windowcheck && !(ib_compatflags & BCOMPATF_NOWINDOWCHECK) && line->backsector != NULL)
+		if (windowcheck && !(i_compatflags2 & COMPATF2_PUSHWINDOW) && line->backsector != NULL)
 		{ // Make sure this line actually blocks us and is not a window
 			// or similar construct we are standing inside of.
 			fixed_t fzt = line->frontsector->ceilingplane.ZatPoint(mobj);
@@ -4984,14 +4985,25 @@ bool P_AdjustFloorCeil(AActor *thing, FChangePosition *cpos)
 	}
 
 	bool isgood = P_CheckPosition(thing, thing->X(), thing->Y(), tm);
-	thing->floorz = tm.floorz;
-	thing->ceilingz = tm.ceilingz;
-	thing->dropoffz = tm.dropoffz;		// killough 11/98: remember dropoffs
-	thing->floorpic = tm.floorpic;
-	thing->floorterrain = tm.floorterrain;
-	thing->floorsector = tm.floorsector;
-	thing->ceilingpic = tm.ceilingpic;
-	thing->ceilingsector = tm.ceilingsector;
+	if (!(thing->flags4 & MF4_ACTLIKEBRIDGE))
+	{
+		thing->floorz = tm.floorz;
+		thing->ceilingz = tm.ceilingz;
+		thing->dropoffz = tm.dropoffz;		// killough 11/98: remember dropoffs
+		thing->floorpic = tm.floorpic;
+		thing->floorterrain = tm.floorterrain;
+		thing->floorsector = tm.floorsector;
+		thing->ceilingpic = tm.ceilingpic;
+		thing->ceilingsector = tm.ceilingsector;
+	}
+	else
+	{
+		// Bridges only keep the info at their spawn position
+		// This is necessary to prevent moving sectors from altering the bridge's z-position.
+		// The bridge should remain at its current z, even if the sector change would cause
+		// floorz or ceilingz to be changed in a way that would make P_ZMovement adjust the bridge.
+		P_FindFloorCeiling(thing, FFCF_ONLYSPAWNPOS);
+	}
 
 	// restore the PASSMOBJ flag but leave the other flags alone.
 	thing->flags2 = (thing->flags2 & ~MF2_PASSMOBJ) | flags2;

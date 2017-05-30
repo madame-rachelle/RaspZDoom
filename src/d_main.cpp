@@ -160,6 +160,7 @@ extern bool gameisdead;
 extern bool demorecording;
 extern bool M_DemoNoPlay;	// [RH] if true, then skip any demos in the loop
 extern bool insave;
+extern bool setdefaultneeded;
 
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
@@ -254,7 +255,7 @@ void D_ProcessEvents (void)
 	// [RH] If testing mode, do not accept input until test is over
 	if (testingmode)
 	{
-		if (testingmode == 1)
+		if (setdefaultneeded) // testingmode == 1
 		{
 			M_SetDefaultMode ();
 		}
@@ -552,7 +553,7 @@ CUSTOM_CVAR(Int, compatmode, 0, CVAR_ARCHIVE|CVAR_NOINITCALL)
 	case 1:	// Doom2.exe compatible with a few relaxed settings
 		v = COMPATF_SHORTTEX|COMPATF_STAIRINDEX|COMPATF_USEBLOCKING|COMPATF_NODOORLIGHT|COMPATF_SPRITESORT|
 			COMPATF_TRACE|COMPATF_MISSILECLIP|COMPATF_SOUNDTARGET|COMPATF_DEHHEALTH|COMPATF_CROSSDROPOFF|
-			COMPATF_LIGHT;
+			COMPATF_LIGHT|COMPATF_MASKEDMIDTEX;
 		w= COMPATF2_FLOORMOVE;
 		break;
 
@@ -565,22 +566,22 @@ CUSTOM_CVAR(Int, compatmode, 0, CVAR_ARCHIVE|CVAR_NOINITCALL)
 		break;
 
 	case 3: // Boom compat mode
-		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP;
+		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_MASKEDMIDTEX;
 		break;
 
 	case 4: // Old ZDoom compat mode
 		v = COMPATF_SOUNDTARGET | COMPATF_LIGHT;
-		w = COMPATF2_MULTIEXIT;
+		w = COMPATF2_MULTIEXIT | COMPATF2_TELEPORT | COMPATF2_PUSHWINDOW;
 		break;
 
 	case 5: // MBF compat mode
 		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_MUSHROOM|
-			COMPATF_MBFMONSTERMOVE|COMPATF_NOBLOCKFRIENDS;
+			COMPATF_MBFMONSTERMOVE|COMPATF_NOBLOCKFRIENDS|COMPATF_MASKEDMIDTEX;
 		break;
 
 	case 6:	// Boom with some added settings to reenable some 'broken' behavior
 		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_NO_PASSMOBJ|
-			COMPATF_INVISIBILITY|COMPATF_CORPSEGIBS|COMPATF_HITSCAN|COMPATF_WALLRUN|COMPATF_NOTOSSDROPS;
+			COMPATF_INVISIBILITY|COMPATF_CORPSEGIBS|COMPATF_HITSCAN|COMPATF_WALLRUN|COMPATF_NOTOSSDROPS|COMPATF_MASKEDMIDTEX;
 		w = COMPATF2_POINTONLINE;
 		break;
 
@@ -626,6 +627,8 @@ CVAR (Flag, compat_floormove,			compatflags2, COMPATF2_FLOORMOVE);
 CVAR (Flag, compat_soundcutoff,			compatflags2, COMPATF2_SOUNDCUTOFF);
 CVAR (Flag, compat_pointonline,			compatflags2, COMPATF2_POINTONLINE);
 CVAR (Flag, compat_multiexit,			compatflags2, COMPATF2_MULTIEXIT);
+CVAR (Flag, compat_teleport,			compatflags2, COMPATF2_TELEPORT);
+CVAR (Flag, compat_pushwindow,			compatflags2, COMPATF2_PUSHWINDOW);
 
 //==========================================================================
 //
@@ -761,7 +764,7 @@ void D_Display ()
 				StatusBar->BlendView (blend);
 			}
 			screen->SetBlendingRect(viewwindowx, viewwindowy,
-				viewwindowx + viewwidth, viewwindowy + viewheight);
+				viewwindowx + realviewwidth, viewwindowy + realviewheight);
 
 			Renderer->RenderView(&players[consoleplayer]);
 
@@ -776,9 +779,9 @@ void D_Display ()
 			if (automapactive)
 			{
 				int saved_ST_Y = ST_Y;
-				if (hud_althud && viewheight == SCREENHEIGHT)
+				if (hud_althud && realviewheight == SCREENHEIGHT)
 				{
-					ST_Y = viewheight;
+					ST_Y = realviewheight;
 				}
 				AM_Drawer ();
 				ST_Y = saved_ST_Y;
@@ -788,7 +791,7 @@ void D_Display ()
 				V_RefreshViewBorder ();
 			}
 
-			if (hud_althud && viewheight == SCREENHEIGHT && screenblocks > 10)
+			if (hud_althud && realviewheight == SCREENHEIGHT && screenblocks > 10)
 			{
 				StatusBar->DrawBottomStuff (HUD_AltHud);
 				if (DrawFSHUD || automapactive) DrawHUD();
@@ -796,7 +799,7 @@ void D_Display ()
 				StatusBar->DrawTopStuff (HUD_AltHud);
 			}
 			else 
-			if (viewheight == SCREENHEIGHT && viewactive && screenblocks > 10)
+			if (realviewheight == SCREENHEIGHT && viewactive && screenblocks > 10)
 			{
 				EHudState state = DrawFSHUD ? HUD_Fullscreen : HUD_None;
 				StatusBar->DrawBottomStuff (state);
@@ -2436,7 +2439,7 @@ void D_DoomMain (void)
 
 		StartScreen->Progress ();
 
-		Printf ("R_Init: Init %s refresh subsystem.\n", gameinfo.ConfigName.GetChars());
+		Printf ("R_Init: Init %s refresh daemon.\n", gameinfo.ConfigName.GetChars());
 		StartScreen->LoadingStatus ("Loading graphics", 0x3f);
 		R_Init ();
 

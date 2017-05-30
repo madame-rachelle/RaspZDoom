@@ -512,7 +512,7 @@ int FIWadManager::IdentifyVersion (TArray<FString> &wadfiles, const char *iwad, 
 					  "\n"
 #if defined(_WIN32)
 					  "1. Place one or more of these wads in the same directory as " GAMENAME ".\n"
-					  "2. Edit your " GAMENAMELOWERCASE "-username.ini and add the directories of your iwads\n"
+					  "2. Edit your " GAMENAMELOWERCASE ".ini and add the directories of your iwads\n"
 					  "to the list beneath [IWADSearch.Directories]");
 #elif defined(__APPLE__)
 					  "1. Place one or more of these wads in ~/Library/Application Support/" GAMENAMELOWERCASE "/\n"
@@ -598,7 +598,12 @@ const FIWADInfo *FIWadManager::FindIWAD(TArray<FString> &wadfiles, const char *i
 	int iwadType = IdentifyVersion(wadfiles, iwad, basewad);
 	//gameiwad = iwadType;
 	const FIWADInfo *iwad_info = &mIWads[iwadType];
-	if (DoomStartupInfo.Name.IsEmpty()) DoomStartupInfo.Name = iwad_info->Name;
+	if (DoomStartupInfo.Name.IsEmpty())
+	{
+		DoomStartupInfo.Name = iwad_info->Name;
+		if (iwad_info->gametype == GAME_Doom)
+			DoomStartupInfo.Name << " Operating System v2.8";
+	}
 	if (DoomStartupInfo.BkColor == 0 && DoomStartupInfo.FgColor == 0)
 	{
 		DoomStartupInfo.BkColor = iwad_info->BkColor;

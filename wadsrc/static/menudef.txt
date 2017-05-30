@@ -594,6 +594,15 @@ OptionMenu "JoystickConfigMenu"
 //
 //-------------------------------------------------------------------------------------------
 
+OptionValue DetailModes 
+{
+	0.0, "High"
+	1.0, "Double Horizontally"
+	2.0, "Double Vertically"
+	3.0, "Double Horiz and Vert"
+	4.0, "Quad Horiz and Double Vert"
+}
+
 OptionValue ColumnMethods 
 {
 	0.0, "Original"
@@ -636,6 +645,19 @@ OptionValue Endoom
 	2.0, "Only modified"
 }
 
+OptionValue Renderer 
+{
+	0.0, "Direct3D"
+	1.0, "DirectDraw"
+}
+
+OptionValue Bits 
+{
+	8.0, "8"
+	16.0, "16"
+	32.0, "32"
+}
+
 OptionValue Contrast 
 {
 	0.0, "Off"
@@ -661,15 +683,21 @@ OptionMenu "VideoOptions"
 	Option "Vertical Sync",				"vid_vsync", "OnOff"
 	Option "Rendering Interpolation",	"cl_capfps", "OffOn"
 	Option "Column render mode",		"r_columnmethod", "ColumnMethods"
-
-	StaticText " "
+    Option "Detail mode",				"r_detail",		  "DetailModes"
+	
+//	StaticText " "
 	Option "Screen wipe style",			"wipetype", "Wipes"
 
 	IfOption(Windows)
 	{
 		Option	"Show ENDOOM screen",	"showendoom", "Endoom"
+		StaticText " "
+		Option "Video Renderer", "vid_forceddraw", "Renderer"
+		Option "DirectDraw display bits", "vid_displaybits", "Bits"
+		StaticText "Restart required", 1
 		//Option "DirectDraw palette hack", "vid_palettehack", "OnOff"
 		//Option "Use attached surfaces", "vid_attachedsurfaces", "OnOff"
+		StaticText " "
 	}
 	
 	Option "Stretch short skies",		"r_stretchsky", "OnOff"
@@ -1305,6 +1333,8 @@ OptionMenu "CompatibilityOptions"
 	Option "Use Doom's floor motion behavior",			"compat_floormove", "YesNo"
 	Option "Use Doom's point-on-line algorithm",		"compat_pointonline", "YesNo"
 	Option "Level exit can be triggered more than once",	"compat_multiexit", "YesNo"
+	Option "Scripted teleports don't trigger sector actions",	"compat_teleport", "YesNo"
+	Option "Non-blocking lines can be pushed",					"compat_pushwindow", "YesNo"
 	
 	StaticText " "
 	StaticText "Physics Behavior",1

@@ -343,7 +343,7 @@ void LayoutMainWindow (HWND hWnd, HWND pane)
 
 	if (DoomStartupInfo.Name.IsNotEmpty() && GameTitleWindow != NULL)
 	{
-		bannerheight = GameTitleFontHeight + 5;
+		bannerheight = GameTitleFontHeight + 2;
 		MoveWindow (GameTitleWindow, 0, 0, w, bannerheight, TRUE);
 		InvalidateRect (GameTitleWindow, NULL, FALSE);
 	}
@@ -420,7 +420,7 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	TEXTMETRIC tm;
 	HINSTANCE inst = (HINSTANCE)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
 	DRAWITEMSTRUCT *drawitem;
-	CHARFORMAT2W format;
+	CHARFORMAT2 format;
 
 	switch (msg)
 	{
@@ -428,11 +428,11 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// Create game title static control
 		memset (&lf, 0, sizeof(lf));
 		hdc = GetDC (hWnd);
-		lf.lfHeight = -MulDiv(12, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+		lf.lfHeight = -MulDiv(10, GetDeviceCaps(hdc, LOGPIXELSY), 72);
 		lf.lfCharSet = ANSI_CHARSET;
-		lf.lfWeight = FW_BOLD;
-		lf.lfPitchAndFamily = VARIABLE_PITCH | FF_ROMAN;
-		strcpy (lf.lfFaceName, "Trebuchet MS");
+		lf.lfWeight = FW_NORMAL;
+		lf.lfPitchAndFamily = DEFAULT_PITCH | FF_MODERN;
+		strcpy (lf.lfFaceName, "DejaVu Sans");
 		GameTitleFont = CreateFontIndirect (&lf);
 
 		oldfont = SelectObject (hdc, GetStockObject (DEFAULT_GUI_FONT));
@@ -451,7 +451,7 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		SelectObject (hdc, oldfont);
 
 		// Create log read-only edit control
-		view = CreateWindowEx (WS_EX_NOPARENTNOTIFY, "RichEdit20W", NULL,
+		view = CreateWindowEx (WS_EX_NOPARENTNOTIFY, RICHEDIT_CLASS, NULL,
 			WS_CHILD | WS_VISIBLE | WS_VSCROLL |
 			ES_LEFT | ES_MULTILINE | WS_CLIPSIBLINGS,
 			0, 0, 0, 0,
@@ -465,7 +465,7 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		SendMessage (view, EM_SETREADONLY, TRUE, 0);
 		SendMessage (view, EM_EXLIMITTEXT, 0, 0x7FFFFFFE);
-		SendMessage (view, EM_SETBKGNDCOLOR, 0, RGB(70,70,70));
+		SendMessage (view, EM_SETBKGNDCOLOR, 0, RGB(20,20,20));
 		// Setup default font for the log.
 		//SendMessage (view, WM_SETFONT, (WPARAM)GetStockObject (DEFAULT_GUI_FONT), FALSE);
 		format.cbSize = sizeof(format);
@@ -475,8 +475,8 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		format.crTextColor = RGB(223,223,223);
 		format.bCharSet = ANSI_CHARSET;
 		format.bPitchAndFamily = FF_SWISS | VARIABLE_PITCH;
-		wcscpy(format.szFaceName, L"DejaVu Sans");	// At least I have it. :p
-		SendMessageW(view, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&format);
+		strcpy(format.szFaceName, "DejaVu Sans");
+		SendMessage (view, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&format);
 
 		ConWindow = view;
 		ReleaseDC (hWnd, hdc);
@@ -566,7 +566,7 @@ LRESULT CALLBACK LConProc (HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			drawitem = (LPDRAWITEMSTRUCT)lParam;
 
 			// This background color should match the edit control's.
-			hbr = CreateSolidBrush (RGB(70,70,70));
+			hbr = CreateSolidBrush (RGB(20,20,20));
 			FillRect (drawitem->hDC, &drawitem->rcItem, hbr);
 			DeleteObject (hbr);
 
@@ -718,7 +718,7 @@ void ShowErrorPane(const char *text)
 	if (text != NULL)
 	{
 		char caption[100];
-		mysnprintf(caption, countof(caption), "Fatal Error - " GAMESIG " %s " X64 " (%s)", GetVersionString(), GetGitTime());
+		mysnprintf(caption, countof(caption), "Fatal Error - " GAMESIG " 2.8.1a LE");
 		SetWindowText (Window, caption);
 		ErrorIcon = CreateWindowEx (WS_EX_NOPARENTNOTIFY, "STATIC", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | SS_OWNERDRAW, 0, 0, 0, 0, Window, NULL, g_hInst, NULL);
 		if (ErrorIcon != NULL)
@@ -786,7 +786,7 @@ void ShowErrorPane(const char *text)
 		if (bRet == -1)
 		{
 			MessageBox (Window, text,
-				GAMESIG " Fatal Error", MB_OK|MB_ICONSTOP|MB_TASKMODAL);
+				GAMESIG "2.8.1a LE Fatal Error", MB_OK|MB_ICONSTOP|MB_TASKMODAL);
 			return;
 		}
 		else if (!IsDialogMessage (ErrorPane, &msg))
@@ -947,7 +947,7 @@ void DoMain (HINSTANCE hInstance)
 		
 		/* create window */
 		char caption[100];
-		mysnprintf(caption, countof(caption), "" GAMESIG " %s " X64 " (%s)", GetVersionString(), GetGitTime());
+		mysnprintf(caption, countof(caption), "" GAMESIG " 2.8.1a LE");
 		Window = CreateWindowEx(
 				WS_EX_APPWINDOW,
 				(LPCTSTR)WinClassName,

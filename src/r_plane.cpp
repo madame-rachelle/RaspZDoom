@@ -536,7 +536,7 @@ void R_ClearPlanes (bool fullclear)
 		// [RH] clip ceiling to console bottom
 		clearbufshort (ceilingclip, viewwidth,
 			!screen->Accel2D && ConBottom > viewwindowy && !bRenderingToCanvas
-			? (ConBottom - viewwindowy) : 0);
+			? ((ConBottom - viewwindowy) >> detailyshift) : 0);
 
 		lastopening = 0;
 	}
@@ -966,6 +966,8 @@ static void R_DrawSky (visplane_t *pl)
 	}
 	else
 	{ // The texture does not tile nicely
+		if (skyscale == 0)
+			R_InitSkyMap (); // Hack: R_InitSkyMap is not called on certain maps (?)
 		frontyScale = DivScale16 (skyscale, frontyScale);
 		frontiScale = DivScale32 (1, frontyScale);
 		// Sodding crap. Fixed point sucks when you want precision.

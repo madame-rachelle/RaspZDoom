@@ -134,7 +134,7 @@ BYTE *S_SoundCurve;
 int S_SoundCurveSize;
 
 FBoolCVar noisedebug ("noise", false, 0);	// [RH] Print sound debugging info?
-CVAR (Int, snd_channels, 32, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)	// number of channels available
+CVAR (Int, snd_channels, 16, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)	// number of channels available
 CVAR (Bool, snd_flipstereo, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 // CODE --------------------------------------------------------------------
@@ -740,8 +740,8 @@ static void CalcPosVel(int type, const AActor *actor, const sector_t *sector,
 		if (type == SOURCE_Actor && actor != NULL)
 		{
 			vel->X = FIXED2FLOAT(actor->velx) * TICRATE;
-			vel->Y = FIXED2FLOAT(actor->velz) * TICRATE;
-			vel->Z = FIXED2FLOAT(actor->vely) * TICRATE;
+			vel->Y = FIXED2FLOAT(actor->vely) * TICRATE;
+			vel->Z = FIXED2FLOAT(actor->velz) * TICRATE;
 		}
 		else
 		{

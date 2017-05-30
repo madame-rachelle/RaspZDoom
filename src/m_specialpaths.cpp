@@ -11,19 +11,19 @@
 
 #include "cmdlib.h"
 #include "m_misc.h"
+#include "i_system.h"
+#include <direct.h>
 
 #if !defined(__APPLE__) && !defined(_WIN32)
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "i_system.h"
+//#include "i_system.h"
 #endif
 
 #include "version.h"	// for GAMENAME
 
 #if defined(_WIN32)
-
-#include "i_system.h"
-
+/*
 typedef HRESULT (WINAPI *GKFP)(REFKNOWNFOLDERID, DWORD, HANDLE, PWSTR *);
 
 //===========================================================================
@@ -75,7 +75,18 @@ bool UseKnownFolders()
 
 bool GetKnownFolder(int shell_folder, REFKNOWNFOLDERID known_folder, bool create, FString &path)
 {
-	static TOptWin32Proc<GKFP> SHGetKnownFolderPath("shell32.dll", "SHGetKnownFolderPath");
+	static GKFP SHGetKnownFolderPath = NULL;
+	static bool tested = false;
+
+	if (!tested)
+	{
+		tested = true;
+		HMODULE shell32 = GetModuleHandle("shell32.dll");
+		if (shell32 != NULL)
+		{
+			SHGetKnownFolderPath = (GKFP)GetProcAddress(shell32, "SHGetKnownFolderPath");
+		}
+	}
 
 	char pathstr[MAX_PATH];
 
@@ -83,13 +94,6 @@ bool GetKnownFolder(int shell_folder, REFKNOWNFOLDERID known_folder, bool create
 	// new to Vista, hence the reason we support both.
 	if (SHGetKnownFolderPath == NULL)
 	{
-		static TOptWin32Proc<HRESULT(WINAPI*)(HWND, int, HANDLE, DWORD, LPTSTR)>
-			SHGetFolderPathA("shell32.dll", "SHGetFolderPathA");
-
-		// NT4 doesn't even have this function.
-		if (SHGetFolderPathA == NULL)
-			return false;
-
 		if (shell_folder < 0)
 		{ // Not supported by SHGetFolderPath
 			return false;
@@ -98,7 +102,7 @@ bool GetKnownFolder(int shell_folder, REFKNOWNFOLDERID known_folder, bool create
 		{
 			shell_folder |= CSIDL_FLAG_CREATE;
 		}
-		if (FAILED(SHGetFolderPathA.Call(NULL, shell_folder, NULL, 0, pathstr)))
+		if (FAILED(SHGetFolderPathA(NULL, shell_folder, NULL, 0, pathstr)))
 		{
 			return false;
 		}
@@ -108,7 +112,7 @@ bool GetKnownFolder(int shell_folder, REFKNOWNFOLDERID known_folder, bool create
 	else
 	{
 		PWSTR wpath;
-		if (FAILED(SHGetKnownFolderPath.Call(known_folder, create ? KF_FLAG_CREATE : 0, NULL, &wpath)))
+		if (FAILED(SHGetKnownFolderPath(known_folder, create ? KF_FLAG_CREATE : 0, NULL, &wpath)))
 		{
 			return false;
 		}
@@ -126,7 +130,7 @@ bool GetKnownFolder(int shell_folder, REFKNOWNFOLDERID known_folder, bool create
 		return converted;
 	}
 }
-
+*/
 //===========================================================================
 //
 // M_GetCachePath													Windows
@@ -139,10 +143,10 @@ FString M_GetCachePath(bool create)
 {
 	FString path;
 
-	if (!GetKnownFolder(CSIDL_LOCAL_APPDATA, FOLDERID_LocalAppData, create, path))
-	{ // Failed (e.g. On Win9x): use program directory
+//	if (!GetKnownFolder(CSIDL_LOCAL_APPDATA, FOLDERID_LocalAppData, create, path))
+//	{ // Failed (e.g. On Win9x): use program directory
 		path = progdir;
-	}
+//	}
 	// Don't use GAME_DIR and such so that ZDoom and its child ports can
 	// share the node cache.
 	path += "/zdoom/cache";
@@ -199,14 +203,16 @@ FString M_GetConfigPath(bool for_reading)
 	HRESULT hr;
 
 	// Construct a user-specific config name
-	if (UseKnownFolders() && GetKnownFolder(CSIDL_APPDATA, FOLDERID_RoamingAppData, true, path))
+/*	if (UseKnownFolders() && GetKnownFolder(CSIDL_APPDATA, FOLDERID_RoamingAppData, true, path))
 	{
 		path += "/" GAME_DIR;
 		CreatePath(path);
 		path += "/" GAMENAMELOWERCASE ".ini";
 	}
 	else
-	{ // construct "$PROGDIR/zdoom-$USER.ini"
+	{*/ // construct "$PROGDIR/zdoom-$USER.ini"
+	if (OSPlatform == os_Win2k)
+	{
 		TCHAR uname[UNLEN+1];
 		DWORD unamelen = countof(uname);
 
@@ -230,7 +236,12 @@ FString M_GetConfigPath(bool for_reading)
 			path += GAMENAMELOWERCASE ".ini";
 		}
 	}
-
+	else
+	{
+		path = progdir;
+		path += GAMENAMELOWERCASE ".ini";
+	}
+	
 	// If we are reading the config file, check if it exists. If not, fallback
 	// to $PROGDIR/zdoom.ini
 	if (for_reading)
@@ -260,7 +271,7 @@ static const GUID MyFOLDERID_Screenshots = { 0xb7bede81, 0xdf94, 0x4682, 0xa7, 0
 FString M_GetScreenshotsPath()
 {
 	FString path;
-
+/*
 	if (!UseKnownFolders())
 	{
 		return progdir;
@@ -277,7 +288,8 @@ FString M_GetScreenshotsPath()
 	{
 		return progdir;
 	}
-	CreatePath(path);
+	CreatePath(path);*/
+	path << progdir << "Screenshots/";
 	return path;
 }
 
@@ -292,7 +304,7 @@ FString M_GetScreenshotsPath()
 FString M_GetSavegamesPath()
 {
 	FString path;
-
+/*
 	if (!UseKnownFolders())
 	{
 		return progdir;
@@ -311,9 +323,9 @@ FString M_GetSavegamesPath()
 		CreatePath(path);
 	}
 	else
-	{
+	{*/
 		path = progdir;
-	}
+//	}
 	return path;
 }
 

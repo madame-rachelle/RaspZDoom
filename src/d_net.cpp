@@ -139,7 +139,7 @@ static int	oldentertics;
 
 extern	bool	 advancedemo;
 
-CUSTOM_CVAR (Bool, cl_capfps, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CUSTOM_CVAR (Bool, cl_capfps, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
 	// Do not use the separate FPS limit timer if we are limiting FPS with this.
 	if (self)
@@ -321,6 +321,8 @@ void Net_ClearBuffers ()
 	memset (netcmds, 0, sizeof(netcmds));
 	memset (nettics, 0, sizeof(nettics));
 	memset (nodeingame, 0, sizeof(nodeingame));
+	memset (nodeforplayer, 0, sizeof(nodeforplayer));
+	memset (playerfornode, 0, sizeof(playerfornode));
 	memset (remoteresend, 0, sizeof(remoteresend));
 	memset (resendto, 0, sizeof(resendto));
 	memset (resendcount, 0, sizeof(resendcount));
