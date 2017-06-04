@@ -2,6 +2,7 @@
 #include "c_cvars.h"
 #include "cmdlib.h"
 #include "templates.h"
+#include "version.h"
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -20,9 +21,11 @@ void ChildSigHandler (int signum)
 #endif
 
 #ifdef _WIN32
+
+
 BOOL SafeTerminateProcess(HANDLE hProcess, UINT uExitCode);
 
-static char TimidityTitle[] = "TiMidity (ZDoom Launched)";
+static char TimidityTitle[] = "TiMidity (" GAMENAME " Launched)";
 const char TimidityPPMIDIDevice::EventName[] = "TiMidity Killer";
 
 CVAR (String, timidity_exe, "timidity.exe", CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
@@ -55,7 +58,7 @@ CUSTOM_CVAR (Int, timidity_pipe, 90, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 	}
 }
 
-CUSTOM_CVAR (Int, timidity_frequency, 22050, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CUSTOM_CVAR (Int, timidity_frequency, 44100, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 { // Clamp frequency to Timidity's limits
 	if (self < 4000)
 		self = 4000;
@@ -69,7 +72,7 @@ CUSTOM_CVAR (Int, timidity_frequency, 22050, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 //
 //==========================================================================
 
-TimidityPPMIDIDevice::TimidityPPMIDIDevice()
+TimidityPPMIDIDevice::TimidityPPMIDIDevice(const char *args)
 	: DiskName("zmid"),
 #ifdef _WIN32
 	  ReadWavePipe(INVALID_HANDLE_VALUE), WriteWavePipe(INVALID_HANDLE_VALUE),
@@ -82,7 +85,13 @@ TimidityPPMIDIDevice::TimidityPPMIDIDevice()
 #ifndef _WIN32
 	WavePipe[0] = WavePipe[1] = -1;
 #endif
-	
+
+	if (args == NULL || *args == 0) args = timidity_exe;
+
+	CommandLine.Format("%s %s -EFchorus=%s -EFreverb=%s -s%d ",
+		args, *timidity_extargs,
+		*timidity_chorus, *timidity_reverb, *timidity_frequency);
+
 	if (DiskName == NULL)
 	{
 		Printf(PRINT_BOLD, "Could not create temp music file\n");
@@ -183,10 +192,6 @@ int TimidityPPMIDIDevice::Open(void (*callback)(unsigned int, void *, DWORD, DWO
 
 	Validated = true;
 #endif // WIN32
-
-	CommandLine.Format("%s %s -EFchorus=%s -EFreverb=%s -s%d ",
-		*timidity_exe, *timidity_extargs,
-		*timidity_chorus, *timidity_reverb, *timidity_frequency);
 
 	pipeSize = (timidity_pipe * timidity_frequency / 1000)
 		<< (timidity_stereo + !timidity_8bit);
@@ -347,7 +352,7 @@ bool TimidityPPMIDIDevice::ValidateTimidity()
 	}
 	if (!good)
 	{
-		Printf(PRINT_BOLD, "ZDoom requires a special version of TiMidity++\n");
+		Printf(PRINT_BOLD, GAMENAME " requires a special version of TiMidity++\n");
 	}
 
 	UnmapViewOfFile((LPVOID)exeBase);
@@ -433,7 +438,7 @@ bool TimidityPPMIDIDevice::LaunchTimidity ()
 	}
 	
 	int forkres;
-	wordexp_t words;
+	wordexp_t words = {};
 
 	switch (wordexp (CommandLine.GetChars(), &words, 0))
 	{
@@ -608,7 +613,7 @@ int TimidityPPMIDIDevice::Resume()
 	{
 		if (LaunchTimidity())
 		{
-			// Assume success if not mixing with FMOD
+			// Assume success if not mixing with the sound system
 			if (Stream == NULL || Stream->Play(true, timidity_mastervolume))
 			{
 				Started = true;
@@ -710,11 +715,11 @@ BOOL SafeTerminateProcess(HANDLE hProcess, UINT uExitCode)
 
 	if ( hRT )
 	{
-		// Must wait process to terminate to guarantee that it has exited...
-		WaitForSingleObject(hProcess, INFINITE);
-
+		// Must wait for process to terminate to guarantee that it has exited...
+		DWORD res = WaitForSingleObject(hProcess, 1000);
 		CloseHandle(hRT);
-		bSuccess = TRUE;
+		bSuccess = (res == WAIT_OBJECT_0);
+		dwErr = WAIT_TIMEOUT;
 	}
 
 	if ( !bSuccess )

@@ -141,7 +141,7 @@ extern "C" {
 DWORD Col2RGB8[65][256];
 DWORD *Col2RGB8_LessPrecision[65];
 DWORD Col2RGB8_Inverse[65][256];
-BYTE RGB32k[32][32][32];
+ColorTable32k RGB32k;
 }
 
 static DWORD Col2RGB8_2[63][256];
@@ -150,8 +150,8 @@ static DWORD Col2RGB8_2[63][256];
 // There's also only one, not four.
 DFrameBuffer *screen;
 
-CVAR (Int, vid_defwidth, 640, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
-CVAR (Int, vid_defheight, 480, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CVAR (Int, vid_defwidth, 320, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CVAR (Int, vid_defheight, 200, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR (Int, vid_defbits, 8, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR (Bool, vid_fps, false, 0)
 CVAR (Bool, ticker, false, 0)
@@ -387,7 +387,7 @@ void DCanvas::Dim (PalEntry color, float damount, int x1, int y1, int w, int h)
 
 			bg = bg2rgb[(*spot)&0xff];
 			bg = (fg+bg) | 0x1f07c1f;
-			*spot = RGB32k[0][0][bg&(bg>>15)];
+			*spot = RGB32k.All[bg&(bg>>15)];
 			spot++;
 		}
 		spot += gap;
@@ -658,7 +658,7 @@ static void BuildTransTable (const PalEntry *palette)
 	for (r = 0; r < 32; r++)
 		for (g = 0; g < 32; g++)
 			for (b = 0; b < 32; b++)
-				RGB32k[r][g][b] = ColorMatcher.Pick ((r<<3)|(r>>2), (g<<3)|(g>>2), (b<<3)|(b>>2));
+				RGB32k.RGB[r][g][b] = ColorMatcher.Pick ((r<<3)|(r>>2), (g<<3)|(g>>2), (b<<3)|(b>>2));
 
 	int x, y;
 
@@ -795,7 +795,7 @@ bool DSimpleCanvas::IsValid ()
 //
 //==========================================================================
 
-bool DSimpleCanvas::Lock ()
+bool DSimpleCanvas::Lock (bool)
 {
 	if (LockCount == 0)
 	{
@@ -858,8 +858,8 @@ void DFrameBuffer::DrawRateStuff ()
 			int rate_x;
 
 			chars = mysnprintf (fpsbuff, countof(fpsbuff), "%2u ms (%3u fps)", howlong, LastCount);
-			rate_x = Width - chars * 8;
-			Clear (rate_x, 0, Width, 8, GPalette.BlackIndex, 0);
+			rate_x = Width - ConFont->StringWidth(&fpsbuff[0]);
+			Clear (rate_x, 0, Width, ConFont->GetHeight(), GPalette.BlackIndex, 0);
 			DrawText (ConFont, CR_WHITE, rate_x, 0, (char *)&fpsbuff[0], TAG_DONE);
 
 			DWORD thisSec = ms/1000;
@@ -1245,7 +1245,7 @@ void DFrameBuffer::GetHitlist(BYTE *hitlist)
 					FTextureID pic = frame->Texture[k];
 					if (pic.isValid())
 					{
-						hitlist[pic.GetIndex()] = 1;
+						hitlist[pic.GetIndex()] = FTextureManager::HIT_Sprite;
 					}
 				}
 			}
@@ -1257,14 +1257,14 @@ void DFrameBuffer::GetHitlist(BYTE *hitlist)
 	for (i = numsectors - 1; i >= 0; i--)
 	{
 		hitlist[sectors[i].GetTexture(sector_t::floor).GetIndex()] = 
-			hitlist[sectors[i].GetTexture(sector_t::ceiling).GetIndex()] |= 2;
+			hitlist[sectors[i].GetTexture(sector_t::ceiling).GetIndex()] |= FTextureManager::HIT_Flat;
 	}
 
 	for (i = numsides - 1; i >= 0; i--)
 	{
 		hitlist[sides[i].GetTexture(side_t::top).GetIndex()] =
 		hitlist[sides[i].GetTexture(side_t::mid).GetIndex()] =
-		hitlist[sides[i].GetTexture(side_t::bottom).GetIndex()] |= 1;
+		hitlist[sides[i].GetTexture(side_t::bottom).GetIndex()] |= FTextureManager::HIT_Wall;
 	}
 
 	// Sky texture is always present.
@@ -1276,11 +1276,11 @@ void DFrameBuffer::GetHitlist(BYTE *hitlist)
 
 	if (sky1texture.isValid())
 	{
-		hitlist[sky1texture.GetIndex()] |= 1;
+		hitlist[sky1texture.GetIndex()] |= FTextureManager::HIT_Sky;
 	}
 	if (sky2texture.isValid())
 	{
-		hitlist[sky2texture.GetIndex()] |= 1;
+		hitlist[sky2texture.GetIndex()] |= FTextureManager::HIT_Sky;
 	}
 }
 
@@ -1397,7 +1397,7 @@ void V_CalcCleanFacs (int designwidth, int designheight, int realwidth, int real
 	int cx1, cy1, cx2, cy2;
 
 	ratio = CheckRatio(realwidth, realheight);
-	if (ratio & 4)
+	if (Is54Aspect(ratio))
 	{
 		cwidth = realwidth;
 		cheight = realheight * BaseRatioSizes[ratio][3] / 48;
@@ -1424,13 +1424,11 @@ void V_CalcCleanFacs (int designwidth, int designheight, int realwidth, int real
 		*cleany = cy2;
 	}
 
-	if (*cleanx > 1 && *cleany > 1 && *cleanx != *cleany)
-	{
-		if (*cleanx < *cleany)
-			*cleany = *cleanx;
-		else
-			*cleanx = *cleany;
-	}
+	if (*cleanx < *cleany)
+		*cleany = *cleanx;
+	else
+		*cleanx = *cleany;
+
 	if (_cx1 != NULL)	*_cx1 = cx1;
 	if (_cx2 != NULL)	*_cx2 = cx2;
 }
@@ -1647,12 +1645,14 @@ CUSTOM_CVAR (Int, vid_aspect, 0, CVAR_GLOBALCONFIG|CVAR_ARCHIVE)
 // 2: 16:10
 // 3: 17:10
 // 4: 5:4
+// 5: 17:10 (redundant)
+// 6: 21:9
 int CheckRatio (int width, int height, int *trueratio)
 {
 	int fakeratio = -1;
 	int ratio;
 
-	if ((vid_aspect >= 1) && (vid_aspect <= 5))
+	if ((vid_aspect >= 1) && (vid_aspect <= 6))
 	{
 		// [SP] User wants to force aspect ratio; let them.
 		fakeratio = int(vid_aspect);
@@ -1663,7 +1663,7 @@ int CheckRatio (int width, int height, int *trueratio)
 		else if (fakeratio == 5)
 		{
 			fakeratio = 3;
-		}
+		}        
 	}
 	if (vid_nowidescreen)
 	{
@@ -1704,6 +1704,11 @@ int CheckRatio (int width, int height, int *trueratio)
 	{
 		ratio = 4;
 	}
+    // test for 21:9 (actually 64:27, 21:9 is a semi-accurate ratio used in marketing)
+    else if (abs (height * 64/27 - width) < 30)
+    {
+        ratio = 6;
+    }
 	// Assume anything else is 4:3. (Which is probably wrong these days...)
 	else
 	{
@@ -1726,13 +1731,15 @@ int CheckRatio (int width, int height, int *trueratio)
 //     base_width = 240 * x / y
 //     multiplier = 320 / base_width
 //     base_height = 200 * multiplier
-const int BaseRatioSizes[5][4] =
+const int BaseRatioSizes[7][4] =
 {
 	{  960, 600, 0,                   48 },			//  4:3   320,      200,      multiplied by three
 	{ 1280, 450, 0,                   48*3/4 },		// 16:9   426.6667, 150,      multiplied by three
 	{ 1152, 500, 0,                   48*5/6 },		// 16:10  386,      166.6667, multiplied by three
 	{ 1224, 471, 0,                   48*40/51 },	// 17:10  408,		156.8627, multiplied by three
-	{  960, 640, (int)(6.5*FRACUNIT), 48*15/16 }	//  5:4   320,      213.3333, multiplied by three
+	{  960, 640, (int)(6.5*FRACUNIT), 48*15/16 },   //  5:4   320,      213.3333, multiplied by three
+	{ 1224, 471, 0,                   48*40/51 },	// 17:10  408,		156.8627, multiplied by three (REDUNDANT)
+	{ 1707, 338, 0,                   48*9/16 }     	// 21:9   568.8889, 337.5,    multiplied by three
 };
 
 void IVideo::DumpAdapters ()

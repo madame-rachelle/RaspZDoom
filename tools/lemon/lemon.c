@@ -437,7 +437,8 @@ struct acttab {
 #define acttab_yylookahead(X,N)  ((X)->aAction[N].lookahead)
 
 /* Free all memory associated with the given acttab */
-void acttab_free(acttab *p){
+void acttab_free(acttab **pp){
+  acttab *p = *pp;
   free( p->aAction );
   free( p->aLookahead );
   free( p );
@@ -2506,12 +2507,14 @@ struct lemon *gp;
     ErrorMsg(ps.filename,0,"Can't allocate %d of memory to hold this file.",
       filesize+1);
     gp->errorcnt++;
+    fclose(fp);
     return;
   }
   if( fread(filebuf,1,filesize,fp)!=filesize ){
     ErrorMsg(ps.filename,0,"Can't read in all %d bytes of this file.",
       filesize);
     free(filebuf);
+    fclose(fp);
     gp->errorcnt++;
     return;
   }
@@ -3058,6 +3061,7 @@ struct lemon *lemp;
   FILE *in;
   char *tpltname;
   char *cp;
+  Boolean tpltnameinbuf;
 
   cp = strrchr(lemp->filename,'.');
   if( cp ){
@@ -3067,10 +3071,13 @@ struct lemon *lemp;
   }
   if( access(buf,004)==0 ){
     tpltname = buf;
+    tpltnameinbuf = LEMON_TRUE;
   }else if( access(templatename,004)==0 ){
     tpltname = templatename;
+    tpltnameinbuf = LEMON_TRUE;
   }else{
     tpltname = pathsearch(lemp->argv0,templatename,0);
+    tpltnameinbuf = LEMON_FALSE;
   }
   if( tpltname==0 ){
     fprintf(stderr,"Can't find the parser driver template file \"%s\".\n",
@@ -3081,9 +3088,11 @@ struct lemon *lemp;
   in = fopen(tpltname,"rb");
   if( in==0 ){
     fprintf(stderr,"Can't open the template file \"%s\".\n",templatename);
+    if (tpltnameinbuf == LEMON_FALSE) free(tpltname);
     lemp->errorcnt++;
     return 0;
   }
+  if (tpltnameinbuf == LEMON_FALSE) free(tpltname);
   return in;
 }
 
@@ -3942,6 +3951,7 @@ int mhflag;     /* Output in makeheaders format if true */
   /* Append any addition code the user desires */
   tplt_print(out,lemp,lemp->extracode,lemp->extracodeln,&lineno);
 
+  acttab_free(&pActtab);
   fclose(in);
   fclose(out);
   return;

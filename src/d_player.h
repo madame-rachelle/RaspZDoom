@@ -76,8 +76,6 @@ FPlayerColorSet *P_GetPlayerColorSet(FName classname, int setnum);
 void P_EnumPlayerColorSets(FName classname, TArray<int> *out);
 const char *GetPrintableDisplayName(const PClass *cls);
 
-class player_t;
-
 class APlayerPawn : public AActor
 {
 	DECLARE_CLASS (APlayerPawn, AActor)
@@ -176,7 +174,8 @@ typedef enum
 	PST_LIVE,	// Playing or camping.
 	PST_DEAD,	// Dead on the ground, view follows killer.
 	PST_REBORN,	// Ready to restart/respawn???
-	PST_ENTER	// [BC] Entered the game
+	PST_ENTER,	// [BC] Entered the game
+	PST_GONE	// Player has left the game
 } playerstate_t;
 
 
@@ -198,6 +197,7 @@ typedef enum
 	CF_INSTANTWEAPSWITCH= 1 << 11,		// [RH] Switch weapons instantly
 	CF_TOTALLYFROZEN	= 1 << 12,		// [RH] All players can do is press +use
 	CF_PREDICTING		= 1 << 13,		// [RH] Player movement is being predicted
+	CF_INTERPVIEW		= 1 << 14,		// [RH] view was changed outside of input, so interpolate one frame
 	CF_DRAIN			= 1 << 16,		// Player owns a drain powerup
 	CF_HIGHJUMP			= 1 << 18,		// more Skulltag flags. Implementation not guaranteed though. ;)
 	CF_REFLECTION		= 1 << 19,
@@ -205,6 +205,8 @@ typedef enum
 	CF_DOUBLEFIRINGSPEED= 1 << 21,		// Player owns a double firing speed artifact
 	CF_EXTREMELYDEAD	= 1 << 22,		// [RH] Reliably let the status bar know about extreme deaths.
 	CF_INFINITEAMMO		= 1 << 23,		// Player owns an infinite ammo artifact
+	CF_BUDDHA2			= 1 << 24,		// [MC] Absolute buddha. No voodoo can kill it either.
+	CF_GODMODE2			= 1 << 25,		// [MC] Absolute godmode. No voodoo can kill it either.
 	CF_BUDDHA			= 1 << 27,		// [SP] Buddha mode - take damage, but don't die
 	CF_NOCLIP2			= 1 << 30,		// [RH] More Quake-like noclip
 } cheat_t;
@@ -219,7 +221,11 @@ enum
 	WF_WEAPONRELOADOK	= 1 << 5,		// [XA] Okay to reload this weapon.
 	WF_WEAPONZOOMOK		= 1 << 6,		// [XA] Okay to use weapon zoom function.
 	WF_REFIRESWITCHOK	= 1 << 7,		// Mirror WF_WEAPONSWITCHOK for A_ReFire
-};	
+	WF_USER1OK			= 1 << 8,		// [MC] Allow pushing of custom state buttons 1-4
+	WF_USER2OK			= 1 << 9,
+	WF_USER3OK			= 1 << 10,
+	WF_USER4OK			= 1 << 11,
+};
 
 #define WPIECE1		1
 #define WPIECE2		2
@@ -325,10 +331,14 @@ struct userinfo_t : TMap<FName,FBaseCVar *>
 	{
 		return *static_cast<FIntCVar *>(*CheckKey(NAME_Gender));
 	}
+	bool GetNoAutostartMap() const
+	{
+		return *static_cast<FBoolCVar *>(*CheckKey(NAME_Wi_NoAutostartMap));
+	}
 
 	void Reset();
 	int TeamChanged(int team);
-	int SkinChanged(const char *skinname);
+	int SkinChanged(const char *skinname, int playerclass);
 	int SkinNumChanged(int skinnum);
 	int GenderChanged(const char *gendername);
 	int PlayerClassChanged(const char *classname);
@@ -338,8 +348,8 @@ struct userinfo_t : TMap<FName,FBaseCVar *>
 	int ColorSetChanged(int setnum);
 };
 
-FArchive &operator<< (FArchive &arc, userinfo_t &info);
-
+void ReadUserInfo(FArchive &arc, userinfo_t &info, FString &skin);
+void WriteUserInfo(FArchive &arc, userinfo_t &info);
 
 //
 // Extended player object info: player_t
@@ -348,6 +358,7 @@ class player_t
 {
 public:
 	player_t();
+	player_t &operator= (const player_t &p);
 
 	void Serialize (FArchive &arc);
 	size_t FixPointers (const DObject *obj, DObject *replacement);
@@ -392,14 +403,13 @@ public:
 
 	int			inventorytics;
 	BYTE		CurrentPlayerClass;		// class # for this player instance
-	bool		backpack;
-	
+
 	int			frags[MAXPLAYERS];		// kills of other players
 	int			fragcount;				// [RH] Cumulative frags for this player
 	int			lastkilltime;			// [RH] For multikills
 	BYTE		multicount;
 	BYTE		spreecount;				// [RH] Keep track of killing sprees
-	BYTE		WeaponState;
+	WORD		WeaponState;
 
 	AWeapon	   *ReadyWeapon;
 	AWeapon	   *PendingWeapon;			// WP_NOCHANGE if not changing
@@ -412,6 +422,8 @@ public:
 	int			killcount, itemcount, secretcount;		// for intermission
 	int			damagecount, bonuscount;// for screen flashing
 	int			hazardcount;			// for delayed Strife damage
+	int			hazardinterval;			// Frequency of damage infliction
+	FName		hazardtype;				// Damage type of last hazardous damage encounter.
 	int			poisoncount;			// screen flash for poison damage
 	FName		poisontype;				// type of poison damage to apply
 	FName		poisonpaintype;			// type of Pain state to enter for poison damage
@@ -428,6 +440,7 @@ public:
 	TObjPtr<AWeapon>	PremorphWeapon;		// ready weapon before morphing
 	int			chickenPeck;			// chicken peck countdown
 	int			jumpTics;				// delay the next jump for a moment
+	bool		onground;				// Identifies if this player is on the ground or other object
 
 	int			respawn_time;			// [RH] delay respawning until this tic
 	TObjPtr<AActor>		camera;			// [RH] Whose eyes this player sees through
@@ -436,47 +449,15 @@ public:
 
 	FName		LastDamageType;			// [RH] For damage-specific pain and death sounds
 
-	//Added by MC:
-	angle_t		savedyaw;
-	int			savedpitch;
-
-	angle_t		angle;		// The wanted angle that the bot try to get every tic.
-							//  (used to get a smoth view movement)
-	TObjPtr<AActor>		dest;		// Move Destination.
-	TObjPtr<AActor>		prev;		// Previous move destination.
-
-
-	TObjPtr<AActor>		enemy;		// The dead meat.
-	TObjPtr<AActor>		missile;	// A threatening missile that needs to be avoided.
-	TObjPtr<AActor>		mate;		// Friend (used for grouping in teamplay or coop).
-	TObjPtr<AActor>		last_mate;	// If bots mate disappeared (not if died) that mate is
-							// pointed to by this. Allows bot to roam to it if
-							// necessary.
+	TObjPtr<AActor> MUSINFOactor;		// For MUSINFO purposes
+	SBYTE		MUSINFOtics;
 
 	bool		settings_controller;	// Player can control game settings.
+	SBYTE		crouching;
+	SBYTE		crouchdir;
 
-	//Skills
-	struct botskill_t	skill;
-
-	//Tickers
-	int			t_active;	// Open door, lower lift stuff, door must open and
-							// lift must go down before bot does anything
-							// radical like try a stuckmove
-	int			t_respawn;
-	int			t_strafe;
-	int			t_react;
-	int			t_fight;
-	int			t_roam;
-	int			t_rocket;
-
-	//Misc booleans
-	bool		isbot;
-	bool		first_shot;	// Used for reaction skill.
-	bool		sleft;		// If false, strafe is right.
-	bool		allround;
-
-	fixed_t		oldx;
-	fixed_t		oldy;
+	//Added by MC:
+	TObjPtr<DBot> Bot;
 
 	float		BlendR;		// [RH] Final blending values
 	float		BlendG;
@@ -488,8 +469,6 @@ public:
 	int			MinPitch;	// Viewpitch limits (negative is up, positive is down)
 	int			MaxPitch;
 
-	SBYTE	crouching;
-	SBYTE	crouchdir;
 	fixed_t crouchfactor;
 	fixed_t crouchoffset;
 	fixed_t crouchviewdelta;
@@ -508,11 +487,15 @@ public:
 
 	void Uncrouch()
 	{
-		crouchfactor = FRACUNIT;
-		crouchoffset = 0;
-		crouchdir = 0;
-		crouching = 0;
-		crouchviewdelta = 0;
+		if (crouchfactor != FRACUNIT)
+		{
+			crouchfactor = FRACUNIT;
+			crouchoffset = 0;
+			crouchdir = 0;
+			crouching = 0;
+			crouchviewdelta = 0;
+			viewheight = mo->ViewHeight;
+		}
 	}
 	
 	bool CanCrouch() const

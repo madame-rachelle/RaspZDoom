@@ -158,6 +158,7 @@ bool PIT_PushThing (AActor *thing);
 bool	CheckIfExitIsGood (AActor *self, level_info_t *info);
 
 // at map load
+void P_InitSectorSpecial(sector_t *sector, int special, bool nothinkers);
 void	P_SpawnSpecials (void);
 
 // every tic
@@ -166,13 +167,33 @@ void	P_UpdateSpecials (void);
 // when needed
 bool	P_ActivateLine (line_t *ld, AActor *mo, int side, int activationType);
 bool	P_TestActivateLine (line_t *ld, AActor *mo, int side, int activationType);
+bool	P_PredictLine (line_t *ld, AActor *mo, int side, int activationType);
 
 void 	P_PlayerInSpecialSector (player_t *player, sector_t * sector=NULL);
 void	P_PlayerOnSpecialFlat (player_t *player, int floorType);
 void	P_SectorDamage(int tag, int amount, FName type, const PClass *protectClass, int flags);
 void	P_SetSectorFriction (int tag, int amount, bool alterFlag);
 
-void P_GiveSecret(AActor *actor, bool printmessage, bool playsound);
+inline fixed_t FrictionToMoveFactor(fixed_t friction)
+{
+	fixed_t movefactor;
+
+	// [RH] Twiddled these values so that velocity on ice (with
+	//		friction 0xf900) is the same as in Heretic/Hexen.
+	if (friction >= ORIG_FRICTION)	// ice
+//		movefactor = ((0x10092 - friction)*(0x70))/0x158;
+		movefactor = ((0x10092 - friction) * 1024) / 4352 + 568;
+	else
+		movefactor = ((friction - 0xDB34)*(0xA))/0x80;
+
+	// killough 8/28/98: prevent odd situations
+	if (movefactor < 32)
+		movefactor = 32;
+
+	return movefactor;
+}
+
+void P_GiveSecret(AActor *actor, bool printmessage, bool playsound, int sectornum);
 
 //
 // getSide()
@@ -223,9 +244,7 @@ inline sector_t *getNextSector (line_t *line, const sector_t *sec)
 }
 
 
-int		P_FindSectorFromTag (int tag, int start);
-int		P_FindLineFromID (int id, int start);
-
+#include "p_tags.h"
 
 //
 // P_LIGHTS
@@ -495,8 +514,8 @@ private:
 	DPillar ();
 };
 
-bool EV_DoPillar (DPillar::EPillar type, int tag, fixed_t speed, fixed_t height,
-				  fixed_t height2, int crush, bool hexencrush);
+bool EV_DoPillar (DPillar::EPillar type, line_t *line, int tag,
+				  fixed_t speed, fixed_t height, fixed_t height2, int crush, bool hexencrush);
 
 //
 // P_DOORS
@@ -609,7 +628,6 @@ public:
 		ceilLowerInstant,
 		ceilRaiseInstant,
 		ceilCrushAndRaise,
-		ceilCrushAndRaiseDist,
 		ceilLowerAndCrush,
 		ceilLowerAndCrushDist,
 		ceilCrushRaiseAndStay,
@@ -656,7 +674,7 @@ protected:
 
 	// [RH] Need these for BOOM-ish transferring ceilings
 	FTextureID	m_Texture;
-	int			m_NewSpecial;
+	secspecial_t m_NewSpecial;
 
 	// ID
 	int 		m_Tag;
@@ -743,7 +761,7 @@ protected:
 	int 		m_Crush;
 	bool		m_Hexencrush;
 	int 		m_Direction;
-	int 		m_NewSpecial;
+	secspecial_t m_NewSpecial;
 	FTextureID	m_Texture;
 	fixed_t 	m_FloorDestDist;
 	fixed_t 	m_Speed;
@@ -884,8 +902,22 @@ bool EV_DoChange (line_t *line, EChange changetype, int tag);
 //
 // P_TELEPT
 //
-bool P_Teleport (AActor *thing, fixed_t x, fixed_t y, fixed_t z, angle_t angle, bool useFog, bool sourceFog, bool keepOrientation, bool haltVelocity = true, bool keepHeight = false);
-bool EV_Teleport (int tid, int tag, line_t *line, int side, AActor *thing, bool fog, bool sourceFog, bool keepOrientation, bool haltVelocity = true, bool keepHeight = false);
+enum
+{
+	TELF_DESTFOG			= 1,
+	TELF_SOURCEFOG			= 2,
+	TELF_KEEPORIENTATION	= 4,
+	TELF_KEEPVELOCITY		= 8,
+	TELF_KEEPHEIGHT			= 16,
+};
+
+void P_SpawnTeleportFog(AActor *mobj, fixed_t x, fixed_t y, fixed_t z, bool beforeTele = true, bool setTarget = false); //Spawns teleport fog. Pass the actor to pluck TeleFogFromType and TeleFogToType. 'from' determines if this is the fog to spawn at the old position (true) or new (false).
+inline void P_SpawnTeleportFog(AActor *mobj, const fixedvec3 &pos, bool beforeTele = true, bool setTarget = false)
+{
+	P_SpawnTeleportFog(mobj, pos.x, pos.y, pos.z, beforeTele, setTarget);
+}
+bool P_Teleport (AActor *thing, fixed_t x, fixed_t y, fixed_t z, angle_t angle, int flags); // bool useFog, bool sourceFog, bool keepOrientation, bool haltVelocity = true, bool keepHeight = false
+bool EV_Teleport (int tid, int tag, line_t *line, int side, AActor *thing, int flags);
 bool EV_SilentLineTeleport (line_t *line, int side, AActor *thing, int id, INTBOOL reverse);
 bool EV_TeleportOther (int other_tid, int dest_tid, bool fog);
 bool EV_TeleportGroup (int group_tid, AActor *victim, int source_tid, int dest_tid, bool moveSource, bool fog);
@@ -902,13 +934,14 @@ bool EV_TeleportSector (int tag, int source_tid, int dest_tid, bool fog, int gro
 #define ACS_NET				8
 
 int  P_StartScript (AActor *who, line_t *where, int script, const char *map, const int *args, int argcount, int flags);
-void P_SuspendScript (int script, char *map);
-void P_TerminateScript (int script, char *map);
+void P_SuspendScript (int script, const char *map);
+void P_TerminateScript (int script, const char *map);
 void P_DoDeferedScripts (void);
 
 //
 // [RH] p_quake.c
 //
-bool P_StartQuake (AActor *activator, int tid, int intensity, int duration, int damrad, int tremrad, FSoundID quakesfx);
+bool P_StartQuakeXYZ(AActor *activator, int tid, int intensityX, int intensityY, int intensityZ, int duration, int damrad, int tremrad, FSoundID quakesfx, int flags, double waveSpeedX, double waveSpeedY, double waveSpeedZ);
+bool P_StartQuake(AActor *activator, int tid, int intensity, int duration, int damrad, int tremrad, FSoundID quakesfx);
 
 #endif

@@ -784,7 +784,7 @@ static int PatchThing (int thingy)
 	bool hadStyle = false;
 	FStateDefinitions statedef;
 	bool patchedStates = false;
-	int oldflags;
+	ActorFlags oldflags;
 	const PClass *type;
 	SWORD *ednum, dummyed;
 
@@ -1135,32 +1135,32 @@ static int PatchThing (int thingy)
 						// triggering line effects and can teleport when the missile flag is removed.
 						info->flags2 &= ~MF2_NOTELEPORT;
 					}
-					info->flags = value[0];
+					info->flags = ActorFlags::FromInt (value[0]);
 				}
 				if (vchanged[1])
 				{
-					info->flags2 = value[1];
-					if (info->flags2 & 0x00000004)	// old BOUNCE1
+					if (value[1] & 0x00000004)	// old BOUNCE1
 					{ 	
-						info->flags2 &= ~4;
+						value[1] &= ~0x00000004;
 						info->BounceFlags = BOUNCE_DoomCompat;
 					}
 					// Damage types that once were flags but now are not
-					if (info->flags2 & 0x20000000)
+					if (value[1] & 0x20000000)
 					{
 						info->DamageType = NAME_Ice;
-						info->flags2 &= ~0x20000000;
+						value[1] &= ~0x20000000;
 					}
-					if (info->flags2 & 0x10000)
+					if (value[1] & 0x10000000)
 					{
 						info->DamageType = NAME_Fire;
-						info->flags2 &= ~0x10000;
+						value[1] &= ~0x10000000;
 					}
-					if (info->flags2 & 1)
+					if (value[1] & 0x00000001)
 					{
 						info->gravity = FRACUNIT/4;
-						info->flags2 &= ~1;
+						value[1] &= ~0x00000001;
 					}
+					info->flags2 = ActorFlags2::FromInt (value[1]);
 				}
 				if (vchanged[2])
 				{
@@ -1180,8 +1180,8 @@ static int PatchThing (int thingy)
 					else
 						info->renderflags &= ~RF_INVISIBLE;
 				}
-				DPrintf ("Bits: %d,%d (0x%08x,0x%08x)\n", info->flags, info->flags2,
-													      info->flags, info->flags2);
+				DPrintf ("Bits: %d,%d (0x%08x,0x%08x)\n", info->flags.GetValue(), info->flags2.GetValue(),
+													      info->flags.GetValue(), info->flags2.GetValue());
 			}
 			else if (stricmp (Line1, "ID #") == 0)
 			{
@@ -2154,6 +2154,13 @@ static int PatchText (int oldSize)
 			{
 				strncpy (deh.PlayerSprite, newStr, 4);
 			}
+			for (unsigned ii = 0; ii < OrgSprNames.Size(); ii++)
+			{
+				if (!stricmp(OrgSprNames[ii].c, oldStr))
+				{
+					strcpy(OrgSprNames[ii].c, newStr);
+				}
+			}
 			// If this sprite is used by a pickup, then the DehackedPickup sprite map
 			// needs to be updated too.
 			for (i = 0; (size_t)i < countof(DehSpriteMappings); ++i)
@@ -2183,24 +2190,25 @@ static int PatchText (int oldSize)
 		}
 	}
 
-	if (!good)
-	{	
-		// Search through most other texts
-		const char *str;
-		str = EnglishStrings->MatchString (oldStr);
+	// Search through most other texts
+	const char *str;
+	do
+	{
+		str = EnglishStrings->MatchString(oldStr);
 		if (str != NULL)
 		{
-			GStrings.SetString (str, newStr);
+			GStrings.SetString(str, newStr);
+			EnglishStrings->SetString(str, "~~");	// set to something invalid so that it won't get found again by the next iteration or  by another replacement later
 			good = true;
 		}
+	} 
+	while (str != NULL);	// repeat search until the text can no longer be found
 
-		if (!good)
-		{
-			DPrintf ("   (Unmatched)\n");
-		}
+	if (!good)
+	{
+		DPrintf ("   (Unmatched)\n");
 	}
 		
-
 donewithtext:
 	if (newStr)
 		delete[] newStr;
@@ -2240,7 +2248,10 @@ static int PatchStrings (int dummy)
 
 		ReplaceSpecialChars (holdstring.LockBuffer());
 		holdstring.UnlockBuffer();
-		GStrings.SetString (Line1, holdstring);
+		// Account for a discrepancy between Boom's and ZDoom's name for the red skull key pickup message
+		const char *ll = Line1;
+		if (!stricmp(ll, "GOTREDSKULL")) ll = "GOTREDSKUL";
+		GStrings.SetString (ll, holdstring);
 		DPrintf ("%s set to:\n%s\n", Line1, holdstring.GetChars());
 	}
 
@@ -2445,6 +2456,12 @@ static bool DoDehPatch()
 			Printf (PRINT_BOLD, "\"%s\" is an old and unsupported DeHackEd patch\n", PatchFile);
 			return false;
 		}
+		// fix for broken WolfenDoom patches which contain \0 characters in some places.
+		for (int i = 0; i < PatchSize; i++)
+		{
+			if (PatchFile[i] == 0) PatchFile[i] = ' ';	
+		}
+
 		PatchPt = strchr (PatchFile, '\n');
 		while ((cont = GetLine()) == 1)
 		{
@@ -3039,7 +3056,7 @@ bool ADehackedPickup::TryPickup (AActor *&toucher)
 	{
 		return false;
 	}
-	RealPickup = static_cast<AInventory *>(Spawn (type, x, y, z, NO_REPLACE));
+	RealPickup = static_cast<AInventory *>(Spawn (type, Pos(), NO_REPLACE));
 	if (RealPickup != NULL)
 	{
 		// The internally spawned item should never count towards statistics.

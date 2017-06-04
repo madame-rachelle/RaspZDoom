@@ -13,7 +13,6 @@
 #include <windows.h>
 #include <mmsystem.h>
 #else
-#include <SDL.h>
 #define FALSE 0
 #define TRUE 1
 #endif
@@ -24,6 +23,8 @@
 #include "i_sound.h"
 #include "i_music.h"
 #include "s_sound.h"
+#include "files.h"
+#include "wildmidi/wildmidi_lib.h"
 
 void I_InitMusicWin32 ();
 void I_ShutdownMusicWin32 ();
@@ -101,6 +102,7 @@ public:
 	virtual void FluidSettingInt(const char *setting, int value);
 	virtual void FluidSettingNum(const char *setting, double value);
 	virtual void FluidSettingStr(const char *setting, const char *value);
+	virtual void WildMidiSetOption(int opt, int set);
 	virtual bool Preprocess(MIDIStreamer *song, bool looping);
 	virtual FString GetStats();
 };
@@ -169,21 +171,21 @@ protected:
 	bool bLooping;
 };
 
-// FMOD pseudo-MIDI device --------------------------------------------------
+// Sound System pseudo-MIDI device ------------------------------------------
 
-class FMODMIDIDevice : public PseudoMIDIDevice
+class SndSysMIDIDevice : public PseudoMIDIDevice
 {
 public:
 	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
 	bool Preprocess(MIDIStreamer *song, bool looping);
 };
 
-// MIDI file played with TiMidity++ and possibly streamed through FMOD ------
+// MIDI file played with TiMidity++ and possibly streamed through the Sound System
 
 class TimidityPPMIDIDevice : public PseudoMIDIDevice
 {
 public:
-	TimidityPPMIDIDevice();
+	TimidityPPMIDIDevice(const char *args);
 	~TimidityPPMIDIDevice();
 
 	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
@@ -217,7 +219,6 @@ protected:
 	static const char EventName[];
 #endif
 };
-
 
 // Base class for software synthesizer MIDI output devices ------------------
 
@@ -269,7 +270,7 @@ protected:
 class OPLMIDIDevice : public SoftSynthMIDIDevice, protected OPLmusicBlock
 {
 public:
-	OPLMIDIDevice();
+	OPLMIDIDevice(const char *args);
 	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
 	void Close();
 	int GetTechnology() const;
@@ -302,7 +303,7 @@ namespace Timidity { struct Renderer; }
 class TimidityMIDIDevice : public SoftSynthMIDIDevice
 {
 public:
-	TimidityMIDIDevice();
+	TimidityMIDIDevice(const char *args);
 	~TimidityMIDIDevice();
 
 	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
@@ -331,6 +332,27 @@ protected:
 	FILE *File;
 };
 
+// WildMidi implementation of a MIDI device ---------------------------------
+
+class WildMIDIDevice : public SoftSynthMIDIDevice
+{
+public:
+	WildMIDIDevice(const char *args);
+	~WildMIDIDevice();
+
+	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
+	void PrecacheInstruments(const WORD *instruments, int count);
+	FString GetStats();
+
+protected:
+	WildMidi_Renderer *Renderer;
+
+	void HandleEvent(int status, int parm1, int parm2);
+	void HandleLongEvent(const BYTE *data, int len);
+	void ComputeOutput(float *buffer, int len);
+	void WildMidiSetOption(int opt, int set);
+};
+
 // FluidSynth implementation of a MIDI device -------------------------------
 
 #ifdef HAVE_FLUIDSYNTH
@@ -344,7 +366,7 @@ struct fluid_synth_t;
 class FluidSynthMIDIDevice : public SoftSynthMIDIDevice
 {
 public:
-	FluidSynthMIDIDevice();
+	FluidSynthMIDIDevice(const char *args);
 	~FluidSynthMIDIDevice();
 
 	int Open(void (*callback)(unsigned int, void *, DWORD, DWORD), void *userdata);
@@ -409,7 +431,7 @@ protected:
 class MIDIStreamer : public MusInfo
 {
 public:
-	MIDIStreamer(EMidiDevice type);
+	MIDIStreamer(EMidiDevice type, const char *args);
 	~MIDIStreamer();
 
 	void MusicVolumeChanged();
@@ -427,6 +449,7 @@ public:
 	void FluidSettingInt(const char *setting, int value);
 	void FluidSettingNum(const char *setting, double value);
 	void FluidSettingStr(const char *setting, const char *value);
+	void WildMidiSetOption(int opt, int set);
 	void CreateSMF(TArray<BYTE> &file, int looplimit=0);
 
 protected:
@@ -494,6 +517,7 @@ protected:
 	bool CallbackIsThreaded;
 	int LoopLimit;
 	FString DumpFilename;
+	FString Args;
 };
 
 // MUS file played with a MIDI stream ---------------------------------------
@@ -501,7 +525,7 @@ protected:
 class MUSSong2 : public MIDIStreamer
 {
 public:
-	MUSSong2(FILE *file, BYTE *musiccache, int length, EMidiDevice type);
+	MUSSong2(FileReader &reader, EMidiDevice type, const char *args);
 	~MUSSong2();
 
 	MusInfo *GetOPLDumper(const char *filename);
@@ -527,7 +551,7 @@ protected:
 class MIDISong2 : public MIDIStreamer
 {
 public:
-	MIDISong2(FILE *file, BYTE *musiccache, int length, EMidiDevice type);
+	MIDISong2(FileReader &reader, EMidiDevice type, const char *args);
 	~MIDISong2();
 
 	MusInfo *GetOPLDumper(const char *filename);
@@ -546,7 +570,7 @@ protected:
 	struct TrackInfo;
 
 	void ProcessInitialMetaEvents ();
-	DWORD *SendCommand (DWORD *event, TrackInfo *track, DWORD delay);
+	DWORD *SendCommand (DWORD *event, TrackInfo *track, DWORD delay, ptrdiff_t room, bool &sysex_noroom);
 	TrackInfo *FindNextDue ();
 
 	BYTE *MusHeader;
@@ -576,15 +600,15 @@ public:
 protected:
 	void Heapify();
 
-	unsigned int Parent(unsigned int i) { return (i + 1u) / 2u - 1u; }
-	unsigned int Left(unsigned int i) { return (i + 1u) * 2u - 1u; }
-	unsigned int Right(unsigned int i) { return (i + 1u) * 2u; }
+	unsigned int Parent(unsigned int i) const { return (i + 1u) / 2u - 1u; }
+	unsigned int Left(unsigned int i) const { return (i + 1u) * 2u - 1u; }
+	unsigned int Right(unsigned int i) const { return (i + 1u) * 2u; }
 };
 
 class HMISong : public MIDIStreamer
 {
 public:
-	HMISong(FILE *file, BYTE *musiccache, int length, EMidiDevice type);
+	HMISong(FileReader &reader, EMidiDevice type, const char *args);
 	~HMISong();
 
 	MusInfo *GetOPLDumper(const char *filename);
@@ -606,7 +630,7 @@ protected:
 	struct TrackInfo;
 
 	void ProcessInitialMetaEvents ();
-	DWORD *SendCommand (DWORD *event, TrackInfo *track, DWORD delay);
+	DWORD *SendCommand (DWORD *event, TrackInfo *track, DWORD delay, ptrdiff_t room, bool &sysex_noroom);
 	TrackInfo *FindNextDue ();
 
 	static DWORD ReadVarLenHMI(TrackInfo *);
@@ -627,7 +651,7 @@ protected:
 class XMISong : public MIDIStreamer
 {
 public:
-	XMISong(FILE *file, BYTE *musiccache, int length, EMidiDevice type);
+	XMISong(FileReader &reader, EMidiDevice type, const char *args);
 	~XMISong();
 
 	MusInfo *GetOPLDumper(const char *filename);
@@ -649,7 +673,7 @@ protected:
 	void AdvanceSong(DWORD time);
 
 	void ProcessInitialMetaEvents();
-	DWORD *SendCommand (DWORD *event, EventSource track, DWORD delay);
+	DWORD *SendCommand (DWORD *event, EventSource track, DWORD delay, ptrdiff_t room, bool &sysex_noroom);
 	EventSource FindNextDue();
 
 	BYTE *MusHeader;
@@ -661,12 +685,13 @@ protected:
 	EventSource EventDue;
 };
 
-// Anything supported by FMOD out of the box --------------------------------
+// Anything supported by the sound system out of the box --------------------
 
 class StreamSong : public MusInfo
 {
 public:
-	StreamSong (const char *file, int offset, int length);
+    StreamSong (FileReader *reader);
+	StreamSong (const char *url);
 	~StreamSong ();
 	void Play (bool looping, int subsong);
 	void Pause ();
@@ -684,12 +709,12 @@ protected:
 	SoundStream *m_Stream;
 };
 
-// MUS file played by a software OPL2 synth and streamed through FMOD -------
+// MUS file played by a software OPL2 synth and streamed through the sound system
 
 class OPLMUSSong : public StreamSong
 {
 public:
-	OPLMUSSong (FILE *file, BYTE *musiccache, int length);
+	OPLMUSSong (FileReader &reader, const char *args);
 	~OPLMUSSong ();
 	void Play (bool looping, int subsong);
 	bool IsPlaying ();
@@ -709,7 +734,7 @@ class OPLMUSDumper : public OPLMUSSong
 {
 public:
 	OPLMUSDumper(const OPLMUSSong *original, const char *filename);
-	void Play(bool looping);
+	void Play(bool looping, int);
 };
 
 // CD track/disk played through the multimedia system -----------------------
@@ -738,17 +763,17 @@ protected:
 class CDDAFile : public CDSong
 {
 public:
-	CDDAFile (FILE *file, int length);
+	CDDAFile (FileReader &reader);
 };
 
 // Module played via foo_dumb -----------------------------------------------
 
-MusInfo *MOD_OpenSong(FILE *file, BYTE *musiccache, int len);
+MusInfo *MOD_OpenSong(FileReader &reader);
 
 // Music played via Game Music Emu ------------------------------------------
 
 const char *GME_CheckFormat(uint32 header);
-MusInfo *GME_OpenSong(FILE *file, BYTE *musiccache, int len, const char *fmt);
+MusInfo *GME_OpenSong(FileReader &reader, const char *fmt);
 
 // --------------------------------------------------------------------------
 

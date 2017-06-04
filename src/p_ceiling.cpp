@@ -90,6 +90,7 @@ void DCeiling::Serialize (FArchive &arc)
 
 void DCeiling::PlayCeilingSound ()
 {
+	if (m_Sector->Flags & SECF_SILENTMOVE) return;
 	if (m_Sector->seqType >= 0)
 	{
 		SN_StartSequence (m_Sector, CHAN_CEILING, m_Sector->seqType, SEQ_PLATFORM, 0, false);
@@ -133,7 +134,6 @@ void DCeiling::Tick ()
 			switch (m_Type)
 			{
 			case ceilCrushAndRaise:
-			case ceilCrushAndRaiseDist:
 				m_Direction = -1;
 				m_Speed = m_Speed1;
 				if (!SN_IsMakingLoopingSound (m_Sector))
@@ -143,7 +143,7 @@ void DCeiling::Tick ()
 			// movers with texture change, change the texture then get removed
 			case genCeilingChgT:
 			case genCeilingChg0:
-				m_Sector->special = m_NewSpecial;
+				m_Sector->SetSpecial(&m_NewSpecial);
 				// fall through
 			case genCeilingChg:
 				m_Sector->SetTexture(sector_t::ceiling, m_Texture);
@@ -165,7 +165,6 @@ void DCeiling::Tick ()
 			switch (m_Type)
 			{
 			case ceilCrushAndRaise:
-			case ceilCrushAndRaiseDist:
 			case ceilCrushRaiseAndStay:
 				m_Speed = m_Speed2;
 				m_Direction = 1;
@@ -177,7 +176,7 @@ void DCeiling::Tick ()
 			// then remove the active ceiling
 			case genCeilingChgT:
 			case genCeilingChg0:
-				m_Sector->special = m_NewSpecial;
+				m_Sector->SetSpecial(&m_NewSpecial);
 				// fall through
 			case genCeilingChg:
 				m_Sector->SetTexture(sector_t::ceiling, m_Texture);
@@ -195,7 +194,6 @@ void DCeiling::Tick ()
 				switch (m_Type)
 				{
 				case ceilCrushAndRaise:
-				case ceilCrushAndRaiseDist:
 				case ceilLowerAndCrush:
 				case ceilLowerAndCrushDist:
 					if (m_Speed1 == FRACUNIT && m_Speed2 == FRACUNIT)
@@ -257,7 +255,6 @@ DCeiling *DCeiling::Create(sector_t *sec, DCeiling::ECeiling type, line_t *line,
 	switch (type)
 	{
 	case ceilCrushAndRaise:
-	case ceilCrushAndRaiseDist:
 	case ceilCrushRaiseAndStay:
 		ceiling->m_TopHeight = sec->ceilingplane.d;
 	case ceilLowerAndCrush:
@@ -267,7 +264,7 @@ DCeiling *DCeiling::Create(sector_t *sec, DCeiling::ECeiling type, line_t *line,
 		{
 			targheight += 8*FRACUNIT;
 		}
-		else if (type == ceilLowerAndCrushDist || type == ceilCrushAndRaiseDist)
+		else if (type == ceilCrushAndRaise)
 		{
 			targheight += height;
 		}
@@ -415,7 +412,7 @@ DCeiling *DCeiling::Create(sector_t *sec, DCeiling::ECeiling type, line_t *line,
 	}
 	if (ceiling->m_Speed >= movedist)
 	{
-		ceiling->StopInterpolation();
+		ceiling->StopInterpolation(true);
 	}
 
 	// set texture/type change properties
@@ -439,11 +436,11 @@ DCeiling *DCeiling::Create(sector_t *sec, DCeiling::ECeiling type, line_t *line,
 				switch (change & 3)
 				{
 					case 1:		// type is zeroed
-						ceiling->m_NewSpecial = 0;
+						ceiling->m_NewSpecial.Clear();
 						ceiling->m_Type = genCeilingChg0;
 						break;
 					case 2:		// type is copied
-						ceiling->m_NewSpecial = sec->special;
+						sec->GetSpecial(&ceiling->m_NewSpecial);
 						ceiling->m_Type = genCeilingChgT;
 						break;
 					case 3:		// type is left alone
@@ -458,11 +455,11 @@ DCeiling *DCeiling::Create(sector_t *sec, DCeiling::ECeiling type, line_t *line,
 			switch (change & 3)
 			{
 				case 1:		// type is zeroed
-					ceiling->m_NewSpecial = 0;
+					ceiling->m_NewSpecial.Clear();
 					ceiling->m_Type = genCeilingChg0;
 					break;
 				case 2:		// type is copied
-					ceiling->m_NewSpecial = line->frontsector->special;
+					line->frontsector->GetSpecial(&ceiling->m_NewSpecial);
 					ceiling->m_Type = genCeilingChgT;
 					break;
 				case 3:		// type is left alone
@@ -509,14 +506,14 @@ bool EV_DoCeiling (DCeiling::ECeiling type, line_t *line,
 	
 	//	Reactivate in-stasis ceilings...for certain types.
 	// This restarts a crusher after it has been stopped
-	if (type == DCeiling::ceilCrushAndRaise || type == DCeiling::ceilCrushAndRaiseDist)
+	if (type == DCeiling::ceilCrushAndRaise)
 	{
 		P_ActivateInStasisCeiling (tag);
 	}
 
-	secnum = -1;
 	// affects all sectors with the same tag as the linedef
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator it(tag);
+	while ((secnum = it.Next()) >= 0)
 	{
 		rtn |= !!DCeiling::Create(&sectors[secnum], type, line, tag, speed, speed2, height, crush, silent, change, hexencrush);
 	}

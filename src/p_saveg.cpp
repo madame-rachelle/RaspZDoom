@@ -52,6 +52,7 @@
 #include "farchive.h"
 #include "p_lnspec.h"
 #include "p_acs.h"
+#include "p_terrain.h"
 
 static void CopyPlayer (player_t *dst, player_t *src, const char *name);
 static void ReadOnePlayer (FArchive &arc, bool skipload);
@@ -271,7 +272,7 @@ static void CopyPlayer (player_t *dst, player_t *src, const char *name)
 
 	dst->cheats |= chasecam;
 
-	if (dst->isbot)
+	if (dst->Bot != NULL)
 	{
 		botinfo_t *thebot = bglobal.botinfo;
 		while (thebot && stricmp (name, thebot->name))
@@ -280,10 +281,9 @@ static void CopyPlayer (player_t *dst, player_t *src, const char *name)
 		}
 		if (thebot)
 		{
-			thebot->inuse = true;
+			thebot->inuse = BOTINUSE_Yes;
 		}
 		bglobal.botnum++;
-		bglobal.botingame[dst - players] = true;
 		dst->userinfo.TransferFrom(uibackup2);
 	}
 	else
@@ -349,9 +349,13 @@ void P_SerializeWorld (FArchive &arc)
 		{
 			arc << sec->lightlevel;
 		}
-		arc << sec->special
-			<< sec->tag
-			<< sec->soundtraversed
+		arc << sec->special;
+		if (SaveVersion < 4523)
+		{
+			short tag;
+			arc << tag;
+		}
+		arc << sec->soundtraversed
 			<< sec->seqType
 			<< sec->friction
 			<< sec->movefactor
@@ -365,18 +369,65 @@ void P_SerializeWorld (FArchive &arc)
 			<< sec->planes[sector_t::ceiling]
 			<< sec->heightsec
 			<< sec->bottommap << sec->midmap << sec->topmap
-			<< sec->gravity
-			<< sec->damage
-			<< sec->mod
-			<< sec->SoundTarget
+			<< sec->gravity;
+		if (SaveVersion >= 4530)
+		{
+			P_SerializeTerrain(arc, sec->terrainnum[0]);
+			P_SerializeTerrain(arc, sec->terrainnum[1]);
+		}
+		if (SaveVersion >= 4529)
+		{
+			arc << sec->damageamount;
+		}
+		else
+		{
+			short dmg;
+			arc << dmg;
+			sec->damageamount = dmg;
+		}
+		if (SaveVersion >= 4528)
+		{
+			arc << sec->damageinterval
+				<< sec->leakydamage
+				<< sec->damagetype;
+		}
+		else
+		{
+			short damagemod;
+			arc << damagemod;
+			sec->damagetype = MODtoDamageType(damagemod);
+			if (sec->damageamount < 20)
+			{
+				sec->leakydamage = 0;
+				sec->damageinterval = 32;
+			}
+			else if (sec->damageamount < 50)
+			{
+				sec->leakydamage = 5;
+				sec->damageinterval = 32;
+			}
+			else
+			{
+				sec->leakydamage = 256;
+				sec->damageinterval = 1;
+			}
+		}
+
+		arc << sec->SoundTarget
 			<< sec->SecActTarget
 			<< sec->sky
 			<< sec->MoreFlags
 			<< sec->Flags
-			<< sec->FloorSkyBox << sec->CeilingSkyBox
-			<< sec->ZoneNumber
-			<< sec->secretsector
-			<< sec->interpolations[0]
+			<< sec->SkyBoxes[sector_t::floor] << sec->SkyBoxes[sector_t::ceiling]
+			<< sec->ZoneNumber;
+		if (SaveVersion < 4529)
+		{
+			short secretsector;
+			arc << secretsector;
+			if (secretsector) sec->Flags |= SECF_WASSECRET;
+			P_InitSectorSpecial(sec, sec->special, true);
+		}
+		arc	<< sec->interpolations[0]
 			<< sec->interpolations[1]
 			<< sec->interpolations[2]
 			<< sec->interpolations[3]
@@ -409,8 +460,13 @@ void P_SerializeWorld (FArchive &arc)
 		arc << li->flags
 			<< li->activation
 			<< li->special
-			<< li->Alpha
-			<< li->id;
+			<< li->Alpha;
+
+		if (SaveVersion < 4523)
+		{
+			int id;
+			arc << id;
+		}
 		if (P_IsACSSpecial(li->special))
 		{
 			P_SerializeACSScriptNumber(arc, li->args[0], false);
@@ -570,7 +626,7 @@ void P_SerializePolyobjs (FArchive &arc)
 				I_Error ("UnarchivePolyobjs: Invalid polyobj tag");
 			}
 			arc << angle;
-			po->RotatePolyobj (angle);
+			po->RotatePolyobj (angle, true);
 			arc << deltaX << deltaY << po->interpolation;
 			deltaX -= po->StartSpot.x;
 			deltaY -= po->StartSpot.y;

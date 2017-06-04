@@ -18,6 +18,7 @@ public:
 	virtual AInventory *CreateTossable ();
 	virtual void Serialize (FArchive &arc);
 	virtual void OwnerDied ();
+	virtual bool GetNoTeleportFreeze();
 	virtual PalEntry GetBlend ();
 	virtual bool DrawPowerup (int x, int y);
 
@@ -173,11 +174,20 @@ protected:
 	void EndEffect ();
 	void PositionAccuracy ();
 	void Travelled ();
+	bool HandlePickup(AInventory *item);
 };
 
 class APowerFrightener : public APowerup
 {
 	DECLARE_CLASS (APowerFrightener, APowerup)
+protected:
+	void InitEffect ();
+	void EndEffect ();
+};
+
+class APowerBuddha : public APowerup
+{
+	DECLARE_CLASS (APowerBuddha, APowerup)
 protected:
 	void InitEffect ();
 	void EndEffect ();

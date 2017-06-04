@@ -72,6 +72,8 @@ void DPlat::Serialize (FArchive &arc)
 
 void DPlat::PlayPlatSound (const char *sound)
 {
+	if (m_Sector->Flags & SECF_SILENTMOVE) return;
+
 	if (m_Sector->seqType >= 0)
 	{
 		SN_StartSequence (m_Sector, CHAN_FLOOR, m_Sector->seqType, SEQ_PLATFORM, 0);
@@ -233,42 +235,33 @@ bool EV_DoPlat (int tag, line_t *line, DPlat::EPlatType type, int height,
 	fixed_t newheight = 0;
 	vertex_t *spot;
 
+	if (tag != 0)
+	{
+		//	Activate all <type> plats that are in_stasis
+		switch (type)
+		{
+		case DPlat::platToggle:
+			rtn = true;
+		case DPlat::platPerpetualRaise:
+			P_ActivateInStasis (tag);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+
 	// [RH] If tag is zero, use the sector on the back side
 	//		of the activating line (if any).
-	if (!tag)
-	{
-		if (!line || !(sec = line->backsector))
-			return false;
-		secnum = (int)(sec - sectors);
-		manual = true;
-		goto manual_plat;
-	}
-
-	//	Activate all <type> plats that are in_stasis
-	switch (type)
-	{
-	case DPlat::platToggle:
-		rtn = true;
-	case DPlat::platPerpetualRaise:
-		P_ActivateInStasis (tag);
-		break;
-
-	default:
-		break;
-	}
-
-	secnum = -1;
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator itr(tag, line);
+	while ((secnum = itr.Next()) >= 0)
 	{
 		sec = &sectors[secnum];
 
-manual_plat:
 		if (sec->PlaneMoving(sector_t::floor))
 		{
-			if (!manual)
-				continue;
-			else
-				return false;
+			continue;
 		}
 
 		// Find lowest & highest floors around sector
@@ -289,8 +282,7 @@ manual_plat:
 		{
 			if (line)
 				sec->SetTexture(sector_t::floor, line->sidedef[0]->sector->GetTexture(sector_t::floor));
-			if (change == 1)
-				sec->special &= SECRET_MASK;	// Stop damage and other stuff, if any
+			if (change == 1) sec->ClearSpecial();
 		}
 
 		switch (type)
@@ -302,7 +294,7 @@ manual_plat:
 			plat->m_Low = sec->floorplane.d;
 			plat->m_Status = DPlat::up;
 			plat->PlayPlatSound ("Floor");
-			sec->special &= SECRET_MASK;		// NO MORE DAMAGE, IF APPLICABLE
+			sec->ClearSpecial();
 			break;
 
 		case DPlat::platUpByValue:
@@ -406,8 +398,6 @@ manual_plat:
 		default:
 			break;
 		}
-		if (manual)
-			return rtn;
 	}
 	return rtn;
 }

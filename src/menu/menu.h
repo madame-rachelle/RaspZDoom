@@ -553,7 +553,6 @@ public:
 	}
 
 	~FOptionMenuItem();
-	virtual bool CheckCoordinate(FOptionMenuDescriptor *desc, int x, int y);
 	virtual int Draw(FOptionMenuDescriptor *desc, int y, int indent, bool selected);
 	virtual bool Selectable();
 	virtual int GetIndent();
@@ -645,9 +644,13 @@ class DTextEnterMenu : public DMenu
 	int InputGridX;
 	int InputGridY;
 
+	// [TP]
+	bool AllowColors;
+
 public:
 
-	DTextEnterMenu(DMenu *parent, char *textbuffer, int maxlen, int sizemode, bool showgrid);
+	// [TP] Added allowcolors
+	DTextEnterMenu(DMenu *parent, char *textbuffer, int maxlen, int sizemode, bool showgrid, bool allowcolors = false);
 
 	void Drawer ();
 	bool MenuEvent (int mkey, bool fromcontroller);

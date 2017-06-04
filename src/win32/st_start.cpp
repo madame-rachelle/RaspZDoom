@@ -34,6 +34,11 @@
 
 // HEADER FILES ------------------------------------------------------------
 
+#ifndef PBS_MARQUEE
+# define PBS_MARQUEE 0x08
+# define PBM_SETMARQUEE (WM_USER+10)
+#endif
+
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501	// required to get the MARQUEE defines
 #include <windows.h>
@@ -767,7 +772,7 @@ void FHexenStartupScreen::NetProgress(int count)
 			y = ST_NETPROGRESS_Y;
 			ST_Util_DrawBlock (StartupBitmap, NetNotchBits, x, y, ST_NETNOTCH_WIDTH / 2, ST_NETNOTCH_HEIGHT);
 		}
-		S_Sound (CHAN_BODY, "Drip", 1, ATTN_NONE);
+		S_Sound (CHAN_BODY, "misc/netnotch", 1, ATTN_NONE);
 		I_GetEvent ();
 	}
 }
@@ -1086,12 +1091,12 @@ void ST_Endoom()
 {
 	if (showendoom == 0) exit(0);
 
-	if (gameinfo.Endoom[0] == 0) 
+	if (gameinfo.Endoom.Len() == 0) 
 	{
 		exit(0);
 	}
 
-	int endoom_lump = Wads.CheckNumForName (gameinfo.Endoom);
+	int endoom_lump = Wads.CheckNumForFullName (gameinfo.Endoom, true);
 
 	BYTE endoom_screen[4000];
 	BYTE *font;
@@ -1227,9 +1232,11 @@ void ST_Util_SizeWindowForBitmap (int scale)
 	{
 		rect.bottom = 0;
 	}
-	w = StartupBitmap->bmiHeader.biWidth * scale + GetSystemMetrics (SM_CXSIZEFRAME)*2;
-	h = StartupBitmap->bmiHeader.biHeight * scale + rect.bottom
-		+ GetSystemMetrics (SM_CYSIZEFRAME) * 2 + GetSystemMetrics (SM_CYCAPTION);
+	RECT sizerect = { 0, 0, StartupBitmap->bmiHeader.biWidth * scale,
+		StartupBitmap->bmiHeader.biHeight * scale + rect.bottom };
+	AdjustWindowRectEx(&sizerect, WS_VISIBLE|WS_OVERLAPPEDWINDOW, FALSE, WS_EX_APPWINDOW);
+	w = sizerect.right - sizerect.left;
+	h = sizerect.bottom - sizerect.top;
 
 	// Resize the window, but keep its center point the same, unless that
 	// puts it partially offscreen.

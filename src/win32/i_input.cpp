@@ -110,6 +110,11 @@
 #include "rawinput.h"
 
 
+// Compensate for w32api's lack
+#ifndef GET_XBUTTON_WPARAM
+#define GET_XBUTTON_WPARAM(wParam) (HIWORD(wParam))
+#endif
+
 
 #ifdef _DEBUG
 #define INGAME_PRIORITY_CLASS	NORMAL_PRIORITY_CLASS
@@ -164,7 +169,7 @@ CVAR (Bool, k_allowfullscreentoggle, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 CUSTOM_CVAR(Bool, norawinput, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG|CVAR_NOINITCALL)
 {
-	Printf("This won't take effect until "GAMENAME" is restarted.\n");
+	Printf("This won't take effect until " GAMENAME " is restarted.\n");
 }
 
 extern int chatmodeon;
@@ -290,8 +295,6 @@ bool GUIWndProcHook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam, LRESU
 	case WM_RBUTTONUP:
 	case WM_MBUTTONDOWN:
 	case WM_MBUTTONUP:
-	case WM_XBUTTONDOWN:
-	case WM_XBUTTONUP:
 	case WM_MOUSEMOVE:
 		if (message >= WM_LBUTTONDOWN && message <= WM_LBUTTONDBLCLK)
 		{
@@ -305,29 +308,17 @@ bool GUIWndProcHook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam, LRESU
 		{
 			ev.subtype = message - WM_MBUTTONDOWN + EV_GUI_MButtonDown;
 		}
-		else if (message >= WM_XBUTTONDOWN && message <= WM_XBUTTONUP)
-		{
-			ev.subtype = message - WM_XBUTTONDOWN + EV_GUI_BackButtonDown;
-			if (GET_XBUTTON_WPARAM(wParam) == 2)
-			{
-				ev.subtype += EV_GUI_FwdButtonDown - EV_GUI_BackButtonDown;
-			}
-			else if (GET_XBUTTON_WPARAM(wParam) != 1)
-			{
-				break;
-			}
-		}
 		else if (message == WM_MOUSEMOVE)
 		{
 			ev.subtype = EV_GUI_MouseMove;
 			if (BlockMouseMove > 0) return true;
 		}
 
+		ev.data1 = LOWORD(lParam);
+		ev.data2 = HIWORD(lParam);
+		if (screen != NULL)
 		{
-			int shift = screen? screen->GetPixelDoubling() : 0;
-			ev.data1 = LOWORD(lParam) >> shift; 
-			ev.data2 = HIWORD(lParam) >> shift; 
-			if (screen) ev.data2 -= (screen->GetTrueHeight() - screen->GetHeight())/2;
+			screen->ScaleCoordsFromWindow(ev.data1, ev.data2);
 		}
 
 		if (wParam & MK_SHIFT)				ev.data3 |= GKM_SHIFT;
@@ -520,20 +511,22 @@ LRESULT CALLBACK WndProc (HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_DISPLAYCHANGE:
+	case WM_STYLECHANGED:
 		if (SpawnEAXWindow)
 		{
 			SpawnEAXWindow = false;
 			ShowEAXEditor ();
 		}
-		break;
+		return DefWindowProc(hWnd, message, wParam, lParam);
 
 	case WM_GETMINMAXINFO:
 		if (screen && !VidResizing)
 		{
 			LPMINMAXINFO mmi = (LPMINMAXINFO)lParam;
-			mmi->ptMinTrackSize.x = SCREENWIDTH + GetSystemMetrics (SM_CXSIZEFRAME) * 2;
-			mmi->ptMinTrackSize.y = SCREENHEIGHT + GetSystemMetrics (SM_CYSIZEFRAME) * 2 +
-									GetSystemMetrics (SM_CYCAPTION);
+			RECT rect = { 0, 0, screen->GetWidth(), screen->GetHeight() };
+			AdjustWindowRectEx(&rect, WS_VISIBLE|WS_OVERLAPPEDWINDOW, FALSE, WS_EX_APPWINDOW);
+			mmi->ptMinTrackSize.x = rect.right - rect.left;
+			mmi->ptMinTrackSize.y = rect.bottom - rect.top;
 			return 0;
 		}
 		break;
@@ -720,9 +713,6 @@ bool I_InitInput (void *hwnd)
 
 	Printf ("I_StartupKeyboard\n");
 	I_StartupKeyboard();
-
-	Printf ("I_StartupXInput\n");
-	I_StartupXInput();
 
 	Printf ("I_StartupRawPS2\n");
 	I_StartupRawPS2();

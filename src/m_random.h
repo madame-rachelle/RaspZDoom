@@ -57,7 +57,9 @@ public:
 	// Returns a random number in the range [0,mod)
 	int operator() (int mod)
 	{
-		return GenRand32() % mod;
+		return (0 == mod)
+			? 0
+			: (GenRand32() % mod);
 	}
 
 	// Returns rand# - rand#
@@ -214,6 +216,10 @@ private:
 };
 
 extern DWORD rngseed;			// The starting seed (not part of state)
+
+extern DWORD staticrngseed;		// Static rngseed that can be set by the user
+extern bool use_staticrng;
+
 
 // M_Random can be used for numbers that do not affect gameplay
 extern FRandom M_Random;

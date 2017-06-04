@@ -62,9 +62,6 @@
 extern bool DrawFSHUD;		// [RH] Defined in d_main.cpp
 EXTERN_CVAR (Bool, cl_capfps)
 
-extern lighttable_t*	fixedcolormap;
-extern FSpecialColormap*realfixedcolormap;
-
 // TYPES -------------------------------------------------------------------
 
 struct InterpolationViewer
@@ -89,6 +86,11 @@ CVAR (Bool, r_deathcamera, false, CVAR_ARCHIVE)
 CVAR (Int, r_clearbuffer, 0, 0)
 CVAR (Bool, r_drawvoxels, true, 0)
 CVAR (Bool, r_drawplayersprites, true, 0)	// [RH] Draw player sprites?
+CUSTOM_CVAR(Float, r_quakeintensity, 1.0f, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+{
+	if (self < 0.f) self = 0.f;
+	else if (self > 1.f) self = 1.f;
+}
 
 DCanvas			*RenderTarget;		// [RH] canvas to render to
 
@@ -130,7 +132,7 @@ bool			LocalKeyboardTurner;
 
 float			LastFOV;
 int				WidescreenRatio;
-int				setblocks;
+int				setblocks, setdetail = -1;
 int				extralight;
 bool			setsizeneeded;
 fixed_t			FocalTangent;
@@ -393,6 +395,24 @@ void R_SetViewSize (int blocks)
 
 //==========================================================================
 //
+// R_SetDetail
+//
+//==========================================================================
+
+void R_SetDetail (int detail)
+{
+	if (detail < 4) {
+		detailxshift = detail & 1;
+		detailyshift = (detail >> 1) & 1;
+	}
+	else {
+		detailxshift = 1;
+		detailyshift = 1;
+	}
+}
+
+//==========================================================================
+//
 // R_SetWindow
 //
 //==========================================================================
@@ -403,19 +423,19 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight)
 
 	if (windowSize >= 11)
 	{
-		viewwidth = fullWidth;
-		freelookviewheight = viewheight = fullHeight;
+		realviewwidth = fullWidth;
+		freelookviewheight = realviewheight = fullHeight;
 	}
 	else if (windowSize == 10)
 	{
-		viewwidth = fullWidth;
-		viewheight = stHeight;
+		realviewwidth = fullWidth;
+		realviewheight = stHeight;
 		freelookviewheight = fullHeight;
 	}
 	else
 	{
-		viewwidth = ((setblocks*fullWidth)/10) & (~15);
-		viewheight = ((setblocks*stHeight)/10)&~7;
+		realviewwidth = ((setblocks*fullWidth)/10) & (~15);
+		realviewheight = ((setblocks*stHeight)/10)&~7;
 		freelookviewheight = ((setblocks*fullHeight)/10)&~7;
 	}
 
@@ -427,9 +447,9 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight)
 	// [RH] Sky height fix for screens not 200 (or 240) pixels tall
 	R_InitSkyMap ();
 
-	centery = viewheight/2;
-	centerx = viewwidth/2;
-	if (WidescreenRatio & 4)
+	centery = realviewheight/2;
+	centerx = realviewwidth/2;
+	if (Is54Aspect(WidescreenRatio))
 	{
 		centerxwide = centerx;
 	}
@@ -465,13 +485,19 @@ void R_ExecuteSetViewSize ()
 	setsizeneeded = false;
 	V_SetBorderNeedRefresh();
 
+	if (setdetail >= 0)
+	{
+		R_SetDetail (setdetail);
+		setdetail = -1;
+	}
+
 	R_SetWindow (setblocks, SCREENWIDTH, SCREENHEIGHT, ST_Y);
 
 	// Handle resize, e.g. smaller view windows with border and/or status bar.
-	viewwindowx = (screen->GetWidth() - viewwidth) >> 1;
+	viewwindowx = (screen->GetWidth() - (viewwidth<<detailxshift)) >> 1;
 
 	// Same with base row offset.
-	viewwindowy = (viewwidth == screen->GetWidth()) ? 0 : (ST_Y - viewheight) >> 1;
+	viewwindowy = ((viewwidth<<detailxshift) == screen->GetWidth()) ? 0 : (ST_Y - (viewheight<<detailyshift)) >> 1;
 }
 
 //==========================================================================
@@ -581,11 +607,12 @@ void R_InterpolateView (player_t *player, fixed_t frac, InterpolationViewer *ivi
 	viewy = iview->oviewy + FixedMul (frac, iview->nviewy - iview->oviewy);
 	viewz = iview->oviewz + FixedMul (frac, iview->nviewz - iview->oviewz);
 	if (player != NULL &&
+		!(player->cheats & CF_INTERPVIEW) &&
 		player - players == consoleplayer &&
 		camera == player->mo &&
 		!demoplayback &&
-		iview->nviewx == camera->x &&
-		iview->nviewy == camera->y && 
+		iview->nviewx == camera->X() &&
+		iview->nviewy == camera->Y() && 
 		!(player->cheats & (CF_TOTALLYFROZEN|CF_FROZEN)) &&
 		player->playerstate == PST_LIVE &&
 		player->mo->reactiontime == 0 &&
@@ -602,7 +629,7 @@ void R_InterpolateView (player_t *player, fixed_t frac, InterpolationViewer *ivi
 		if (delta > 0)
 		{
 			// Avoid overflowing viewpitch (can happen when a netgame is stalled)
-			if (viewpitch + delta <= viewpitch)
+			if (viewpitch > INT_MAX - delta)
 			{
 				viewpitch = player->MaxPitch;
 			}
@@ -614,7 +641,7 @@ void R_InterpolateView (player_t *player, fixed_t frac, InterpolationViewer *ivi
 		else if (delta < 0)
 		{
 			// Avoid overflowing viewpitch (can happen when a netgame is stalled)
-			if (viewpitch + delta >= viewpitch)
+			if (viewpitch < INT_MIN - delta)
 			{
 				viewpitch = player->MinPitch;
 			}
@@ -725,6 +752,62 @@ void R_ClearPastViewer (AActor *actor)
 
 //==========================================================================
 //
+// R_RebuildViewInterpolation
+//
+//==========================================================================
+
+void R_RebuildViewInterpolation(player_t *player)
+{
+	if (player == NULL || player->camera == NULL)
+		return;
+
+	if (!NoInterpolateView)
+		return;
+	NoInterpolateView = false;
+
+	InterpolationViewer *iview = FindPastViewer(player->camera);
+
+	iview->oviewx = iview->nviewx;
+	iview->oviewy = iview->nviewy;
+	iview->oviewz = iview->nviewz;
+	iview->oviewpitch = iview->nviewpitch;
+	iview->oviewangle = iview->nviewangle;
+}
+
+//==========================================================================
+//
+// R_GetViewInterpolationStatus
+//
+//==========================================================================
+
+bool R_GetViewInterpolationStatus()
+{
+	return NoInterpolateView;
+}
+
+//==========================================================================
+//
+// QuakePower
+//
+//==========================================================================
+
+static fixed_t QuakePower(fixed_t factor, fixed_t intensity, fixed_t offset)
+{ 
+	fixed_t randumb;
+
+	if (intensity == 0)
+	{
+		randumb = 0;
+	}
+	else
+	{
+		randumb = pr_torchflicker(intensity * 2) - intensity;
+	}
+	return FixedMul(factor, randumb + offset);
+}
+
+//==========================================================================
+//
 // R_SetupFrame
 //
 //==========================================================================
@@ -780,9 +863,9 @@ void R_SetupFrame (AActor *actor)
 	}
 	else
 	{
-		iview->nviewx = camera->x;
-		iview->nviewy = camera->y;
-		iview->nviewz = camera->player ? camera->player->viewz : camera->z + camera->GetClass()->Meta.GetMetaFixed(AMETA_CameraHeight);
+		iview->nviewx = camera->X();
+		iview->nviewy = camera->Y();
+		iview->nviewz = camera->player ? camera->player->viewz : camera->Z() + camera->GetClass()->Meta.GetMetaFixed(AMETA_CameraHeight);
 		viewsector = camera->Sector;
 		r_showviewer = false;
 	}
@@ -833,13 +916,44 @@ void R_SetupFrame (AActor *actor)
 
 	if (!paused)
 	{
-		int intensity = DEarthquake::StaticGetQuakeIntensity (camera);
-		if (intensity != 0)
+		FQuakeJiggers jiggers = { 0, };
+
+		if (DEarthquake::StaticGetQuakeIntensities(camera, jiggers) > 0)
 		{
-			viewx += ((pr_torchflicker() % (intensity<<2))
-						-(intensity<<1))<<FRACBITS;
-			viewy += ((pr_torchflicker() % (intensity<<2))
-						-(intensity<<1))<<FRACBITS;
+			fixed_t quakefactor = FLOAT2FIXED(r_quakeintensity);
+
+			if ((jiggers.RelIntensityX | jiggers.RelOffsetX) != 0)
+			{
+				int ang = (camera->angle) >> ANGLETOFINESHIFT;
+				fixed_t power = QuakePower(quakefactor, jiggers.RelIntensityX, jiggers.RelOffsetX);
+				viewx += FixedMul(finecosine[ang], power);
+				viewy += FixedMul(finesine[ang], power);
+			}
+			if ((jiggers.RelIntensityY | jiggers.RelOffsetY) != 0)
+			{
+				int ang = (camera->angle + ANG90) >> ANGLETOFINESHIFT;
+				fixed_t power = QuakePower(quakefactor, jiggers.RelIntensityY, jiggers.RelOffsetY);
+				viewx += FixedMul(finecosine[ang], power);
+				viewy += FixedMul(finesine[ang], power);
+			}
+			// FIXME: Relative Z is not relative
+			// [MC]On it! Will be introducing pitch after QF_WAVE.
+			if ((jiggers.RelIntensityZ | jiggers.RelOffsetZ) != 0)
+			{
+				viewz += QuakePower(quakefactor, jiggers.RelIntensityZ, jiggers.RelOffsetZ);
+			}
+			if ((jiggers.IntensityX | jiggers.OffsetX) != 0)
+			{
+				viewx += QuakePower(quakefactor, jiggers.IntensityX, jiggers.OffsetX);
+			}
+			if ((jiggers.IntensityY | jiggers.OffsetY) != 0)
+			{
+				viewy += QuakePower(quakefactor, jiggers.IntensityY, jiggers.OffsetY);
+			}
+			if ((jiggers.IntensityZ | jiggers.OffsetZ) != 0)
+			{
+				viewz += QuakePower(quakefactor, jiggers.IntensityZ, jiggers.OffsetZ);
+			}
 		}
 	}
 
@@ -966,7 +1080,7 @@ void FCanvasTextureInfo::Add (AActor *viewpoint, FTextureID picnum, int fov)
 	texture = static_cast<FCanvasTexture *>(TexMan[picnum]);
 	if (!texture->bHasCanvas)
 	{
-		Printf ("%s is not a valid target for a camera\n", texture->Name);
+		Printf ("%s is not a valid target for a camera\n", texture->Name.GetChars());
 		return;
 	}
 
@@ -1008,11 +1122,6 @@ void FCanvasTextureInfo::UpdateAll ()
 {
 	FCanvasTextureInfo *probe;
 
-	// curse Doom's overuse of global variables in the renderer.
-	// These get clobbered by rendering to a camera texture but they need to be preserved so the final rendering can be done with the correct palette.
-	unsigned char *savecolormap = fixedcolormap;
-	FSpecialColormap *savecm = realfixedcolormap;
-
 	for (probe = List; probe != NULL; probe = probe->Next)
 	{
 		if (probe->Viewpoint != NULL && probe->Texture->bNeedsUpdate)
@@ -1020,9 +1129,6 @@ void FCanvasTextureInfo::UpdateAll ()
 			Renderer->RenderTextureView(probe->Texture, probe->Viewpoint, probe->FOV);
 		}
 	}
-
-	fixedcolormap = savecolormap;
-	realfixedcolormap = savecm;
 }
 
 //==========================================================================

@@ -2,25 +2,25 @@
 {
 	// Slightly squash the pillars in the starting room with "stimpacks"
 	// floating on them so that they can be obtained.
-	sectorflooroffset 62 -8
+	setsectoroffset 62 floor -8
 	setwallyscale 286 front bot 1.090909
 	setwallyscale 287 front bot 1.090909
 	setwallyscale 288 front bot 1.090909
 	setwallyscale 289 front bot 1.090909
 	
-	sectorflooroffset 63 -8
+	setsectoroffset 63 floor -8
 	setwallyscale 290 front bot 1.090909
 	setwallyscale 291 front bot 1.090909
 	setwallyscale 292 front bot 1.090909
 	setwallyscale 293 front bot 1.090909
 	
-	sectorflooroffset 118 -8
+	setsectoroffset 118 floor -8
 	setwallyscale 710 front bot 1.090909
 	setwallyscale 711 front bot 1.090909
 	setwallyscale 712 front bot 1.090909
 	setwallyscale 713 front bot 1.090909
 	
-	sectorflooroffset 119 -8
+	setsectoroffset 119 floor -8
 	setwallyscale 714 front bot 1.090909
 	setwallyscale 715 front bot 1.090909
 	setwallyscale 716 front bot 1.090909
@@ -51,10 +51,21 @@ A80E7EE40E0D0C76A6FBD242BE29FE27 // map15
 	resetplayerspeed
 }
 
+5C594C67CF7721005DE71429F9811370 // Eternal Doom map03
+{
+	// fix broken staircase. The compatibility option is not sufficient
+	// to reliably handle this so clear the tags from the unwanted sectors.
+	setsectortag 212 0
+	setsectortag 213 0
+	setsectortag 214 0
+}
+
 6DA6FCBA8089161BDEC6A1D3F6C8D60F // Eternal Doom MAP25
 {
 	stairs
 	maskedmidtex
+	corpsegibs
+	vileghosts
 }
 
 10E1E2B36302D31AC4AE68C84B5DC457 // Eternal Doom MAP28
@@ -124,6 +135,13 @@ BA530202AF0BA0C6CBAE6A0C7076FB72 // Requiem map04
 3CA5493FEFF2E27BFD4181E6C4A3C2BF // The Waterfront map01
 CBDFEFAC579A62DE8F1B48CA4A09D381 // gather2.wad map05 and darkside.wad map01
 C7A2FAFB0AFB2632C50AD625CDB50E51 // Reverie map18
+9E5724BC6135AA6F86EE54FD4D91F1E2 // Project X map14
+01899825FFEAE016D39C02A7DA4B218F // Archie map01
+1D9F3AFDC2517C2E450491ED13896712 // Seej map01
+0AE745A3AB86D15FB2FB74489962C421 // 6pack2 map02
+2EA635C6B6AEC76B6BC77448DAB22F9A // Squadron 417 map21
+1E998262EE319B7D088E01DE782E6B41 // Mayhem 2013 map05
+A81E2734F735A82720D8E0F1442BA0C9 // Imp's [sic] are Ghost Gods map01
 {
 	corpsegibs
 	vileghosts
@@ -170,6 +188,7 @@ DCE862393CAAA6FF1294FB7056B53057 // UAC Ultra map07: Contains a scroller dependi
 040F83028FFA74456E335ED300BE2C33 // MAP17 (TownInfection.wad)
 156FA31F5FF72A87BF345B68029D3051 // MAP02 (nprject5.wad)
 AF40D0E49BD1B76D4B1AADD8212ADC46 // MAP01 (the wad that shall not be named =P)
+91341EF9250760C9B550752E1D91CC24 // rock and roll rebel radio against satan city (rnrrrasc.wad) map01
 {
 	ignoreteleporttags
 }
@@ -311,8 +330,7 @@ F481922F4881F74760F3C0437FD5EDD0 // map03
 
 7C1913DEE396BA26CFF22A0E9369B7D2 // Nuke Mine, e1m2
 {
-	clearlinespecial 1107
-	clearlinespecial 1108
+	pointonline
 }
 
 5B862477519B21B30059A466F2FF6460 // Khorus, map08
@@ -332,7 +350,7 @@ F481922F4881F74760F3C0437FD5EDD0 // map03
 	setactivation 455 16		// SPAC_Push
 }
 
-
+8B2AC8D4DB4A49A5DCCBB067E04434D6 // The Hell Factory Hub One, map04
 65A1EB4C87386F290816660A52932FF1 // Master Levels, garrison.wad
 {
 	rebuildnodes
@@ -375,4 +393,189 @@ D62DCA9EC226DE49108D5DD9271F7631 // Cheogsh 2 map04
 	setthingz 1647 528
 	setthingz 1648 528
 	setthingz 1649 528
+}
+
+E89CCC7E155F1032F693359CC219BE6C // hexen.wad map30
+B9DFF13207EACAC675C71D82624D0007 // XtheaterIII map01
+6941BDC2F80C0FEBE34EFA23D5FB72B7 // sonic.wad map10
+{
+	DisablePushWindowCheck
+}
+
+A53AE580A4AF2B5D0B0893F86914781E // TNT: Evilution map31
+{
+	setthingflags 470 2016
+}
+
+4CB7AAC5C43CF32BDF05FD36481C1D9F // Plutonia: Revisited map27
+{
+	setlinespecial 1214 Plat_DownWaitUpStayLip 20 64 150 0 0
+	setlinespecial 1215 Plat_DownWaitUpStayLip 20 64 150 0 0
+	setlinespecial 1216 Plat_DownWaitUpStayLip 20 64 150 0 0
+	setlinespecial 1217 Plat_DownWaitUpStayLip 20 64 150 0 0
+	setlinespecial 1227 Plat_DownWaitUpStayLip 20 64 150 0 0
+}
+
+D0139194F7817BF06F3988DFC47DB38D // Whispers of Satan map29
+{
+	nopassover
+}
+
+5397C3B7D9B33AAF526D15A81A762828 // daedalus.wad Travel tubes (they are all identical)
+{
+	multiexit
+}
+
+C98F79709BD7E0E4C19026AB9575EC6F // cc-cod.zip:codlev.wad map07
+{
+	maskedmidtex
+}
+
+7B82B12A6990E09553B12FDB4E3824A0 // hti.wad map01
+{
+	teleport
+}
+
+8570AA0D6737C0A19DB66767764F157F // sonic.wad map04
+{
+	noslopeid
+}
+
+05AA32F1D2220A462DCDA245ED22B94B // sonic.wad map09
+{
+	polyobj
+}
+
+
+D7F6E9F08C39A17026349A04F8C0B0BE // Return to Hadron, e1m9
+19D03FFC875589E21EDBB7AB74EF4AEF // Return to Hadron, e1m9, 2016.01.03 update
+{
+	pointonline
+}
+
+// Remove unreachable secrets
+F6EE16F770AD309D608EA0B1F1E249FC // Ultimate Doom, e4m3
+{
+	setsectorspecial 124 0
+	setsectorspecial 125 0
+	// clear staircase to secret area
+	setsectorspecial 127 0
+	setsectorspecial 128 0
+	setsectorspecial 129 0
+	setsectorspecial 130 0
+	setsectorspecial 131 0
+	setsectorspecial 132 0
+	setsectorspecial 133 0
+	setsectorspecial 134 0
+	setsectorspecial 136 0
+	setsectorspecial 137 0
+	setsectorspecial 138 0
+	setsectorspecial 147 0
+	setsectorspecial 148 0
+	setsectorspecial 149 0
+	setsectorspecial 150 0
+	setsectorspecial 151 0
+	setsectorspecial 152 0
+	setsectorspecial 155 0
+}
+94D4C869A0C02EF4F7375022B36AAE45 // Ultimate Doom, e4m7
+{
+	setsectorspecial 263 0
+	setsectorspecial 264 0
+}
+AB24AE6E2CB13CBDD04600A4D37F9189 // doom2.wad map02
+{
+	// stuck shotgun guy
+	setthingxy 85 960 904
+}
+1A540BA717BF9EC85F8522594C352F2A // Doom II, map15
+{
+	setsectorspecial 147 0
+}
+0D491365C1B88B7D1B603890100DD03E // doom2.wad map18
+{
+	// missing textures
+	setwalltexture 451 front mid DOORSTOP
+	setwalltexture 459 front mid DOORSTOP
+}
+EBDAC00E9D25D884B2C8F4B1F0390539 // doom2.wad map21
+{
+	// push ceiling down in glitchy sectors above the stair switches
+	setsectoroffset 50 ceil -56
+	setsectoroffset 54 ceil -56
+}
+110F84DE041052B59307FAF0293E6BC0 // Doom II, map27
+{
+	setsectorspecial 93 0
+	setwalltexture 582 back top ZIMMER3
+}
+ABC4EB5A1535ECCD0061AD14F3547908 // Plutonia Experiment, map26
+{
+	setsectorspecial 156 0
+}
+
+B68EB7CFB4CC481796E2919B9C16DFBD // Moc11.wad e1m6
+{
+	setvertex 1650 -3072 2671
+	setvertex 1642 -2944 2671
+}
+
+// Cosmetic fixes for Heretic: Shadow of the Serpent Riders
+D94587625BA779644D58151A87897CF1 // e1m2
+{
+	// Missing textures
+	setwalltexture 477 back top MOSSRCK1
+	setwalltexture 478 back top MOSSRCK1
+	setwalltexture 479 back top MOSSRCK1
+	setwalltexture 1057 front top MOSSRCK1
+}
+ADD0FAC41AFB0B3C9B9F3C0006F93805 // e1m3
+{
+	// Broken door between the hallway that leads to a Torch 
+	// and the passage that has a Bag of Holding at its end
+	setsectoroffset 86 floor -128
+	setsectoroffset 86 ceil -128
+}
+916318D8B06DAC2D83424B23E4B66531 // e1m4
+{
+	// Wrong sector offsets
+	setsectoroffset 0 ceil 8
+	setsectoroffset 1 ceil 8
+	setsectoroffset 2 ceil 8
+	setsectoroffset 3 ceil 8
+	setsectoroffset 4 ceil 8
+	setsectoroffset 6 ceil 8
+	setsectoroffset 6 floor 8
+	setsectoroffset 17 ceil 8
+	// Yellow key door
+	setsectoroffset 284 floor -8
+	setsectoroffset 284 ceil -8
+	// Missing textures
+	setwalltexture 490 back bot GRSTNPB
+	setwalltexture 722 front bot WOODWL
+	setwalltexture 911 front bot WOODWL
+	setwalltexture 1296 front bot WOODWL
+}
+397A0E17A39542E4E8294E156FAB0502 // e2m2
+{
+	// Missing green door statues on easy and hard difficulties
+	setthingskills 17 31
+	setthingskills 18 31
+}
+CA3773ED313E8899311F3DD0CA195A68 // e3m6
+{
+	// Quartz flask outside of map
+	setthingxy 373 -384 1088
+	// Missing wall torch on hard difficulty
+	setthingskills 448 31
+	// Missing textures
+	setwalltexture 343 front top MOSSRCK1
+	setwalltexture 370 front top MOSSRCK1
+}
+5E3FCFDE78310BB89F92B1626A47D0AD // heretic.wad E4M7
+{
+	// Missing textures
+	setwalltexture 1274 front top CSTLRCK
+	setwalltexture 1277 back top CSTLRCK
+	setwalltexture 1278 front top CSTLRCK
 }

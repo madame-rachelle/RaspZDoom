@@ -45,15 +45,16 @@
 
 static void P_SlopeLineToPoint (int lineid, fixed_t x, fixed_t y, fixed_t z, bool slopeCeil)
 {
-	int linenum = -1;
+	int linenum;
 
-	while ((linenum = P_FindLineFromID (lineid, linenum)) != -1)
+	FLineIdIterator itr(lineid);
+	while ((linenum = itr.Next()) >= 0)
 	{
 		const line_t *line = &lines[linenum];
 		sector_t *sec;
 		secplane_t *plane;
 		
-		if (P_PointOnLineSide (x, y, line) == 0)
+		if (P_PointOnLineSidePrecise (x, y, line) == 0)
 		{
 			sec = line->frontsector;
 		}
@@ -123,7 +124,7 @@ static void P_CopyPlane (int tag, sector_t *dest, bool copyCeil)
 	int secnum;
 	size_t planeofs;
 
-	secnum = P_FindSectorFromTag (tag, -1);
+	secnum = P_FindFirstSectorFromTag (tag);
 	if (secnum == -1)
 	{
 		return;
@@ -178,6 +179,12 @@ void P_SetSlope (secplane_t *plane, bool setCeil, int xyangi, int zangi,
 	}
 	zang >>= ANGLETOFINESHIFT;
 
+	// Sanitize xyangi to [0,360) range
+	xyangi = xyangi % 360;
+	if (xyangi < 0)
+	{
+		xyangi = 360 + xyangi;
+	}
 	xyang = (angle_t)Scale (xyangi, ANGLE_90, 90 << ANGLETOFINESHIFT);
 
 	FVector3 norm;
@@ -260,20 +267,6 @@ void P_VavoomSlope(sector_t * sec, int id, fixed_t x, fixed_t y, fixed_t z, int 
 	}
 }
 				   
-enum
-{
-	THING_SlopeFloorPointLine = 9500,
-	THING_SlopeCeilingPointLine = 9501,
-	THING_SetFloorSlope = 9502,
-	THING_SetCeilingSlope = 9503,
-	THING_CopyFloorPlane = 9510,
-	THING_CopyCeilingPlane = 9511,
-	THING_VavoomFloor=1500,
-	THING_VavoomCeiling=1501,
-	THING_VertexFloorZ=1504,
-	THING_VertexCeilingZ=1505,
-};
-
 //==========================================================================
 //
 //	P_SetSlopesFromVertexHeights
@@ -288,24 +281,27 @@ static void P_SetSlopesFromVertexHeights(FMapThing *firstmt, FMapThing *lastmt, 
 
 	for (mt = firstmt; mt < lastmt; ++mt)
 	{
-		if (mt->type == THING_VertexFloorZ || mt->type == THING_VertexCeilingZ)
+		if (mt->info != NULL && mt->info->Type == NULL)
 		{
-			for(int i=0; i<numvertexes; i++)
+			if (mt->info->Special == SMT_VertexFloorZ || mt->info->Special == SMT_VertexCeilingZ)
 			{
-				if (vertexes[i].x == mt->x && vertexes[i].y == mt->y)
+				for (int i = 0; i < numvertexes; i++)
 				{
-					if (mt->type == THING_VertexFloorZ) 
+					if (vertexes[i].x == mt->x && vertexes[i].y == mt->y)
 					{
-						vt_heights[0][i] = mt->z;
+						if (mt->info->Special == SMT_VertexFloorZ)
+						{
+							vt_heights[0][i] = mt->z;
+						}
+						else
+						{
+							vt_heights[1][i] = mt->z;
+						}
+						vt_found = true;
 					}
-					else 
-					{
-						vt_heights[1][i] = mt->z;
-					}
-					vt_found = true;
 				}
+				mt->EdNum = 0;
 			}
-			mt->type = 0;
 		}
 	}
 
@@ -367,7 +363,7 @@ static void P_SetSlopesFromVertexHeights(FMapThing *firstmt, FMapThing *lastmt, 
 				z3 = h3? *h3 : j==0? sec->GetPlaneTexZ(sector_t::floor) : sec->GetPlaneTexZ(sector_t::ceiling);
 				vt3.Z = FIXED2FLOAT(z3);
 
-				if (P_PointOnLineSide(vertexes[vi3].x, vertexes[vi3].y, sec->lines[0]) == 0)
+				if (P_PointOnLineSidePrecise(vertexes[vi3].x, vertexes[vi3].y, sec->lines[0]) == 0)
 				{
 					vec1 = vt2 - vt3;
 					vec2 = vt1 - vt3;
@@ -421,49 +417,51 @@ void P_SpawnSlopeMakers (FMapThing *firstmt, FMapThing *lastmt, const int *oldve
 
 	for (mt = firstmt; mt < lastmt; ++mt)
 	{
-		if ((mt->type >= THING_SlopeFloorPointLine &&
-			 mt->type <= THING_SetCeilingSlope) ||
-			mt->type == THING_VavoomFloor || mt->type == THING_VavoomCeiling)
+		if (mt->info != NULL && mt->info->Type == NULL &&
+		   (mt->info->Special >= SMT_SlopeFloorPointLine && mt->info->Special <= SMT_VavoomCeiling))
 		{
 			fixed_t x, y, z;
 			secplane_t *refplane;
 			sector_t *sec;
+			bool ceiling;
 
 			x = mt->x;
 			y = mt->y;
 			sec = P_PointInSector (x, y);
-			if (mt->type & 1)
+			if (mt->info->Special == SMT_SlopeCeilingPointLine || mt->info->Special == SMT_VavoomCeiling || mt->info->Special == SMT_SetCeilingSlope)
 			{
 				refplane = &sec->ceilingplane;
+				ceiling = true;
 			}
 			else
 			{
 				refplane = &sec->floorplane;
+				ceiling = false;
 			}
 			z = refplane->ZatPoint (x, y) + (mt->z);
-			if (mt->type == THING_VavoomFloor || mt->type == THING_VavoomCeiling)
-			{
-				P_VavoomSlope(sec, mt->thingid, x, y, mt->z, mt->type & 1); 
+			if (mt->info->Special <= SMT_SlopeCeilingPointLine)
+			{ // SlopeFloorPointLine and SlopCeilingPointLine
+				P_SlopeLineToPoint (mt->args[0], x, y, z, ceiling);
 			}
-			else if (mt->type <= THING_SlopeCeilingPointLine)
-			{
-				P_SlopeLineToPoint (mt->args[0], x, y, z, mt->type & 1);
+			else if (mt->info->Special <= SMT_SetCeilingSlope)
+			{ // SetFloorSlope and SetCeilingSlope
+				P_SetSlope (refplane, ceiling, mt->angle, mt->args[0], x, y, z);
 			}
-			else
-			{
-				P_SetSlope (refplane, mt->type & 1, mt->angle, mt->args[0], x, y, z);
+			else 
+			{ // VavoomFloor and VavoomCeiling
+				P_VavoomSlope(sec, mt->thingid, x, y, mt->z, ceiling); 
 			}
-			mt->type = 0;
+			mt->EdNum = 0;
 		}
 	}
 
 	for (mt = firstmt; mt < lastmt; ++mt)
 	{
-		if (mt->type == THING_CopyFloorPlane ||
-			mt->type == THING_CopyCeilingPlane)
+		if (mt->info != NULL && mt->info->Type == NULL &&
+			(mt->info->Special == SMT_CopyFloorPlane || mt->info->Special == SMT_CopyCeilingPlane))
 		{
-			P_CopyPlane (mt->args[0], mt->x, mt->y, mt->type & 1);
-			mt->type = 0;
+			P_CopyPlane (mt->args[0], mt->x, mt->y, mt->info->Special == SMT_CopyCeilingPlane);
+			mt->EdNum = 0;
 		}
 	}
 
@@ -523,11 +521,9 @@ static void P_AlignPlane (sector_t *sec, line_t *line, int which)
 
 	FVector3 p, v1, v2, cross;
 
-	const secplane_t *refplane;
 	secplane_t *srcplane;
 	fixed_t srcheight, destheight;
 
-	refplane = (which == 0) ? &refsec->floorplane : &refsec->ceilingplane;
 	srcplane = (which == 0) ? &sec->floorplane : &sec->ceilingplane;
 	srcheight = (which == 0) ? sec->GetPlaneTexZ(sector_t::floor) : sec->GetPlaneTexZ(sector_t::ceiling);
 	destheight = (which == 0) ? refsec->GetPlaneTexZ(sector_t::floor) : refsec->GetPlaneTexZ(sector_t::ceiling);

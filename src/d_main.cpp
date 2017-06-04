@@ -108,10 +108,6 @@
 #include "r_renderer.h"
 #include "p_local.h"
 
-#ifdef USE_POLYMOST
-#include "r_polymost.h"
-#endif
-
 EXTERN_CVAR(Bool, hud_althud)
 void DrawHUD();
 
@@ -164,6 +160,7 @@ extern bool gameisdead;
 extern bool demorecording;
 extern bool M_DemoNoPlay;	// [RH] if true, then skip any demos in the loop
 extern bool insave;
+extern bool setdefaultneeded;
 
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
@@ -186,9 +183,6 @@ CUSTOM_CVAR (Int, fraglimit, 0, CVAR_SERVERINFO)
 	}
 }
 
-#ifdef USE_POLYMOST
-CVAR(Bool, testpolymost, false, 0)
-#endif
 CVAR (Float, timelimit, 0.f, CVAR_SERVERINFO);
 CVAR (Int, wipetype, 1, CVAR_ARCHIVE);
 CVAR (Int, snd_drawoutput, 0, 0);
@@ -218,8 +212,10 @@ int NoWipe;				// [RH] Allow wipe? (Needs to be set each time)
 bool singletics = false;	// debug flag to cancel adaptiveness
 FString startmap;
 bool autostart;
+FString StoredWarp;
 bool advancedemo;
 FILE *debugfile;
+FILE *hashfile;
 event_t events[MAXEVENTS];
 int eventhead;
 int eventtail;
@@ -259,7 +255,7 @@ void D_ProcessEvents (void)
 	// [RH] If testing mode, do not accept input until test is over
 	if (testingmode)
 	{
-		if (testingmode == 1)
+		if (setdefaultneeded) // testingmode == 1
 		{
 			M_SetDefaultMode ();
 		}
@@ -281,10 +277,6 @@ void D_ProcessEvents (void)
 			continue;				// console ate the event
 		if (M_Responder (ev))
 			continue;				// menu ate the event
-		#ifdef USE_POLYMOST
-			if (testpolymost)
-				Polymost_Responder (ev);
-		#endif
 		G_Responder (ev);
 	}
 }
@@ -306,9 +298,6 @@ void D_PostEvent (const event_t *ev)
 	}
 	events[eventhead] = *ev;
 	if (ev->type == EV_Mouse && !paused && menuactive == MENU_Off && ConsoleState != c_down && ConsoleState != c_falling
-#ifdef USE_POLYMOST
-		&& !testpolymost		
-#endif
 		)
 	{
 		if (Button_Mlook.bDown || freelook)
@@ -421,7 +410,7 @@ CVAR (Flag, sv_fastmonsters,	dmflags, DF_FAST_MONSTERS);
 CVAR (Flag, sv_nojump,			dmflags, DF_NO_JUMP);
 CVAR (Flag, sv_allowjump,		dmflags, DF_YES_JUMP);
 CVAR (Flag, sv_nofreelook,		dmflags, DF_NO_FREELOOK);
-CVAR (Flag, sv_respawnsuper,	dmflags, DF_RESPAWN_SUPER);
+CVAR (Flag, sv_allowfreelook,	dmflags, DF_YES_FREELOOK);
 CVAR (Flag, sv_nofov,			dmflags, DF_NO_FOV);
 CVAR (Flag, sv_noweaponspawn,	dmflags, DF_NO_COOP_WEAPON_SPAWN);
 CVAR (Flag, sv_nocrouch,		dmflags, DF_NO_CROUCH);
@@ -438,6 +427,7 @@ CVAR (Flag, sv_coophalveammo,	dmflags, DF_COOP_HALVE_AMMO);
 CVAR (Mask, sv_crouch,			dmflags, DF_NO_CROUCH|DF_YES_CROUCH);
 CVAR (Mask, sv_jump,			dmflags, DF_NO_JUMP|DF_YES_JUMP);
 CVAR (Mask, sv_fallingdamage,	dmflags, DF_FORCE_FALLINGHX|DF_FORCE_FALLINGZD);
+CVAR (Mask, sv_freelook,		dmflags, DF_NO_FREELOOK|DF_YES_FREELOOK);
 
 //==========================================================================
 //
@@ -478,7 +468,7 @@ CUSTOM_CVAR (Int, dmflags2, 0, CVAR_SERVERINFO)
 		}
 
 		// Come out of chasecam mode if we're not allowed to use chasecam.
-		if (!(dmflags2 & DF2_CHASECAM) && !G_SkillProperty (SKILLP_DisableCheats) && !sv_cheats)
+		if (!(dmflags2 & DF2_CHASECAM) && CheckCheatmode(false))
 		{
 			// Take us out of chasecam mode only.
 			if (p->cheats & CF_CHASECAM)
@@ -509,6 +499,8 @@ CVAR (Flag, sv_noautoaim,			dmflags2, DF2_NOAUTOAIM);
 CVAR (Flag, sv_dontcheckammo,		dmflags2, DF2_DONTCHECKAMMO);
 CVAR (Flag, sv_killbossmonst,		dmflags2, DF2_KILLBOSSMONST);
 CVAR (Flag, sv_nocountendmonst,		dmflags2, DF2_NOCOUNTENDMONST);
+CVAR (Flag, sv_respawnsuper,		dmflags2, DF2_RESPAWN_SUPER);
+
 //==========================================================================
 //
 // CVAR compatflags
@@ -561,7 +553,7 @@ CUSTOM_CVAR(Int, compatmode, 0, CVAR_ARCHIVE|CVAR_NOINITCALL)
 	case 1:	// Doom2.exe compatible with a few relaxed settings
 		v = COMPATF_SHORTTEX|COMPATF_STAIRINDEX|COMPATF_USEBLOCKING|COMPATF_NODOORLIGHT|COMPATF_SPRITESORT|
 			COMPATF_TRACE|COMPATF_MISSILECLIP|COMPATF_SOUNDTARGET|COMPATF_DEHHEALTH|COMPATF_CROSSDROPOFF|
-			COMPATF_LIGHT;
+			COMPATF_LIGHT|COMPATF_MASKEDMIDTEX;
 		w= COMPATF2_FLOORMOVE;
 		break;
 
@@ -570,25 +562,27 @@ CUSTOM_CVAR(Int, compatmode, 0, CVAR_ARCHIVE|CVAR_NOINITCALL)
 			COMPATF_TRACE|COMPATF_MISSILECLIP|COMPATF_SOUNDTARGET|COMPATF_NO_PASSMOBJ|COMPATF_LIMITPAIN|
 			COMPATF_DEHHEALTH|COMPATF_INVISIBILITY|COMPATF_CROSSDROPOFF|COMPATF_CORPSEGIBS|COMPATF_HITSCAN|
 			COMPATF_WALLRUN|COMPATF_NOTOSSDROPS|COMPATF_LIGHT|COMPATF_MASKEDMIDTEX;
-		w = COMPATF2_BADANGLES|COMPATF2_FLOORMOVE;
+		w = COMPATF2_BADANGLES|COMPATF2_FLOORMOVE|COMPATF2_POINTONLINE;
 		break;
 
 	case 3: // Boom compat mode
-		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP;
+		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_MASKEDMIDTEX;
 		break;
 
 	case 4: // Old ZDoom compat mode
-		v = COMPATF_SOUNDTARGET|COMPATF_LIGHT;
+		v = COMPATF_SOUNDTARGET | COMPATF_LIGHT;
+		w = COMPATF2_MULTIEXIT | COMPATF2_TELEPORT | COMPATF2_PUSHWINDOW;
 		break;
 
 	case 5: // MBF compat mode
 		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_MUSHROOM|
-			COMPATF_MBFMONSTERMOVE|COMPATF_NOBLOCKFRIENDS;
+			COMPATF_MBFMONSTERMOVE|COMPATF_NOBLOCKFRIENDS|COMPATF_MASKEDMIDTEX;
 		break;
 
 	case 6:	// Boom with some added settings to reenable some 'broken' behavior
 		v = COMPATF_TRACE|COMPATF_SOUNDTARGET|COMPATF_BOOMSCROLL|COMPATF_MISSILECLIP|COMPATF_NO_PASSMOBJ|
-			COMPATF_INVISIBILITY|COMPATF_CORPSEGIBS|COMPATF_HITSCAN|COMPATF_WALLRUN|COMPATF_NOTOSSDROPS;
+			COMPATF_INVISIBILITY|COMPATF_CORPSEGIBS|COMPATF_HITSCAN|COMPATF_WALLRUN|COMPATF_NOTOSSDROPS|COMPATF_MASKEDMIDTEX;
+		w = COMPATF2_POINTONLINE;
 		break;
 
 	}
@@ -630,6 +624,11 @@ CVAR (Flag, compat_polyobj,				compatflags,  COMPATF_POLYOBJ);
 CVAR (Flag, compat_maskedmidtex,		compatflags,  COMPATF_MASKEDMIDTEX);
 CVAR (Flag, compat_badangles,			compatflags2, COMPATF2_BADANGLES);
 CVAR (Flag, compat_floormove,			compatflags2, COMPATF2_FLOORMOVE);
+CVAR (Flag, compat_soundcutoff,			compatflags2, COMPATF2_SOUNDCUTOFF);
+CVAR (Flag, compat_pointonline,			compatflags2, COMPATF2_POINTONLINE);
+CVAR (Flag, compat_multiexit,			compatflags2, COMPATF2_MULTIEXIT);
+CVAR (Flag, compat_teleport,			compatflags2, COMPATF2_TELEPORT);
+CVAR (Flag, compat_pushwindow,			compatflags2, COMPATF2_PUSHWINDOW);
 
 //==========================================================================
 //
@@ -739,15 +738,7 @@ void D_Display ()
 
 	hw2d = false;
 
-#ifdef USE_POLYMOST
-	if (testpolymost)
-	{
-		drawpolymosttest();
-		C_DrawConsole(hw2d);
-		M_Drawer();
-	}
-	else
-#endif
+
 	{
 		unsigned int nowtime = I_FPSTime();
 		TexMan.UpdateAnimations(nowtime);
@@ -773,10 +764,10 @@ void D_Display ()
 				StatusBar->BlendView (blend);
 			}
 			screen->SetBlendingRect(viewwindowx, viewwindowy,
-				viewwindowx + viewwidth, viewwindowy + viewheight);
-			P_PredictPlayer(&players[consoleplayer]);
+				viewwindowx + realviewwidth, viewwindowy + realviewheight);
+
 			Renderer->RenderView(&players[consoleplayer]);
-			P_UnPredictPlayer();
+
 			if ((hw2d = screen->Begin2D(viewactive)))
 			{
 				// Redraw everything every frame when using 2D accel
@@ -788,9 +779,9 @@ void D_Display ()
 			if (automapactive)
 			{
 				int saved_ST_Y = ST_Y;
-				if (hud_althud && viewheight == SCREENHEIGHT)
+				if (hud_althud && realviewheight == SCREENHEIGHT)
 				{
-					ST_Y = viewheight;
+					ST_Y = realviewheight;
 				}
 				AM_Drawer ();
 				ST_Y = saved_ST_Y;
@@ -800,7 +791,7 @@ void D_Display ()
 				V_RefreshViewBorder ();
 			}
 
-			if (hud_althud && viewheight == SCREENHEIGHT && screenblocks > 10)
+			if (hud_althud && realviewheight == SCREENHEIGHT && screenblocks > 10)
 			{
 				StatusBar->DrawBottomStuff (HUD_AltHud);
 				if (DrawFSHUD || automapactive) DrawHUD();
@@ -808,7 +799,7 @@ void D_Display ()
 				StatusBar->DrawTopStuff (HUD_AltHud);
 			}
 			else 
-			if (viewheight == SCREENHEIGHT && viewactive && screenblocks > 10)
+			if (realviewheight == SCREENHEIGHT && viewactive && screenblocks > 10)
 			{
 				EHudState state = DrawFSHUD ? HUD_Fullscreen : HUD_None;
 				StatusBar->DrawBottomStuff (state);
@@ -850,15 +841,23 @@ void D_Display ()
 		}
 	}
 	// draw pause pic
-	if (paused && menuactive == MENU_Off)
+	if ((paused || pauseext) && menuactive == MENU_Off)
 	{
 		FTexture *tex;
 		int x;
+		FString pstring = "By ";
 
 		tex = TexMan(gameinfo.PauseSign);
 		x = (SCREENWIDTH - tex->GetScaledWidth() * CleanXfac)/2 +
 			tex->GetScaledLeftOffset() * CleanXfac;
 		screen->DrawTexture (tex, x, 4, DTA_CleanNoMove, true, TAG_DONE);
+		if (paused && multiplayer)
+		{
+			pstring += players[paused - 1].userinfo.GetName();
+			screen->DrawText(SmallFont, CR_RED,
+				(screen->GetWidth() - SmallFont->StringWidth(pstring)*CleanXfac) / 2,
+				(tex->GetScaledHeight() * CleanYfac) + 4, pstring, DTA_CleanNoMove, true, TAG_DONE);
+		}
 	}
 
 	// [RH] Draw icon, if any
@@ -913,6 +912,7 @@ void D_Display ()
 			} while (diff < 1);
 			wipestart = nowtime;
 			done = screen->WipeDo (1);
+			S_UpdateMusic();		// OpenAL needs this to keep the music running, thanks to a complete lack of a sane streaming implementation using callbacks. :(
 			C_DrawConsole (hw2d);	// console and
 			M_Drawer ();			// menu are drawn even on top of wipes
 			screen->Update ();		// page flip or blit buffer
@@ -992,25 +992,6 @@ void D_DoomLoop ()
 				I_StartTic ();
 				D_ProcessEvents ();
 				G_BuildTiccmd (&netcmds[consoleplayer][maketic%BACKUPTICS]);
-				//Added by MC: For some of that bot stuff. The main bot function.
-				int i;
-				for (i = 0; i < MAXPLAYERS; i++)
-				{
-					if (playeringame[i] && players[i].isbot && players[i].mo)
-					{
-						players[i].savedyaw = players[i].mo->angle;
-						players[i].savedpitch = players[i].mo->pitch;
-					}
-				}
-				bglobal.Main (maketic%BACKUPTICS);
-				for (i = 0; i < MAXPLAYERS; i++)
-				{
-					if (playeringame[i] && players[i].isbot && players[i].mo)
-					{
-						players[i].mo->angle = players[i].savedyaw;
-						players[i].mo->pitch = players[i].savedpitch;
-					}
-				}
 				if (advancedemo)
 					D_DoAdvanceDemo ();
 				C_Ticker ();
@@ -1030,6 +1011,7 @@ void D_DoomLoop ()
 			// Update display, next frame, with current state.
 			I_StartTic ();
 			D_Display ();
+			S_UpdateMusic();	// OpenAL needs this to keep the music running, thanks to a complete lack of a sane streaming implementation using callbacks. :(
 		}
 		catch (CRecoverableError &error)
 		{
@@ -1233,7 +1215,7 @@ void D_DoAdvanceDemo (void)
 	static char demoname[8] = "DEMO1";
 	static int democount = 0;
 	static int pagecount;
-	const char *pagename = NULL;
+	FString pagename;
 
 	advancedemo = false;
 
@@ -1298,7 +1280,7 @@ void D_DoAdvanceDemo (void)
 	default:
 	case 0:
 		gamestate = GS_DEMOSCREEN;
-		pagename = gameinfo.titlePage;
+		pagename = gameinfo.TitlePage;
 		pagetic = (int)(gameinfo.titleTime * TICRATE);
 		S_ChangeMusic (gameinfo.titleMusic, gameinfo.titleOrder, false);
 		demosequence = 3;
@@ -1318,7 +1300,7 @@ void D_DoAdvanceDemo (void)
 		break;
 	}
 
-	if (pagename)
+	if (pagename.IsNotEmpty())
 	{
 		if (Page != NULL)
 		{
@@ -1355,6 +1337,7 @@ CCMD (endgame)
 	{
 		gameaction = ga_fullconsole;
 		demosequence = -1;
+		G_CheckDemoStatus();
 	}
 }
 
@@ -1496,7 +1479,7 @@ void ParseCVarInfo()
 
 bool D_AddFile (TArray<FString> &wadfiles, const char *file, bool check, int position)
 {
-	if (file == NULL)
+	if (file == NULL || *file == '\0')
 	{
 		return false;
 	}
@@ -1527,6 +1510,10 @@ bool D_AddFile (TArray<FString> &wadfiles, const char *file, bool check, int pos
 
 void D_AddWildFile (TArray<FString> &wadfiles, const char *value)
 {
+	if (value == NULL || *value == '\0')
+	{
+		return;
+	}
 	const char *wadfile = BaseFileSearch (value, ".wad");
 
 	if (wadfile != NULL)
@@ -1597,7 +1584,7 @@ void D_AddConfigWads (TArray<FString> &wadfiles, const char *section)
 			{
 				// D_AddWildFile resets GameConfig's position, so remember it
 				GameConfig->GetPosition (pos);
-				D_AddWildFile (wadfiles, value);
+				D_AddWildFile (wadfiles, ExpandEnvVars(value));
 				// Reset GameConfig's position to get next wad
 				GameConfig->SetPosition (pos);
 			}
@@ -1668,6 +1655,10 @@ static const char *BaseFileSearch (const char *file, const char *ext, bool lookf
 {
 	static char wad[PATH_MAX];
 
+	if (file == NULL || *file == '\0')
+	{
+		return NULL;
+	}
 	if (lookfirstinprogdir)
 	{
 		mysnprintf (wad, countof(wad), "%s%s%s", progdir.GetChars(), progdir[progdir.Len() - 1] != '/' ? "/" : "", file);
@@ -1683,7 +1674,7 @@ static const char *BaseFileSearch (const char *file, const char *ext, bool lookf
 		return wad;
 	}
 
-	if (GameConfig->SetSection ("FileSearch.Directories"))
+	if (GameConfig != NULL && GameConfig->SetSection ("FileSearch.Directories"))
 	{
 		const char *key;
 		const char *value;
@@ -1749,12 +1740,13 @@ bool ConsiderPatches (const char *arg)
 //
 //==========================================================================
 
-void D_MultiExec (DArgs *list, bool usePullin)
+FExecList *D_MultiExec (DArgs *list, FExecList *exec)
 {
 	for (int i = 0; i < list->NumArgs(); ++i)
 	{
-		C_ExecFile (list->GetArg (i), usePullin);
+		exec = C_ParseExecFile(list->GetArg(i), exec);
 	}
+	return exec;
 }
 
 static void GetCmdLineFiles(TArray<FString> &wadfiles)
@@ -1806,19 +1798,23 @@ static FString ParseGameInfo(TArray<FString> &pwads, const char *fn, const char 
 				// Try looking for the wad in the same directory as the .wad
 				// before looking for it in the current directory.
 
+				FString checkpath;
 				if (lastSlash != NULL)
 				{
-					FString checkpath(fn, (lastSlash - fn) + 1);
+					checkpath = FString(fn, (lastSlash - fn) + 1);
 					checkpath += sc.String;
-
-					if (!FileExists (checkpath))
-					{
-						pos += D_AddFile(pwads, sc.String, true, pos);
-					}
-					else
-					{
-						pos += D_AddFile(pwads, checkpath, true, pos);
-					}
+				}
+				else
+				{
+					checkpath = sc.String;
+				}
+				if (!FileExists(checkpath))
+				{
+					pos += D_AddFile(pwads, sc.String, true, pos);
+				}
+				else
+				{
+					pos += D_AddFile(pwads, checkpath, true, pos);
 				}
 			}
 			while (sc.CheckToken(','));
@@ -1859,6 +1855,15 @@ static FString ParseGameInfo(TArray<FString> &pwads, const char *fn, const char 
 		{
 			sc.MustGetString();
 			DoomStartupInfo.Song = sc.String;
+		}
+		else
+		{
+			// Silently ignore unknown properties
+			do
+			{
+				sc.MustGetAnyToken();
+			}
+			while(sc.CheckToken(','));
 		}
 	}
 	return iwad;
@@ -1949,7 +1954,7 @@ static void D_DoomInit()
 	// Set the FPU precision to 53 significant bits. This is the default
 	// for Visual C++, but not for GCC, so some slight math variances
 	// might crop up if we leave it alone.
-#if defined(_FPU_GETCW)
+#if defined(_FPU_GETCW) && defined(_FPU_EXTENDED) && defined(_FPU_DOUBLE)
 	{
 		int cw;
 		_FPU_GETCW(cw);
@@ -1973,18 +1978,27 @@ static void D_DoomInit()
 	Args->CollectFiles("-playdemo", ".lmp");
 	Args->CollectFiles("-file", NULL);	// anything left goes after -file
 
-	atterm (C_DeinitConsole);
-
 	gamestate = GS_STARTUP;
 
 	SetLanguageIDs ();
 
-	rngseed = I_MakeRNGSeed();
+	const char *v = Args->CheckValue("-rngseed");
+	if (v)
+	{
+		rngseed = staticrngseed = atoi(v);
+		use_staticrng = true;
+		Printf("D_DoomInit: Static RNGseed %d set.\n", rngseed);
+	}
+	else
+	{
+		rngseed = I_MakeRNGSeed();
+		use_staticrng = false;
+	}
+		
 	FRandom::StaticClearRandom ();
 
 	Printf ("M_LoadDefaults: Load system defaults.\n");
 	M_LoadDefaults ();			// load before initing other systems
-
 }
 
 //==========================================================================
@@ -1993,8 +2007,10 @@ static void D_DoomInit()
 //
 //==========================================================================
 
-static void AddAutoloadFiles(const char *gamesection)
+static void AddAutoloadFiles(const char *autoname)
 {
+	LumpFilterIWAD.Format("%s.", autoname);	// The '.' is appened to simplify parsing the string 
+
 	if (!(gameinfo.flags & GI_SHAREWARE) && !Args->CheckParm("-noautoload"))
 	{
 		FString file;
@@ -2025,17 +2041,14 @@ static void AddAutoloadFiles(const char *gamesection)
 		// Add common (global) wads
 		D_AddConfigWads (allwads, "Global.Autoload");
 
-		// Add game-specific wads
-		file = gameinfo.ConfigName;
-		file += ".Autoload";
-		D_AddConfigWads (allwads, file);
+		long len;
+		int lastpos = -1;
 
-		// Add IWAD-specific wads
-		if (gamesection != NULL)
+		while ((len = LumpFilterIWAD.IndexOf('.', lastpos+1)) > 0)
 		{
-			file = gamesection;
-			file += ".Autoload";
+			file = LumpFilterIWAD.Left(len) + ".Autoload";
 			D_AddConfigWads(allwads, file);
+			lastpos = len;
 		}
 	}
 }
@@ -2081,7 +2094,7 @@ static void CheckCmdLine()
 	{
 		startmap = "&wt@01";
 	}
-	autostart = false;
+	autostart = StoredWarp.IsNotEmpty();
 				
 	const char *val = Args->CheckValue ("-skill");
 	if (val)
@@ -2136,17 +2149,6 @@ static void CheckCmdLine()
 	{
 		Printf ("%s", GStrings("D_DEVSTR"));
 	}
-
-#if !defined(__unix__) && !defined(__APPLE__)
-	// We do not need to support -cdrom under Unix, because all the files
-	// that would go to c:\\zdoomdat are already stored in .zdoom inside
-	// the user's home directory.
-	if (Args->CheckParm("-cdrom"))
-	{
-		Printf ("%s", GStrings("D_CDROM"));
-		mkdir (CDROM_DIR, 0);
-	}
-#endif
 
 	// turbo option  // [RH] (now a cvar)
 	v = Args->CheckValue("-turbo");
@@ -2218,11 +2220,37 @@ void D_DoomMain (void)
 	DArgs *execFiles;
 	TArray<FString> pwads;
 	FString *args;
-	int argcount;
+	int argcount;	
+	FIWadManager *iwad_man;
+
+	// +logfile gets checked too late to catch the full startup log in the logfile so do some extra check for it here.
+	FString logfile = Args->TakeValue("+logfile");
+	if (logfile.IsNotEmpty())
+	{
+		execLogfile(logfile);
+	}
+
+	if (Args->CheckParm("-hashfiles"))
+	{
+		const char *filename = "fileinfo.txt";
+		Printf("Hashing loaded content to: %s\n", filename);
+		hashfile = fopen(filename, "w");
+		if (hashfile)
+		{
+			fprintf(hashfile, "%s version %s (%s)\n", GAMENAME, GetVersionString(), GetGitHash());
+#ifdef __VERSION__
+			fprintf(hashfile, "Compiler version: %s\n", __VERSION__);
+#endif
+			fprintf(hashfile, "Command line:");
+			for (int i = 0; i < Args->NumArgs(); ++i)
+			{
+				fprintf(hashfile, " %s", Args->GetArg(i));
+			}
+			fprintf(hashfile, "\n");
+		}
+	}
 
 	D_DoomInit();
-	PClass::StaticInit ();
-	atterm(FinalGC);
 
 	// [RH] Make sure zdoom.pk3 is always loaded,
 	// as it contains magic stuff we need.
@@ -2234,6 +2262,14 @@ void D_DoomMain (void)
 	}
 	FString basewad = wad;
 
+	iwad_man = new FIWadManager;
+	iwad_man->ParseIWadInfos(basewad);
+
+	// Now that we have the IWADINFO, initialize the autoload ini sections.
+	GameConfig->DoAutoloadSetup(iwad_man);
+
+	PClass::StaticInit ();
+	atterm(FinalGC);
 
 	// reinit from here
 
@@ -2253,9 +2289,13 @@ void D_DoomMain (void)
 
 		// The IWAD selection dialogue does not show in fullscreen so if the
 		// restart is initiated without a defined IWAD assume for now that it's not going to change.
-		if (iwad.Len() == 0) iwad = lastIWAD;
+		if (iwad.IsEmpty()) iwad = lastIWAD;
 
-		FIWadManager *iwad_man = new FIWadManager;
+		if (iwad_man == NULL)
+		{
+			iwad_man = new FIWadManager;
+			iwad_man->ParseIWadInfos(basewad);
+		}
 		const FIWADInfo *iwad_info = iwad_man->FindIWAD(allwads, iwad, basewad);
 		gameinfo.gametype = iwad_info->gametype;
 		gameinfo.flags = iwad_info->flags;
@@ -2272,22 +2312,33 @@ void D_DoomMain (void)
 
 		AddAutoloadFiles(iwad_info->Autoname);
 
-		// Run automatically executed files
+		// Process automatically executed files
+		FExecList *exec;
 		execFiles = new DArgs;
-		GameConfig->AddAutoexec (execFiles, gameinfo.ConfigName);
-		D_MultiExec (execFiles, true);
+		GameConfig->AddAutoexec(execFiles, gameinfo.ConfigName);
+		exec = D_MultiExec(execFiles, NULL);
 
-		// Run .cfg files at the start of the command line.
+		// Process .cfg files at the start of the command line.
 		execFiles = Args->GatherFiles ("-exec");
-		D_MultiExec (execFiles, true);
+		exec = D_MultiExec(execFiles, exec);
 
-		C_ExecCmdLineParams ();		// [RH] do all +set commands on the command line
+		// [RH] process all + commands on the command line
+		exec = C_ParseCmdLineParams(exec);
 
 		CopyFiles(allwads, pwads);
+		if (exec != NULL)
+		{
+			exec->AddPullins(allwads);
+		}
 
 		// Since this function will never leave we must delete this array here manually.
 		pwads.Clear();
 		pwads.ShrinkToFit();
+
+		if (hashfile)
+		{
+			Printf("Notice: File hashing is incredibly verbose. Expect loading files to take much longer than usual.\n");
+		}
 
 		Printf ("W_Init: Init WADfiles.\n");
 		Wads.InitMultipleFiles (allwads);
@@ -2295,8 +2346,18 @@ void D_DoomMain (void)
 		allwads.ShrinkToFit();
 		SetMapxxFlag();
 
+		GameConfig->DoKeySetup(gameinfo.ConfigName);
+
 		// Now that wads are loaded, define mod-specific cvars.
 		ParseCVarInfo();
+
+		// Actually exec command line commands and exec files.
+		if (exec != NULL)
+		{
+			exec->ExecCommands();
+			delete exec;
+			exec = NULL;
+		}
 
 		// [RH] Initialize localizable strings.
 		GStrings.LoadStrings (false);
@@ -2378,7 +2439,7 @@ void D_DoomMain (void)
 
 		StartScreen->Progress ();
 
-		Printf ("R_Init: Init %s refresh subsystem.\n", gameinfo.ConfigName.GetChars());
+		Printf ("R_Init: Init %s refresh daemon.\n", gameinfo.ConfigName.GetChars());
 		StartScreen->LoadingStatus ("Loading graphics", 0x3f);
 		R_Init ();
 
@@ -2411,6 +2472,8 @@ void D_DoomMain (void)
 		// Create replacements for dehacked pickups
 		FinishDehPatch();
 
+		InitActorNumsFromMapinfo();
+		InitSpawnablesFromMapinfo();
 		FActorInfo::StaticSetActorNums ();
 
 		//Added by MC:
@@ -2462,6 +2525,7 @@ void D_DoomMain (void)
 		FBaseCVar::EnableNoSet ();
 
 		delete iwad_man;	// now we won't need this anymore
+		iwad_man = NULL;
 
 		// [RH] Run any saved commands from the command line or autoexec.cfg now.
 		gamestate = GS_FULLCONSOLE;
@@ -2529,6 +2593,11 @@ void D_DoomMain (void)
 					if (demorecording)
 						G_BeginRecording (startmap);
 					G_InitNew (startmap, false);
+					if (StoredWarp.IsNotEmpty())
+					{
+						AddCommandString(StoredWarp.LockBuffer());
+						StoredWarp = NULL;
+					}
 				}
 				else
 				{
@@ -2581,6 +2650,7 @@ void D_DoomMain (void)
 			new (&gameinfo) gameinfo_t;		// Reset gameinfo
 			S_Shutdown();					// free all channels and delete playlist
 			C_ClearAliases();				// CCMDs won't be reinitialized so these need to be deleted here
+			DestroyCVarsFlagged(CVAR_MOD);	// Delete any cvar left by mods
 
 			GC::FullGC();					// perform one final garbage collection before deleting the class data
 			PClass::ClearRuntimeData();		// clear all runtime generated class data

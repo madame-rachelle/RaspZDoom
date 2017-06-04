@@ -98,8 +98,8 @@ static int WriteTHINGS (FILE *file)
 	mapthinghexen_t mt = { 0, 0, 0, 0, 0, 0, 0, 0, {0} };
 	AActor *mo = players[consoleplayer].mo;
 
-	mt.x = LittleShort(short(mo->x >> FRACBITS));
-	mt.y = LittleShort(short(mo->y >> FRACBITS));
+	mt.x = LittleShort(short(mo->X() >> FRACBITS));
+	mt.y = LittleShort(short(mo->Y() >> FRACBITS));
 	mt.angle = LittleShort(short(MulScale32 (mo->angle >> ANGLETOFINESHIFT, 360)));
 	mt.type = LittleShort((short)1);
 	mt.flags = LittleShort((short)(7|224|MTF_SINGLE));
@@ -262,7 +262,7 @@ static int WriteSECTORS (FILE *file)
 		uppercopy (ms.ceilingpic, GetTextureName (sectors[i].GetTexture(sector_t::ceiling)));
 		ms.lightlevel = LittleShort((short)sectors[i].lightlevel);
 		ms.special = LittleShort(sectors[i].special);
-		ms.tag = LittleShort(sectors[i].tag);
+		ms.tag = LittleShort(tagManager.GetFirstSectorTag(&sectors[i]));
 		fwrite (&ms, sizeof(ms), 1, file);
 	}
 	return numsectors * sizeof(ms);

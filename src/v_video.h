@@ -74,7 +74,7 @@ enum
 	DTA_DestWidth,		// width of area to draw to
 	DTA_DestHeight,		// height of area to draw to
 	DTA_Alpha,			// alpha value for translucency
-	DTA_FillColor,		// color to stencil onto the destination
+	DTA_FillColor,		// color to stencil onto the destination (RGB is the color for truecolor drawers, A is the palette index for paletted drawers)
 	DTA_Translation,	// translation table to recolor the source
 	DTA_AlphaChannel,	// bool: the source is an alpha channel; used with DTA_FillColor
 	DTA_Clean,			// bool: scale texture size and position by CleanXfac and CleanYfac
@@ -157,8 +157,7 @@ public:
 	virtual bool IsValid ();
 
 	// Access control
-	virtual bool Lock () = 0;		// Returns true if the surface was lost since last time
-	virtual bool Lock (bool usesimplecanvas) { return Lock(); }	
+	virtual bool Lock (bool buffered=true) = 0;		// Returns true if the surface was lost since last time
 	virtual void Unlock () = 0;
 	virtual bool IsLocked () { return Buffer != NULL; }	// Returns true if the surface is locked
 
@@ -287,7 +286,7 @@ public:
 	~DSimpleCanvas ();
 
 	bool IsValid ();
-	bool Lock ();
+	bool Lock (bool buffered=true);
 	void Unlock ();
 
 protected:
@@ -399,8 +398,8 @@ public:
 	virtual void WipeEndScreen();
 	virtual bool WipeDo(int ticks);
 	virtual void WipeCleanup();
-	virtual int GetPixelDoubling() const { return 0; }
-	virtual int GetTrueHeight() { return GetHeight(); }
+
+	virtual void ScaleCoordsFromWindow(SWORD &x, SWORD &y) {}
 
 	uint32 GetLastFPS() const { return LastCount; }
 
@@ -433,7 +432,18 @@ EXTERN_CVAR (Float, Gamma)
 // Translucency tables
 
 // RGB32k is a normal R5G5B5 -> palette lookup table.
-extern "C" BYTE RGB32k[32][32][32];
+
+// Use a union so we can "overflow" without warnings.
+// Otherwise, we get stuff like this from Clang (when compiled
+// with -fsanitize=bounds) while running:
+//   src/v_video.cpp:390:12: runtime error: index 1068 out of bounds for type 'BYTE [32]'
+//   src/r_draw.cpp:273:11: runtime error: index 1057 out of bounds for type 'BYTE [32]'
+union ColorTable32k
+{
+	BYTE RGB[32][32][32];
+	BYTE All[32 *32 *32];
+};
+extern "C" ColorTable32k RGB32k;
 
 // Col2RGB8 is a pre-multiplied palette for color lookup. It is stored in a
 // special R10B10G10 format for efficient blending computation.
@@ -493,8 +503,14 @@ extern "C" void ASM_PatchPitch (void);
 
 int CheckRatio (int width, int height, int *trueratio=NULL);
 static inline int CheckRatio (double width, double height) { return CheckRatio(int(width), int(height)); }
-extern const int BaseRatioSizes[5][4];
+extern const int BaseRatioSizes[7][4];
 
+inline bool IsRatioWidescreen(int ratio) {
+    return (ratio & 3)!=0;
+}
 
+inline bool Is54Aspect(int ratio) {
+    return ratio == 4;
+}
 
 #endif // __V_VIDEO_H__

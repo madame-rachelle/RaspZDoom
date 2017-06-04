@@ -196,9 +196,9 @@ bool DOptionMenu::MenuEvent (int mkey, bool fromcontroller)
 			--mDesc->mSelectedItem;
 
 			if (mDesc->mScrollPos > 0 &&
-				mDesc->mSelectedItem == mDesc->mScrollTop + mDesc->mScrollPos)
+				mDesc->mSelectedItem <= mDesc->mScrollTop + mDesc->mScrollPos)
 			{
-				mDesc->mScrollPos--;
+				mDesc->mScrollPos = MAX(mDesc->mSelectedItem - mDesc->mScrollTop - 1, 0);
 			}
 
 			if (mDesc->mSelectedItem < 0) 
@@ -274,7 +274,14 @@ bool DOptionMenu::MenuEvent (int mkey, bool fromcontroller)
 				mDesc->mSelectedItem = mDesc->mScrollTop + mDesc->mScrollPos + 1;
 				while (!mDesc->mItems[mDesc->mSelectedItem]->Selectable())
 				{
-					++mDesc->mSelectedItem;
+					if (++mDesc->mSelectedItem >= (int)mDesc->mItems.Size())
+					{
+						mDesc->mSelectedItem = 0;
+					}
+				}
+				if (mDesc->mScrollPos > mDesc->mSelectedItem)
+				{
+					mDesc->mScrollPos = mDesc->mSelectedItem;
 				}
 			}
 		}
@@ -294,7 +301,14 @@ bool DOptionMenu::MenuEvent (int mkey, bool fromcontroller)
 				mDesc->mSelectedItem = mDesc->mScrollTop + mDesc->mScrollPos;
 				while (!mDesc->mItems[mDesc->mSelectedItem]->Selectable())
 				{
-					++mDesc->mSelectedItem;
+					if (++mDesc->mSelectedItem >= (int)mDesc->mItems.Size())
+					{
+						mDesc->mSelectedItem = 0;
+					}
+				}
+				if (mDesc->mScrollPos > mDesc->mSelectedItem)
+				{
+					mDesc->mScrollPos = mDesc->mSelectedItem;
 				}
 			}
 		}
@@ -468,11 +482,6 @@ FOptionMenuItem::~FOptionMenuItem()
 	if (mLabel != NULL) delete [] mLabel;
 }
 
-bool FOptionMenuItem::CheckCoordinate(FOptionMenuDescriptor *desc, int x, int y)
-{
-	return false;
-}
-
 int FOptionMenuItem::Draw(FOptionMenuDescriptor *desc, int y, int indent, bool selected)
 {
 	return indent;
@@ -494,7 +503,13 @@ bool FOptionMenuItem::MouseEvent(int type, int x, int y)
 
 int  FOptionMenuItem::GetIndent()
 {
-	return mCentered? 0 : SmallFont->StringWidth(mLabel);
+	if (mCentered)
+	{
+		return 0;
+	}
+	const char *label = mLabel;
+	if (*label == '$') label = GStrings(label+1);
+	return SmallFont->StringWidth(label);
 }
 
 void FOptionMenuItem::drawLabel(int indent, int y, EColorRange color, bool grayed)

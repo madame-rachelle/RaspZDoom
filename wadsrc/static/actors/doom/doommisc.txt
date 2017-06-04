@@ -1,9 +1,7 @@
 // The barrel of green goop ------------------------------------------------
 
-ACTOR ExplosiveBarrel 2035
+ACTOR ExplosiveBarrel
 {
-	Game Doom
-	SpawnID 125
 	Health 20
 	Radius 10
 	Height 42
@@ -27,8 +25,8 @@ ACTOR ExplosiveBarrel 2035
 		BEXP C 5 BRIGHT
 		BEXP D 5 BRIGHT A_Explode
 		BEXP E 10 BRIGHT
-		BEXP E 1050 BRIGHT A_BarrelDestroy
-		BEXP E 5 A_Respawn
+		TNT1 A 1050 BRIGHT A_BarrelDestroy
+		TNT1 A 5 A_Respawn
 		Wait
 	}
 }
@@ -37,8 +35,6 @@ ACTOR ExplosiveBarrel 2035
 
 ACTOR BulletPuff
 {
-	Game Doom
-	SpawnID 131
 	+NOBLOCKMAP
 	+NOGRAVITY
 	+ALLOWPARTICLES
@@ -85,9 +81,8 @@ ACTOR DoomUnusedStates
 
 // MBF Beta emulation items
 
-Actor EvilSceptre : ScoreItem 2016
+Actor EvilSceptre : ScoreItem
 {
-	Game Doom
 	Inventory.PickupMessage "$BETA_BONUS3"
 	States
 	{
@@ -97,9 +92,8 @@ Actor EvilSceptre : ScoreItem 2016
 	}
 }
 
-Actor UnholyBible : ScoreItem 2017
+Actor UnholyBible : ScoreItem
 {
-	Game Doom
 	Inventory.PickupMessage "$BETA_BONUS4"
 	States
 	{

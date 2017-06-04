@@ -198,29 +198,35 @@ DPillar::DPillar (sector_t *sector, EPillar type, fixed_t speed,
 		m_FloorSpeed = Scale (speed, floordist, ceilingdist);
 	}
 
-	if (sector->seqType >= 0)
+	if (!(m_Sector->Flags & SECF_SILENTMOVE))
 	{
-		SN_StartSequence (sector, CHAN_FLOOR, sector->seqType, SEQ_PLATFORM, 0);
-	}
-	else if (sector->SeqName != NAME_None)
-	{
-		SN_StartSequence (sector, CHAN_FLOOR, sector->SeqName, 0);
-	}
-	else
-	{
-		SN_StartSequence (sector, CHAN_FLOOR, "Floor", 0);
+		if (sector->seqType >= 0)
+		{
+			SN_StartSequence(sector, CHAN_FLOOR, sector->seqType, SEQ_PLATFORM, 0);
+		}
+		else if (sector->SeqName != NAME_None)
+		{
+			SN_StartSequence(sector, CHAN_FLOOR, sector->SeqName, 0);
+		}
+		else
+		{
+			SN_StartSequence(sector, CHAN_FLOOR, "Floor", 0);
+		}
 	}
 }
 
-bool EV_DoPillar (DPillar::EPillar type, int tag, fixed_t speed, fixed_t height,
-				  fixed_t height2, int crush, bool hexencrush)
+bool EV_DoPillar (DPillar::EPillar type, line_t *line, int tag,
+				  fixed_t speed, fixed_t height, fixed_t height2, int crush, bool hexencrush)
 {
+	int secnum;
+	sector_t *sec;
 	bool rtn = false;
-	int secnum = -1;
 
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	// check if a manual trigger; if so do just the sector on the backside
+	FSectorTagIterator itr(tag, line);
+	while ((secnum = itr.Next()) >= 0)
 	{
-		sector_t *sec = &sectors[secnum];
+		sec = &sectors[secnum];
 
 		if (sec->PlaneMoving(sector_t::floor) || sec->PlaneMoving(sector_t::ceiling))
 			continue;

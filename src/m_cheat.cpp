@@ -99,6 +99,23 @@ void cht_DoCheat (player_t *player, int cheat)
 			msg = GStrings("TXT_BUDDHAOFF");
 		break;
 
+	case CHT_GOD2:
+		player->cheats ^= CF_GODMODE2;
+		if (player->cheats & CF_GODMODE2)
+			msg = GStrings("STSTR_DQD2ON");
+		else
+			msg = GStrings("STSTR_DQD2OFF");
+		ST_SetNeedRefresh();
+		break;
+
+	case CHT_BUDDHA2:
+		player->cheats ^= CF_BUDDHA2;
+		if (player->cheats & CF_BUDDHA2)
+			msg = GStrings("TXT_BUDDHA2ON");
+		else
+			msg = GStrings("TXT_BUDDHA2OFF");
+		break;
+
 	case CHT_NOCLIP:
 		player->cheats ^= CF_NOCLIP;
 		if (player->cheats & CF_NOCLIP)
@@ -119,6 +136,7 @@ void cht_DoCheat (player_t *player, int cheat)
 			player->cheats &= ~CF_NOCLIP;
 			msg = GStrings("STSTR_NCOFF");
 		}
+		if (player->mo->velx == 0) player->mo->velx = 1;	// force some lateral movement so that internal variables are up to date
 		break;
 
 	case CHT_NOVELOCITY:
@@ -132,8 +150,8 @@ void cht_DoCheat (player_t *player, int cheat)
 	case CHT_FLY:
 		if (player->mo != NULL)
 		{
-			player->cheats ^= CF_FLY;
-			if (player->cheats & CF_FLY)
+			player->mo->flags7 ^= MF7_FLYCHEAT;
+			if (player->mo->flags7 & MF7_FLYCHEAT)
 			{
 				player->mo->flags |= MF_NOGRAVITY;
 				player->mo->flags2 |= MF2_FLY;
@@ -323,7 +341,6 @@ void cht_DoCheat (player_t *player, int cheat)
 					player->mo->Translation = TRANSLATION(TRANSLATION_Players, BYTE(player-players));
 				}
 				player->mo->DamageType = NAME_None;
-//				player->mo->GiveDefaultInventory();
 				if (player->ReadyWeapon != NULL)
 				{
 					P_SetPsprite(player, ps_weapon, player->ReadyWeapon->GetUpState());
@@ -564,7 +581,7 @@ void GiveSpawner (player_t *player, const PClass *type, int amount)
 	}
 
 	AInventory *item = static_cast<AInventory *>
-		(Spawn (type, player->mo->x, player->mo->y, player->mo->z, NO_REPLACE));
+		(Spawn (type, player->mo->X(), player->mo->Y(), player->mo->Z(), NO_REPLACE));
 	if (item != NULL)
 	{
 		if (amount > 0)
@@ -753,11 +770,8 @@ void cht_Give (player_t *player, const char *name, int amount)
 				 type->GetReplacement()->IsDescendantOf(RUNTIME_CLASS(ADehackedPickup))))
 
 			{
-				// Give the weapon only if it belongs to the current game or
-				// is in a weapon slot. 
-				if (type->ActorInfo->GameFilter == GAME_Any || 
-					(type->ActorInfo->GameFilter & gameinfo.gametype) ||	
-					player->weapons.LocateWeapon(type, NULL, NULL))
+				// Give the weapon only if it is in a weapon slot. 
+				if (player->weapons.LocateWeapon(type, NULL, NULL))
 				{
 					AWeapon *def = (AWeapon*)GetDefaultByType (type);
 					if (giveall == ALL_YESYES || !(def->WeaponFlags & WIF_CHEATNOTWEAPON))
@@ -910,7 +924,7 @@ void cht_Take (player_t *player, const char *name, int amount)
 				AInventory *ammo = player->mo->FindInventory (type);
 
 				if (ammo)
-					ammo->Amount = 0;
+					ammo->DepleteOrDestroy();
 			}
 		}
 
@@ -926,10 +940,10 @@ void cht_Take (player_t *player, const char *name, int amount)
 
 			if (type->IsDescendantOf (RUNTIME_CLASS (AArmor)))
 			{
-				AActor *armor = player->mo->FindInventory (type);
+				AInventory *armor = player->mo->FindInventory (type);
 
 				if (armor)
-					armor->Destroy ();
+					armor->DepleteOrDestroy();
 			}
 		}
 
@@ -1037,24 +1051,7 @@ void cht_Take (player_t *player, const char *name, int amount)
 	}
 	else
 	{
-		AInventory *inventory = player->mo->FindInventory (type);
-
-		if (inventory != NULL)
-		{
-			inventory->Amount -= amount ? amount : 1;
-
-			if (inventory->Amount <= 0)
-			{
-				if (inventory->ItemFlags & IF_KEEPDEPLETED)
-				{
-					inventory->Amount = 0;
-				}
-				else
-				{
-					inventory->Destroy ();
-				}
-			}
-		}
+		player->mo->TakeInventory(type, amount ? amount : 1);
 	}
 	return;
 }

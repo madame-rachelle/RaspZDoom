@@ -47,6 +47,7 @@
 #include "v_video.h"
 #include "gameconfigfile.h"
 #include "resourcefiles/resourcefile.h"
+#include "version.h"
 
 
 CVAR (Bool, queryiwad, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG);
@@ -218,6 +219,11 @@ void FIWadManager::ParseIWadInfo(const char *fn, const char *data, int datasize)
 					sc.ScriptError("Unknown keyword '%s'", sc.String);
 				}
 			}
+			if (iwad->MapInfo.IsEmpty())
+			{
+				// We must at least load the minimum defaults to allow the engine to run.
+				iwad->MapInfo = "mapinfo/mindefaults.txt";
+			}
 		}
 		else if (sc.Compare("NAMES"))
 		{
@@ -246,7 +252,7 @@ void FIWadManager::ParseIWadInfo(const char *fn, const char *data, int datasize)
 
 //==========================================================================
 //
-// Lool for IWAD definition lump
+// Look for IWAD definition lump
 //
 //==========================================================================
 
@@ -295,11 +301,11 @@ int FIWadManager::ScanIWAD (const char *iwad)
 			FResourceLump *lump = iwadfile->GetLump(ii);
 
 			CheckLumpName(lump->Name);
-			if (lump->FullName != NULL)
+			if (lump->FullName.IsNotEmpty())
 			{
 				if (strnicmp(lump->FullName, "maps/", 5) == 0)
 				{
-					FString mapname(lump->FullName+5, strcspn(lump->FullName+5, "."));
+					FString mapname(&lump->FullName[5], strcspn(&lump->FullName[5], "."));
 					CheckLumpName(mapname);
 				}
 			}
@@ -386,7 +392,6 @@ int FIWadManager::IdentifyVersion (TArray<FString> &wadfiles, const char *iwad, 
 	bool iwadparmfound = false;
 	FString custwad;
 
-	ParseIWadInfos(zdoom_wad);
 	wads.Resize(mIWadNames.Size());
 	foundwads.Resize(mIWads.Size());
 	memset(&foundwads[0], 0, foundwads.Size() * sizeof(foundwads[0]));
@@ -430,27 +435,16 @@ int FIWadManager::IdentifyVersion (TArray<FString> &wadfiles, const char *iwad, 
 				}
 			}
 		}
-#ifdef _WIN32
-		FString steam_path = I_GetSteamPath();
-		if (steam_path.IsNotEmpty())
+		TArray<FString> gog_paths = I_GetGogPaths();
+		for (i = 0; i < gog_paths.Size(); ++i)
 		{
-			static const char *const steam_dirs[] =
-			{
-				"doom 2/base",
-				"final doom/base",
-				"heretic shadow of the serpent riders/base",
-				"hexen/base",
-				"hexen deathkings of the dark citadel/base",
-				"ultimate doom/base",
-				"DOOM 3 BFG Edition/base/wads"
-			};
-			steam_path += "/SteamApps/common/";
-			for (i = 0; i < countof(steam_dirs); ++i)
-			{
-				CheckIWAD (steam_path + steam_dirs[i], &wads[0]);
-			}
+			CheckIWAD (gog_paths[i], &wads[0]);
 		}
-#endif
+		TArray<FString> steam_path = I_GetSteamPath();
+		for (i = 0; i < steam_path.Size(); ++i)
+		{
+			CheckIWAD (steam_path[i], &wads[0]);
+		}
 	}
 
 	if (iwadparm != NULL && !wads[0].Path.IsEmpty())
@@ -514,19 +508,19 @@ int FIWadManager::IdentifyVersion (TArray<FString> &wadfiles, const char *iwad, 
 	if (numwads == 0)
 	{
 		I_FatalError ("Cannot find a game IWAD (doom.wad, doom2.wad, heretic.wad, etc.).\n"
-					  "Did you install ZDoom properly? You can do either of the following:\n"
+					  "Did you install " GAMENAME " properly? You can do either of the following:\n"
 					  "\n"
 #if defined(_WIN32)
-					  "1. Place one or more of these wads in the same directory as ZDoom.\n"
-					  "2. Edit your zdoom-username.ini and add the directories of your iwads\n"
+					  "1. Place one or more of these wads in the same directory as " GAMENAME ".\n"
+					  "2. Edit your " GAMENAMELOWERCASE ".ini and add the directories of your iwads\n"
 					  "to the list beneath [IWADSearch.Directories]");
 #elif defined(__APPLE__)
-					  "1. Place one or more of these wads in ~/Library/Application Support/zdoom/\n"
-					  "2. Edit your ~/Library/Preferences/zdoom.ini and add the directories\n"
+					  "1. Place one or more of these wads in ~/Library/Application Support/" GAMENAMELOWERCASE "/\n"
+					  "2. Edit your ~/Library/Preferences/" GAMENAMELOWERCASE ".ini and add the directories\n"
 					  "of your iwads to the list beneath [IWADSearch.Directories]");
 #else
-					  "1. Place one or more of these wads in ~/.config/zdoom/.\n"
-					  "2. Edit your ~/.config/zdoom/zdoom.ini and add the directories of your\n"
+					  "1. Place one or more of these wads in ~/.config/" GAMENAMELOWERCASE "/.\n"
+					  "2. Edit your ~/.config/" GAMENAMELOWERCASE "/" GAMENAMELOWERCASE ".ini and add the directories of your\n"
 					  "iwads to the list beneath [IWADSearch.Directories]");
 #endif
 	}
@@ -604,7 +598,12 @@ const FIWADInfo *FIWadManager::FindIWAD(TArray<FString> &wadfiles, const char *i
 	int iwadType = IdentifyVersion(wadfiles, iwad, basewad);
 	//gameiwad = iwadType;
 	const FIWADInfo *iwad_info = &mIWads[iwadType];
-	if (DoomStartupInfo.Name.IsEmpty()) DoomStartupInfo.Name = iwad_info->Name;
+	if (DoomStartupInfo.Name.IsEmpty())
+	{
+		DoomStartupInfo.Name = iwad_info->Name;
+		if (iwad_info->gametype == GAME_Doom)
+			DoomStartupInfo.Name << " Operating System v2.8";
+	}
 	if (DoomStartupInfo.BkColor == 0 && DoomStartupInfo.FgColor == 0)
 	{
 		DoomStartupInfo.BkColor = iwad_info->BkColor;

@@ -18,12 +18,10 @@ extern const PClass *QuestItemClasses[31];
 
 DEFINE_ACTION_FUNCTION(AActor, A_Bang4Cloud)
 {
-	fixed_t spawnx, spawny;
+	fixed_t xo = (pr_bang4cloud.Random2() & 3) * 10240;
+	fixed_t yo = (pr_bang4cloud.Random2() & 3) * 10240;
 
-	spawnx = self->x + (pr_bang4cloud.Random2() & 3) * 10240;
-	spawny = self->y + (pr_bang4cloud.Random2() & 3) * 10240;
-
-	Spawn("Bang4Cloud", spawnx, spawny, self->z, ALLOW_REPLACE);
+	Spawn("Bang4Cloud", self->Vec3Offset(xo, yo, 0), ALLOW_REPLACE);
 }
 
 // -------------------------------------------------------------------
@@ -89,12 +87,15 @@ DEFINE_ACTION_FUNCTION(AActor, A_LightGoesOut)
 
 	sec->SetLightLevel(0);
 
-	newheight = sec->FindLowestFloorSurrounding (&spot);
+	fixed_t oldtheight = sec->floorplane.Zat0();
+	newheight = sec->FindLowestFloorSurrounding(&spot);
 	sec->floorplane.d = sec->floorplane.PointToDist (spot, newheight);
+	fixed_t newtheight = sec->floorplane.Zat0();
+	sec->ChangePlaneTexZ(sector_t::floor, newtheight - oldtheight);
 
 	for (int i = 0; i < 8; ++i)
 	{
-		foo = Spawn("Rubble1", self->x, self->y, self->z, ALLOW_REPLACE);
+		foo = Spawn("Rubble1", self->Pos(), ALLOW_REPLACE);
 		if (foo != NULL)
 		{
 			int t = pr_lightout() & 15;

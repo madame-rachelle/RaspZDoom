@@ -548,7 +548,7 @@ void APowerCoupling::Die (AActor *source, AActor *inflictor, int dmgflags)
 		P_NoiseAlert (source, this);
 	}
 	EV_DoDoor (DDoor::doorClose, NULL, players[i].mo, 225, 2*FRACUNIT, 0, 0, 0);
-	EV_DoFloor (DFloor::floorLowerToHighest, NULL, 44, FRACUNIT, 0, 0, 0, false);
+	EV_DoFloor (DFloor::floorLowerToHighest, NULL, 44, FRACUNIT, 0, -1, 0, false);
 	players[i].mo->GiveInventoryType (QuestItemClasses[5]);
 	S_Sound (CHAN_VOICE, "svox/voc13", 1, ATTN_NORM);
 	players[i].SetLogNumber (13);
@@ -580,7 +580,7 @@ IMPLEMENT_CLASS (AMeat)
 DEFINE_ACTION_FUNCTION(AActor, A_TossGib)
 {
 	const char *gibtype = (self->flags & MF_NOBLOOD) ? "Junk" : "Meat";
-	AActor *gib = Spawn (gibtype, self->x, self->y, self->z + 24*FRACUNIT, ALLOW_REPLACE);
+	AActor *gib = Spawn (gibtype, self->PosPlusZ(24*FRACUNIT), ALLOW_REPLACE);
 	angle_t an;
 	int speed;
 
@@ -628,15 +628,15 @@ DEFINE_ACTION_FUNCTION(AActor, A_CheckTerrain)
 {
 	sector_t *sec = self->Sector;
 
-	if (self->z == sec->floorplane.ZatPoint (self->x, self->y))
+	if (self->Z() == sec->floorplane.ZatPoint(self))
 	{
-		if ((sec->special & 0xFF) == Damage_InstantDeath)
+		if (sec->special == Damage_InstantDeath)
 		{
-			P_DamageMobj (self, NULL, NULL, 999, NAME_None);
+			P_DamageMobj (self, NULL, NULL, 999, NAME_InstantDeath);
 		}
-		else if ((sec->special & 0xFF) == Scroll_StrifeCurrent)
+		else if (sec->special == Scroll_StrifeCurrent)
 		{
-			int anglespeed = sec->tag - 100;
+			int anglespeed = tagManager.GetFirstSectorTag(sec) - 100;
 			fixed_t speed = (anglespeed % 10) << (FRACBITS - 4);
 			angle_t finean = (anglespeed / 10) << (32-3);
 			finean >>= ANGLETOFINESHIFT;
@@ -681,7 +681,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_ItBurnsItBurns)
 
 DEFINE_ACTION_FUNCTION(AActor, A_DropFire)
 {
-	AActor *drop = Spawn("FireDroplet", self->x, self->y, self->z + 24*FRACUNIT, ALLOW_REPLACE);
+	AActor *drop = Spawn("FireDroplet", self->PosPlusZ(24*FRACUNIT), ALLOW_REPLACE);
 	drop->velz = -FRACUNIT;
 	P_RadiusAttack (self, self, 64, 64, NAME_Fire, 0);
 }

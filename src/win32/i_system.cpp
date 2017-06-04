@@ -132,10 +132,12 @@ extern bool FancyStdOut;
 extern HINSTANCE g_hInst;
 extern FILE *Logfile;
 extern bool NativeMouse;
+extern bool ConWindowHidden;
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
 CVAR (String, queryiwad_key, "shift", CVAR_GLOBALCONFIG|CVAR_ARCHIVE);
+CVAR (Bool, con_debugoutput, false, 0);
 
 double PerfToSec, PerfToMillisec;
 UINT TimerPeriod;
@@ -561,25 +563,26 @@ void I_DetectOS(void)
 		{
 			if (info.dwMinorVersion == 0)
 			{
-				if (info.wProductType == VER_NT_WORKSTATION)
-				{
-					osname = "Vista";
-				}
-				else
-				{
-					osname = "Server 2008";
-				}
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "Vista" : "Server 2008";
 			}
 			else if (info.dwMinorVersion == 1)
 			{
-				if (info.wProductType == VER_NT_WORKSTATION)
-				{
-					osname = "7";
-				}
-				else
-				{
-					osname = "Server 2008 R2";
-				}
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "7" : "Server 2008 R2";
+			}
+			else if (info.dwMinorVersion == 2)	
+			{
+				// Starting with Windows 8.1, you need to specify in your manifest
+				// the highest version of Windows you support, which will also be the
+				// highest version of Windows this function returns.
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "8" : "Server 2012";
+			}
+			else if (info.dwMinorVersion == 3)
+			{
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "8.1" : "Server 2012 R2";
+			}
+			else
+			{
+				osname = (info.wProductType == VER_NT_WORKSTATION) ? "10 (or higher)" : "Server 2016 (or higher)";
 			}
 		}
 		break;
@@ -769,6 +772,8 @@ void I_Quit()
 	{
 		G_CheckDemoStatus();
 	}
+
+	C_DeinitConsole();
 }
 
 
@@ -909,12 +914,11 @@ void ToEditControl(HWND edit, const char *buf, wchar_t *wbuf, int bpos)
 //
 //==========================================================================
 
-void I_PrintStr(const char *cp)
+static void DoPrintStr(const char *cp, HWND edit, HANDLE StdOut)
 {
-	if (ConWindow == NULL && StdOut == NULL)
+	if (edit == NULL && StdOut == NULL)
 		return;
 
-	HWND edit = ConWindow;
 	char buf[256];
 	wchar_t wbuf[countof(buf)];
 	int bpos = 0;
@@ -946,7 +950,7 @@ void I_PrintStr(const char *cp)
 			buf[bpos] = 0;
 			if (edit != NULL)
 			{
-				ToEditControl(edit, buf, wbuf, bpos);
+				SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 			}
 			if (StdOut != NULL)
 			{
@@ -1013,7 +1017,7 @@ void I_PrintStr(const char *cp)
 		buf[bpos] = 0;
 		if (edit != NULL)
 		{
-			ToEditControl(edit, buf, wbuf, bpos);
+			SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 		}
 		if (StdOut != NULL)
 		{
@@ -1044,6 +1048,55 @@ void I_PrintStr(const char *cp)
 	{ // Set text back to gray, in case it was changed.
 		SetConsoleTextAttribute(StdOut, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 	}
+}
+
+static TArray<FString> bufferedConsoleStuff;
+
+void I_PrintStr(const char *cp)
+{
+	if (con_debugoutput)
+	{
+		// Strip out any color escape sequences before writing to debug output
+		char * copy = new char[strlen(cp)+1];
+		const char * srcp = cp;
+		char * dstp = copy;
+
+		while (*srcp != 0)
+		{
+			if (*srcp!=0x1c && *srcp!=0x1d && *srcp!=0x1e && *srcp!=0x1f)
+			{
+				*dstp++=*srcp++;
+			}
+			else
+			{
+				if (srcp[1]!=0) srcp+=2;
+				else break;
+			}
+		}
+		*dstp=0;
+
+		OutputDebugStringA(copy);
+		delete [] copy;
+	}
+
+	if (ConWindowHidden)
+	{
+		bufferedConsoleStuff.Push(cp);
+		DoPrintStr(cp, NULL, StdOut);
+	}
+	else
+	{
+		DoPrintStr(cp, ConWindow, StdOut);
+	}
+}
+
+void I_FlushBufferedConsoleStuff()
+{
+	for (unsigned i = 0; i < bufferedConsoleStuff.Size(); i++)
+	{
+		DoPrintStr(bufferedConsoleStuff[i], ConWindow, NULL);
+	}
+	bufferedConsoleStuff.Clear();
 }
 
 //==========================================================================
@@ -1477,28 +1530,81 @@ int I_FindClose(void *handle)
 
 static bool QueryPathKey(HKEY key, const char *keypath, const char *valname, FString &value)
 {
-	HKEY steamkey;
+	HKEY pathkey;
 	DWORD pathtype;
 	DWORD pathlen;
 	LONG res;
 
-	if(ERROR_SUCCESS == RegOpenKeyEx(key, keypath, 0, KEY_QUERY_VALUE, &steamkey))
+	if(ERROR_SUCCESS == RegOpenKeyEx(key, keypath, 0, KEY_QUERY_VALUE, &pathkey))
 	{
-		if (ERROR_SUCCESS == RegQueryValueEx(steamkey, valname, 0, &pathtype, NULL, &pathlen) &&
+		if (ERROR_SUCCESS == RegQueryValueEx(pathkey, valname, 0, &pathtype, NULL, &pathlen) &&
 			pathtype == REG_SZ && pathlen != 0)
 		{
 			// Don't include terminating null in count
 			char *chars = value.LockNewBuffer(pathlen - 1);
-			res = RegQueryValueEx(steamkey, valname, 0, NULL, (LPBYTE)chars, &pathlen);
+			res = RegQueryValueEx(pathkey, valname, 0, NULL, (LPBYTE)chars, &pathlen);
 			value.UnlockBuffer();
 			if (res != ERROR_SUCCESS)
 			{
 				value = "";
 			}
 		}
-		RegCloseKey(steamkey);
+		RegCloseKey(pathkey);
 	}
 	return value.IsNotEmpty();
+}
+
+//==========================================================================
+//
+// I_GetGogPaths
+//
+// Check the registry for GOG installation paths, so we can search for IWADs
+// that were bought from GOG.com. This is a bit different from the Steam
+// version because each game has its own independent installation path, no
+// such thing as <steamdir>/SteamApps/common/<GameName>.
+//
+//==========================================================================
+
+TArray<FString> I_GetGogPaths()
+{
+	TArray<FString> result;
+	FString path;
+	FString gamepath;
+
+#ifdef _WIN64
+	FString gogregistrypath = "Software\\Wow6432Node\\GOG.com\\Games";
+#else
+	// If a 32-bit ZDoom runs on a 64-bit Windows, this will be transparently and
+	// automatically redirected to the Wow6432Node address instead, so this address
+	// should be safe to use in all cases.
+	FString gogregistrypath = "Software\\GOG.com\\Games";
+#endif
+
+	// Look for Ultimate Doom
+	gamepath = gogregistrypath + "\\1435827232";
+	if (QueryPathKey(HKEY_LOCAL_MACHINE, gamepath.GetChars(), "Path", path))
+	{
+		result.Push(path);	// directly in install folder
+	}
+
+	// Look for Doom II
+	gamepath = gogregistrypath + "\\1435848814";
+	if (QueryPathKey(HKEY_LOCAL_MACHINE, gamepath.GetChars(), "Path", path))
+	{
+		result.Push(path + "/doom2");	// in a subdirectory
+		// If direct support for the Master Levels is ever added, they are in path + /master/wads
+	}
+
+	// Look for Final Doom
+	gamepath = gogregistrypath + "\\1435848742";
+	if (QueryPathKey(HKEY_LOCAL_MACHINE, gamepath.GetChars(), "Path", path))
+	{
+		// in subdirectories
+		result.Push(path + "/TNT");
+		result.Push(path + "/Plutonia");
+	}
+
+	return result;
 }
 
 //==========================================================================
@@ -1510,20 +1616,36 @@ static bool QueryPathKey(HKEY key, const char *keypath, const char *valname, FSt
 //
 //==========================================================================
 
-FString I_GetSteamPath()
+TArray<FString> I_GetSteamPath()
 {
+	TArray<FString> result;
+	static const char *const steam_dirs[] =
+	{
+		"doom 2/base",
+		"final doom/base",
+		"heretic shadow of the serpent riders/base",
+		"hexen/base",
+		"hexen deathkings of the dark citadel/base",
+		"ultimate doom/base",
+		"DOOM 3 BFG Edition/base/wads",
+		"Strife"
+	};
+
 	FString path;
 
-	if (QueryPathKey(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "SteamPath", path))
+	if (!QueryPathKey(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "SteamPath", path))
 	{
-		return path;
+		if (!QueryPathKey(HKEY_LOCAL_MACHINE, "Software\\Valve\\Steam", "InstallPath", path))
+			return result;
 	}
-	if (QueryPathKey(HKEY_LOCAL_MACHINE, "Software\\Valve\\Steam", "InstallPath", path))
+	path += "/SteamApps/common/";
+
+	for(unsigned int i = 0; i < countof(steam_dirs); ++i)
 	{
-		return path;
+		result.Push(path + steam_dirs[i]);
 	}
-	path = "";
-	return path;
+
+	return result;
 }
 
 //==========================================================================
@@ -1569,3 +1691,64 @@ unsigned int I_MakeRNGSeed()
 	CryptReleaseContext(prov, 0);
 	return seed;
 }
+
+//==========================================================================
+//
+// I_GetLongPathName
+//
+// Returns the long version of the path, or the original if there isn't
+// anything worth changing.
+//
+//==========================================================================
+/*
+ FString I_GetLongPathName(FString shortpath)
+ {
+	DWORD buffsize = GetLongPathName(shortpath.GetChars(), NULL, 0);
+ 	if (buffsize == 0)
+ 	{ // nothing to change (it doesn't exist, maybe?)
+ 		return shortpath;
+ 	}
+ 	TCHAR *buff = new TCHAR[buffsize];
+	DWORD buffsize2 = GetLongPathName(shortpath.GetChars(), buff, buffsize);
+ 	if (buffsize2 >= buffsize)
+ 	{ // Failure! Just return the short path
+ 		delete[] buff;
+		return shortpath;
+	}
+	FString longpath(buff, buffsize2);
+	delete[] buff;
+	return longpath;
+}
+*/
+#if _MSC_VER == 1900 && defined(_USING_V110_SDK71_)
+//==========================================================================
+//
+// VS14Stat
+//
+// Work around an issue where stat doesn't work with v140_xp. This was
+// supposedly fixed, but as of Update 1 continues to not function on XP.
+//
+//==========================================================================
+
+#include <sys/stat.h>
+
+int VS14Stat(const char *path, struct _stat64i32 *buffer)
+{
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if(!GetFileAttributesEx(path, GetFileExInfoStandard, &data))
+		return -1;
+
+	buffer->st_ino = 0;
+	buffer->st_mode = ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? S_IFDIR : S_IFREG)|
+	                  ((data.dwFileAttributes & FILE_ATTRIBUTE_READONLY) ? S_IREAD : S_IREAD|S_IWRITE);
+	buffer->st_dev = buffer->st_rdev = 0;
+	buffer->st_nlink = 1;
+	buffer->st_uid = 0;
+	buffer->st_gid = 0;
+	buffer->st_size = data.nFileSizeLow;
+	buffer->st_atime = (*(QWORD*)&data.ftLastAccessTime) / 10000000 - 11644473600LL;
+	buffer->st_mtime = (*(QWORD*)&data.ftLastWriteTime) / 10000000 - 11644473600LL;
+	buffer->st_ctime = (*(QWORD*)&data.ftCreationTime) / 10000000 - 11644473600LL;
+	return 0;
+}
+#endif

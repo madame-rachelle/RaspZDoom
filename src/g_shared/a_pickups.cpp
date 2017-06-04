@@ -236,10 +236,12 @@ bool P_GiveBody (AActor *actor, int num, int max)
 				return true;
 			}
 		}
-		else
+		else if (num > 0)
 		{
 			if (player->health < max)
 			{
+				num = FixedMul(num, G_SkillProperty(SKILLP_HealthFactor));
+				if (num < 1) num = 1;
 				player->health += num;
 				if (player->health > max)
 				{
@@ -329,7 +331,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_RestoreSpecialDoomThing)
 	{
 		self->SetState (self->SpawnState);
 		S_Sound (self, CHAN_VOICE, "misc/spawn", 1, ATTN_IDLE);
-		Spawn ("ItemFog", self->x, self->y, self->z, ALLOW_REPLACE);
+		Spawn ("ItemFog", self->Pos(), ALLOW_REPLACE);
 	}
 }
 
@@ -349,19 +351,18 @@ DEFINE_ACTION_FUNCTION(AActor, A_RestoreSpecialPosition)
 	_y = self->SpawnPoint[1];
 
 	self->UnlinkFromWorld();
-	self->x = _x;
-	self->y = _y;
+	self->SetXY(_x, _y);
 	self->LinkToWorld(true);
 	sec = self->Sector;
-	self->z =
 	self->dropoffz =
 	self->floorz = sec->floorplane.ZatPoint(_x, _y);
 	self->ceilingz = sec->ceilingplane.ZatPoint(_x, _y);
+	self->SetZ(self->floorz);
 	P_FindFloorCeiling(self, FFCF_ONLYSPAWNPOS);
 
 	if (self->flags & MF_SPAWNCEILING)
 	{
-		self->z = self->ceilingz - self->height - self->SpawnPoint[2];
+		self->SetZ(self->ceilingz - self->height - self->SpawnPoint[2]);
 	}
 	else if (self->flags2 & MF2_SPAWNFLOAT)
 	{
@@ -369,33 +370,33 @@ DEFINE_ACTION_FUNCTION(AActor, A_RestoreSpecialPosition)
 		if (space > 48*FRACUNIT)
 		{
 			space -= 40*FRACUNIT;
-			self->z = ((space * pr_restore())>>8) + self->floorz + 40*FRACUNIT;
+			self->SetZ(((space * pr_restore())>>8) + self->floorz + 40*FRACUNIT);
 		}
 		else
 		{
-			self->z = self->floorz;
+			self->SetZ(self->floorz);
 		}
 	}
 	else
 	{
-		self->z = self->SpawnPoint[2] + self->floorz;
+		self->SetZ(self->SpawnPoint[2] + self->floorz);
 	}
 	// Redo floor/ceiling check, in case of 3D floors
 	P_FindFloorCeiling(self, FFCF_SAMESECTOR | FFCF_ONLY3DFLOORS | FFCF_3DRESTRICT);
-	if (self->z < self->floorz)
+	if (self->Z() < self->floorz)
 	{ // Do not reappear under the floor, even if that's where we were for the
 	  // initial spawn.
-		self->z = self->floorz;
+		self->SetZ(self->floorz);
 	}
-	if ((self->flags & MF_SOLID) && (self->z + self->height > self->ceilingz))
+	if ((self->flags & MF_SOLID) && (self->Top() > self->ceilingz))
 	{ // Do the same for the ceiling.
-		self->z = self->ceilingz - self->height;
+		self->SetZ(self->ceilingz - self->height);
 	}
 	// Do not interpolate from the position the actor was at when it was
 	// picked up, in case that is different from where it is now.
-	self->PrevX = self->x;
-	self->PrevY = self->y;
-	self->PrevZ = self->z;
+	self->PrevX = self->X();
+	self->PrevY = self->Y();
+	self->PrevZ = self->Z();
 }
 
 int AInventory::StaticLastMessageTic;
@@ -497,9 +498,9 @@ bool AInventory::SpecialDropAction (AActor *dropper)
 
 bool AInventory::ShouldRespawn ()
 {
-	if ((ItemFlags & IF_BIGPOWERUP) && !(dmflags & DF_RESPAWN_SUPER)) return false;
+	if ((ItemFlags & IF_BIGPOWERUP) && !(dmflags2 & DF2_RESPAWN_SUPER)) return false;
 	if (ItemFlags & IF_NEVERRESPAWN) return false;
-	return !!(dmflags & DF_ITEMS_RESPAWN);
+	return !!((dmflags & DF_ITEMS_RESPAWN) || (ItemFlags & IF_ALWAYSRESPAWN));
 }
 
 //===========================================================================
@@ -593,7 +594,7 @@ bool AInventory::HandlePickup (AInventory *item)
 {
 	if (item->GetClass() == GetClass())
 	{
-		if (Amount < MaxAmount || sv_unlimited_pickup)
+		if (Amount < MaxAmount || (sv_unlimited_pickup && !item->ShouldStay()))
 		{
 			if (Amount > 0 && Amount + item->Amount < 0)
 			{
@@ -680,6 +681,7 @@ AInventory *AInventory::CreateCopy (AActor *other)
 {
 	AInventory *copy;
 
+	Amount = MIN(Amount, MaxAmount);
 	if (GoAway ())
 	{
 		copy = static_cast<AInventory *>(Spawn (GetClass(), 0, 0, 0, NO_REPLACE));
@@ -725,8 +727,7 @@ AInventory *AInventory::CreateTossable ()
 		flags &= ~(MF_SPECIAL|MF_SOLID);
 		return this;
 	}
-	copy = static_cast<AInventory *>(Spawn (GetClass(), Owner->x,
-		Owner->y, Owner->z, NO_REPLACE));
+	copy = static_cast<AInventory *>(Spawn (GetClass(), Owner->Pos(), NO_REPLACE));
 	if (copy != NULL)
 	{
 		copy->MaxAmount = MaxAmount;
@@ -785,7 +786,7 @@ void AInventory::BecomePickup ()
 		LinkToWorld ();
 		P_FindFloorCeiling (this);
 	}
-	flags = GetDefault()->flags | MF_DROPPED;
+	flags = (GetDefault()->flags | MF_DROPPED) & ~MF_COUNTITEM;
 	renderflags &= ~RF_INVISIBLE;
 	SetState (SpawnState);
 }
@@ -847,6 +848,25 @@ fixed_t AInventory::GetSpeedFactor ()
 	else
 	{
 		return FRACUNIT;
+	}
+}
+
+//===========================================================================
+//
+// AInventory :: GetNoTeleportFreeze
+//
+//===========================================================================
+
+bool AInventory::GetNoTeleportFreeze ()
+{
+	// do not check the flag here because it's only active when used on PowerUps, not on PowerupGivers.
+	if (Inventory != NULL)
+	{
+		return Inventory->GetNoTeleportFreeze();
+	}
+	else
+	{
+		return false;
 	}
 }
 
@@ -959,10 +979,12 @@ static void PrintPickupMessage (const char *str)
 
 void AInventory::Touch (AActor *toucher)
 {
+	player_t *player = toucher->player;
+
 	// If a voodoo doll touches something, pretend the real player touched it instead.
-	if (toucher->player != NULL)
+	if (player != NULL)
 	{
-		toucher = toucher->player->mo;
+		toucher = player->mo;
 	}
 
 	bool localview = toucher->CheckLocalView(consoleplayer);
@@ -972,7 +994,7 @@ void AInventory::Touch (AActor *toucher)
 	// This is the only situation when a pickup flash should ever play.
 	if (PickupFlash != NULL && !ShouldStay())
 	{
-		Spawn(PickupFlash, x, y, z, ALLOW_REPLACE);
+		Spawn(PickupFlash, Pos(), ALLOW_REPLACE);
 	}
 
 	if (!(ItemFlags & IF_QUIET))
@@ -990,12 +1012,12 @@ void AInventory::Touch (AActor *toucher)
 
 		// Special check so voodoo dolls picking up items cause the
 		// real player to make noise.
-		if (toucher->player != NULL)
+		if (player != NULL)
 		{
-			PlayPickupSound (toucher->player->mo);
+			PlayPickupSound (player->mo);
 			if (!(ItemFlags & IF_NOSCREENFLASH))
 			{
-				toucher->player->bonuscount = BONUSADD;
+				player->bonuscount = BONUSADD;
 			}
 		}
 		else
@@ -1009,23 +1031,23 @@ void AInventory::Touch (AActor *toucher)
 
 	if (flags & MF_COUNTITEM)
 	{
-		if (toucher->player != NULL)
+		if (player != NULL)
 		{
-			toucher->player->itemcount++;
+			player->itemcount++;
 		}
 		level.found_items++;
 	}
 
 	if (flags5 & MF5_COUNTSECRET)
 	{
-		P_GiveSecret(toucher, true, true);
+		P_GiveSecret(player != NULL? (AActor*)player->mo : toucher, true, true, -1);
 	}
 
 	//Added by MC: Check if item taken was the roam destination of any bot
 	for (int i = 0; i < MAXPLAYERS; i++)
 	{
-		if (playeringame[i] && this == players[i].dest)
-    		players[i].dest = NULL;
+		if (players[i].Bot != NULL && this == players[i].Bot->dest)
+			players[i].Bot->dest = NULL;
 	}
 }
 
@@ -1129,6 +1151,32 @@ void AInventory::Destroy ()
 	// Although contrived it can theoretically happen that these variables still got a pointer to this item
 	if (SendItemUse == this) SendItemUse = NULL;
 	if (SendItemDrop == this) SendItemDrop = NULL;
+}
+
+//===========================================================================
+//
+// AInventory :: DepleteOrDestroy
+//
+// If the item is depleted, just change its amount to 0, otherwise it's destroyed.
+//
+//===========================================================================
+
+void AInventory::DepleteOrDestroy ()
+{
+	// If it's not ammo or an internal armor, destroy it.
+	// Ammo needs to stick around, even when it's zero for the benefit
+	// of the weapons that use it and to maintain the maximum ammo
+	// amounts a backpack might have given.
+	// Armor shouldn't be removed because they only work properly when
+	// they are the last items in the inventory.
+	if (ItemFlags & IF_KEEPDEPLETED)
+	{
+		Amount = 0;
+	}
+	else
+	{
+		Destroy();
+	}
 }
 
 //===========================================================================
@@ -1242,8 +1290,8 @@ bool AInventory::DoRespawn ()
 		if (state != NULL) spot = state->GetRandomSpot(SpawnPointClass);
 		if (spot != NULL) 
 		{
-			SetOrigin (spot->x, spot->y, spot->z);
-			z = floorz;
+			SetOrigin (spot->Pos(), false);
+			SetZ(floorz);
 		}
 	}
 	return true;
@@ -1372,6 +1420,8 @@ bool AInventory::TryPickupRestricted (AActor *&toucher)
 
 bool AInventory::CallTryPickup (AActor *toucher, AActor **toucher_return)
 {
+	TObjPtr<AInventory> Invstack = Inventory; // A pointer of the inventories item stack.
+
 	// unmorphed versions of a currently morphed actor cannot pick up anything. 
 	if (toucher->flags & MF_UNMORPHED) return false;
 
@@ -1392,7 +1442,27 @@ bool AInventory::CallTryPickup (AActor *toucher, AActor **toucher_return)
 		GoAwayAndDie();
 	}
 
-	if (res) GiveQuest(toucher);
+	if (res)
+	{
+		GiveQuest(toucher);
+
+		// Transfer all inventory accross that the old object had, if requested.
+		if ((ItemFlags & IF_TRANSFER))
+		{
+			while (Invstack)
+			{
+				AInventory* titem = Invstack;
+				Invstack = titem->Inventory;
+				if (titem->Owner == this)
+				{
+					if (!titem->CallTryPickup(toucher)) // The object no longer can exist
+					{
+						titem->Destroy();
+					}
+				}
+			}
+		}
+	}
 	return res;
 }
 
@@ -1792,7 +1862,10 @@ bool ABackpackItem::HandlePickup (AInventory *item)
 AInventory *ABackpackItem::CreateTossable ()
 {
 	ABackpackItem *pack = static_cast<ABackpackItem *>(Super::CreateTossable());
-	pack->bDepleted = true;
+	if (pack != NULL)
+	{
+		pack->bDepleted = true;
+	}
 	return pack;
 }
 

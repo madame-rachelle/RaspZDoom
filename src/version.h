@@ -41,31 +41,31 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "1.9pre"
+#define VERSIONSTR "2.8.1a LE"
 
 // The version as seen in the Windows resource
-#define RC_FILEVERSION 1,8,9999,0
-#define RC_PRODUCTVERSION 1,8,9999,0
-#define RC_PRODUCTVERSION2 "1.9pre"
+#define RC_FILEVERSION 2,8,1,1
+#define RC_PRODUCTVERSION 2,8,1,1
+#define RC_PRODUCTVERSION2 "2.8.1a"
 
 // Version identifier for network games.
 // Bump it every time you do a release unless you're certain you
 // didn't change anything that will affect sync.
-#define NETGAMEVERSION 229
+#define NETGAMEVERSION 231
 
 // Version stored in the ini's [LastRun] section.
 // Bump it if you made some configuration change that you want to
 // be able to migrate in FGameConfigFile::DoGlobalSetup().
-#define LASTRUNVERSION "210"
+#define LASTRUNVERSION "211"
 
 // Protocol version used in demos.
 // Bump it if you change existing DEM_ commands or add new ones.
 // Otherwise, it should be safe to leave it alone.
-#define DEMOGAMEVERSION 0x219
+#define DEMOGAMEVERSION 0x21D
 
 // Minimum demo version we can play.
 // Bump it whenever you change or remove existing DEM_ commands.
-#define MINDEMOVERSION 0x215
+#define MINDEMOVERSION 0x21C
 
 // SAVEVER is the version of the information stored in level snapshots.
 // Note that SAVEVER is not directly comparable to VERSION.
@@ -76,7 +76,7 @@ const char *GetVersionString();
 
 // Use 4500 as the base git save version, since it's higher than the
 // SVN revision ever got.
-#define SAVEVER 4504
+#define SAVEVER 4531
 
 #define SAVEVERSTRINGIFY2(x) #x
 #define SAVEVERSTRINGIFY(x) SAVEVERSTRINGIFY2(x)
@@ -89,16 +89,15 @@ const char *GetVersionString();
 #define BASEWAD "gzdoom.pk3"
 
 // More stuff that needs to be different for derivatives.
-#define GAMENAME "GZDoom"
-#define FORUM_URL "http://forum.drdteam.org"
-#define BUGS_FORUM_URL	"http://forum.drdteam.org/viewforum.php?f=24"
+#define GAMENAME "ZDoom"
+#define GAMENAMELOWERCASE "zdoomle"
+#define FORUM_URL "http://forum.zdoom.org"
+#define BUGS_FORUM_URL	"http://forum.zdoom.org/index.php?c=3"
 
-#ifdef __unix__
-#define GAME_DIR ".config/gzdoom"
-#elif defined(__APPLE__)
+#if defined(__APPLE__) || defined(_WIN32)
 #define GAME_DIR GAMENAME
 #else
-#define CDROM_DIR "C:\\GZDOOMDAT"
+#define GAME_DIR ".config/" GAMENAMELOWERCASE
 #endif
 
 

@@ -75,6 +75,9 @@
 #include "actorptrselect.h"
 #include "farchive.h"
 #include "decallib.h"
+#include "p_terrain.h"
+#include "version.h"
+#include "p_effect.h"
 
 #include "g_shared/a_pickups.h"
 
@@ -113,19 +116,42 @@ FRandom pr_acs ("ACS");
 #define NOT_FLOOR			8
 #define NOT_CEILING			16
 
-// LineAtack flags
+// LineAttack flags
 #define FHF_NORANDOMPUFFZ	1
+#define FHF_NOIMPACTDECAL	2
 
 // SpawnDecal flags
 #define SDF_ABSANGLE		1
 #define SDF_PERMANENT		2
 
+// GetArmorInfo
+enum
+{
+	ARMORINFO_CLASSNAME,
+	ARMORINFO_SAVEAMOUNT,
+	ARMORINFO_SAVEPERCENT,
+	ARMORINFO_MAXABSORB,
+	ARMORINFO_MAXFULLABSORB,
+	ARMORINFO_ACTUALSAVEAMOUNT,
+};
+
+// PickActor
+// [JP] I've renamed these flags to something else to avoid confusion with the other PAF_ flags
+enum
+{
+//	PAF_FORCETID,
+//	PAF_RETURNTID
+	PICKAF_FORCETID = 1,
+	PICKAF_RETURNTID = 2,
+};
+
 struct CallReturn
 {
-	CallReturn(int pc, ScriptFunction *func, FBehavior *module, SDWORD *locals, bool discard, unsigned int runaway)
+	CallReturn(int pc, ScriptFunction *func, FBehavior *module, SDWORD *locals, ACSLocalArrays *arrays, bool discard, unsigned int runaway)
 		: ReturnFunction(func),
 		  ReturnModule(module),
 		  ReturnLocals(locals),
+		  ReturnArrays(arrays),
 		  ReturnAddress(pc),
 		  bDiscardResult(discard),
 		  EntryInstrCount(runaway)
@@ -134,6 +160,7 @@ struct CallReturn
 	ScriptFunction *ReturnFunction;
 	FBehavior *ReturnModule;
 	SDWORD *ReturnLocals;
+	ACSLocalArrays *ReturnArrays;
 	int ReturnAddress;
 	int bDiscardResult;
 	unsigned int EntryInstrCount;
@@ -190,6 +217,49 @@ FWorldGlobalArray ACS_WorldArrays[NUM_WORLDVARS];
 SDWORD ACS_GlobalVars[NUM_GLOBALVARS];
 FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
 
+//----------------------------------------------------------------------------
+//
+// ACS stack manager
+//
+// This is needed so that the garbage collector has access to all active
+// script stacks
+//
+//----------------------------------------------------------------------------
+
+struct FACSStack
+{
+	SDWORD buffer[STACK_SIZE];
+	int sp;
+	FACSStack *next;
+	FACSStack *prev;
+	static FACSStack *head;
+
+	FACSStack();
+	~FACSStack();
+};
+
+FACSStack *FACSStack::head;
+
+FACSStack::FACSStack()
+{
+	sp = 0;
+	next = head;
+	prev = NULL;
+	head = this;
+}
+
+FACSStack::~FACSStack()
+{
+	if (next != NULL) next->prev = prev;
+	if (prev == NULL)
+	{
+		head = next;
+	}
+	else
+	{
+		prev->next = next;
+	}
+}
 
 //----------------------------------------------------------------------------
 //
@@ -204,7 +274,7 @@ FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
 //
 // When the string table needs to grow to hold more strings, a garbage
 // collection is first attempted to see if more room can be made to store
-// strings without growing. A string is concidered in use if any value
+// strings without growing. A string is considered in use if any value
 // in any of these variable blocks contains a valid ID in the global string
 // table:
 //   * The active area of the ACS stack
@@ -213,7 +283,7 @@ FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
 //   * All world variables
 //   * All global variables
 // It's not important whether or not they are really used as strings, only
-// that they might be. A string is also concidered in use if its lock count
+// that they might be. A string is also considered in use if its lock count
 // is non-zero, even if none of the above variable blocks referenced it.
 //
 // To keep track of local and map variables for nonresident maps in a hub,
@@ -263,7 +333,7 @@ void ACSStringPool::Clear()
 //
 //============================================================================
 
-int ACSStringPool::AddString(const char *str, const SDWORD *stack, int stackdepth)
+int ACSStringPool::AddString(const char *str)
 {
 	size_t len = strlen(str);
 	unsigned int h = SuperFastHash(str, len);
@@ -274,10 +344,10 @@ int ACSStringPool::AddString(const char *str, const SDWORD *stack, int stackdept
 		return i | STRPOOL_LIBRARYID_OR;
 	}
 	FString fstr(str);
-	return InsertString(fstr, h, bucketnum, stack, stackdepth);
+	return InsertString(fstr, h, bucketnum);
 }
 
-int ACSStringPool::AddString(FString &str, const SDWORD *stack, int stackdepth)
+int ACSStringPool::AddString(FString &str)
 {
 	unsigned int h = SuperFastHash(str.GetChars(), str.Len());
 	unsigned int bucketnum = h % NUM_BUCKETS;
@@ -286,7 +356,7 @@ int ACSStringPool::AddString(FString &str, const SDWORD *stack, int stackdepth)
 	{
 		return i | STRPOOL_LIBRARYID_OR;
 	}
-	return InsertString(str, h, bucketnum, stack, stackdepth);
+	return InsertString(str, h, bucketnum);
 }
 
 //============================================================================
@@ -556,12 +626,12 @@ int ACSStringPool::FindString(const char *str, size_t len, unsigned int h, unsig
 //
 //============================================================================
 
-int ACSStringPool::InsertString(FString &str, unsigned int h, unsigned int bucketnum, const SDWORD *stack, int stackdepth)
+int ACSStringPool::InsertString(FString &str, unsigned int h, unsigned int bucketnum)
 {
 	unsigned int index = FirstFreeEntry;
 	if (index >= MIN_GC_SIZE && index == Pool.Max())
 	{ // We will need to grow the array. Try a garbage collection first.
-		P_CollectACSGlobalStrings(stack, stackdepth);
+		P_CollectACSGlobalStrings();
 		index = FirstFreeEntry;
 	}
 	if (FirstFreeEntry >= STRPOOL_LIBRARYID_OR)
@@ -575,11 +645,7 @@ int ACSStringPool::InsertString(FString &str, unsigned int h, unsigned int bucke
 	}
 	else
 	{ // Scan for the next free entry
-		unsigned int i;
-		for (i = FirstFreeEntry + 1; i < Pool.Size() && Pool[i].Next != FREE_ENTRY; ++i)
-		{
-		}
-		FirstFreeEntry = i;
+		FindFirstFreeEntry(FirstFreeEntry + 1);
 	}
 	PoolEntry *entry = &Pool[index];
 	entry->Str = str;
@@ -588,6 +654,23 @@ int ACSStringPool::InsertString(FString &str, unsigned int h, unsigned int bucke
 	entry->LockCount = 0;
 	PoolBuckets[bucketnum] = index;
 	return index | STRPOOL_LIBRARYID_OR;
+}
+
+//============================================================================
+//
+// ACSStringPool :: FindFirstFreeEntry
+//
+// Finds the first free entry, starting at base.
+//
+//============================================================================
+
+void ACSStringPool::FindFirstFreeEntry(unsigned base)
+{
+	while (base < Pool.Size() && Pool[base].Next != FREE_ENTRY)
+	{
+		base++;
+	}
+	FirstFreeEntry = base;
 }
 
 //============================================================================
@@ -638,6 +721,7 @@ void ACSStringPool::ReadStrings(PNGHandle *png, DWORD id)
 		{
 			delete[] str;
 		}
+		FindFirstFreeEntry(0);
 	}
 }
 
@@ -690,6 +774,7 @@ void ACSStringPool::Dump() const
 			Printf("%4u. (%2d) \"%s\"\n", i, Pool[i].LockCount, Pool[i].Str.GetChars());
 		}
 	}
+	Printf("First free %u\n", FirstFreeEntry);
 }
 
 //============================================================================
@@ -730,11 +815,11 @@ void P_MarkGlobalVarStrings()
 //
 //============================================================================
 
-void P_CollectACSGlobalStrings(const SDWORD *stack, int stackdepth)
+void P_CollectACSGlobalStrings()
 {
-	if (stack != NULL && stackdepth != 0)
+	for (FACSStack *stack = FACSStack::head; stack != NULL; stack = stack->next)
 	{
-		GlobalACSStrings.MarkStringArray(stack, stackdepth);
+		GlobalACSStrings.MarkStringArray(stack->buffer, stack->sp);
 	}
 	FBehavior::StaticMarkLevelVarStrings();
 	P_MarkWorldVarStrings();
@@ -745,7 +830,7 @@ void P_CollectACSGlobalStrings(const SDWORD *stack, int stackdepth)
 #ifdef _DEBUG
 CCMD(acsgc)
 {
-	P_CollectACSGlobalStrings(NULL, 0);
+	P_CollectACSGlobalStrings();
 }
 CCMD(globstr)
 {
@@ -1038,14 +1123,7 @@ static void DoGiveInv (AActor *actor, const PClass *info, int amount)
 	item->ClearCounters();
 	if (info->IsDescendantOf (RUNTIME_CLASS(ABasicArmorPickup)))
 	{
-		if (static_cast<ABasicArmorPickup*>(item)->SaveAmount != 0)
-		{
-			static_cast<ABasicArmorPickup*>(item)->SaveAmount *= amount;
-		}
-		else
-		{
-			static_cast<ABasicArmorPickup*>(item)->SaveAmount *= amount;
-		}
+		static_cast<ABasicArmorPickup*>(item)->SaveAmount *= amount;
 	}
 	else if (info->IsDescendantOf (RUNTIME_CLASS(ABasicArmorBonus)))
 	{
@@ -1112,40 +1190,6 @@ static void GiveInventory (AActor *activator, const char *type, int amount)
 
 //============================================================================
 //
-// DoTakeInv
-//
-// Takes an item from a single actor.
-//
-//============================================================================
-
-static void DoTakeInv (AActor *actor, const PClass *info, int amount)
-{
-	AInventory *item = actor->FindInventory (info);
-	if (item != NULL)
-	{
-		item->Amount -= amount;
-		if (item->Amount <= 0)
-		{
-			// If it's not ammo or an internal armor, destroy it.
-			// Ammo needs to stick around, even when it's zero for the benefit
-			// of the weapons that use it and to maintain the maximum ammo
-			// amounts a backpack might have given.
-			// Armor shouldn't be removed because they only work properly when
-			// they are the last items in the inventory.
-			if (item->ItemFlags & IF_KEEPDEPLETED)
-			{
-				item->Amount = 0;
-			}
-			else
-			{
-				item->Destroy ();
-			}
-		}
-	}
-}
-
-//============================================================================
-//
 // TakeInventory
 //
 // Takes an item from one or more actors.
@@ -1178,12 +1222,12 @@ static void TakeInventory (AActor *activator, const char *type, int amount)
 		for (int i = 0; i < MAXPLAYERS; ++i)
 		{
 			if (playeringame[i])
-				DoTakeInv (players[i].mo, info, amount);
+				players[i].mo->TakeInventory(info, amount);
 		}
 	}
 	else
 	{
-		DoTakeInv (activator, info, amount);
+		activator->TakeInventory(info, amount);
 	}
 }
 
@@ -1265,7 +1309,7 @@ static int UseInventory (AActor *activator, const char *type)
 //
 //============================================================================
 
-static int CheckInventory (AActor *activator, const char *type)
+static int CheckInventory (AActor *activator, const char *type, bool max)
 {
 	if (activator == NULL || type == NULL)
 		return 0;
@@ -1276,11 +1320,26 @@ static int CheckInventory (AActor *activator, const char *type)
 	}
 	else if (stricmp (type, "Health") == 0)
 	{
+		if (max)
+		{
+			if (activator->IsKindOf (RUNTIME_CLASS (APlayerPawn)))
+				return static_cast<APlayerPawn *>(activator)->MaxHealth;
+			else
+				return activator->SpawnHealth();
+		}
 		return activator->health;
 	}
 
 	const PClass *info = PClass::FindClass (type);
 	AInventory *item = activator->FindInventory (info);
+
+	if (max)
+	{
+		if (item)
+			return item->MaxAmount;
+		else
+			return ((AInventory *)GetDefaultByType (info))->MaxAmount;
+	}
 	return item ? item->Amount : 0;
 }
 
@@ -1320,7 +1379,7 @@ DPlaneWatcher::DPlaneWatcher (AActor *it, line_t *line, int lineSide, bool ceili
 {
 	int secnum;
 
-	secnum = P_FindSectorFromTag (tag, -1);
+	secnum = P_FindFirstSectorFromTag (tag);
 	if (secnum >= 0)
 	{
 		secplane_t plane;
@@ -1388,12 +1447,6 @@ void DPlaneWatcher::Tick ()
 // own behavior is loaded (if it has one).
 void FBehavior::StaticLoadDefaultModules ()
 {
-	// When playing Strife, STRFHELP is always loaded.
-	if (gameinfo.gametype == GAME_Strife)
-	{
-		StaticLoadModule (Wads.CheckNumForName ("STRFHELP", ns_acslibrary));
-	}
-
 	// Scan each LOADACS lump and load the specified modules in order
 	int lump, lastlump = 0;
 
@@ -1409,7 +1462,7 @@ void FBehavior::StaticLoadDefaultModules ()
 			}
 			else
 			{
-				Printf ("Could not find autoloaded ACS library %s\n", sc.String);
+				Printf (TEXTCOLOR_RED "Could not find autoloaded ACS library %s\n", sc.String);
 			}
 		}
 	}
@@ -1427,7 +1480,17 @@ FBehavior *FBehavior::StaticLoadModule (int lumpnum, FileReader *fr, int len)
 		}
 	}
 
-	return new FBehavior (lumpnum, fr, len);
+	FBehavior * behavior = new FBehavior ();
+	if (behavior->Init(lumpnum, fr, len))
+	{
+		return behavior;
+	}
+	else
+	{
+		delete behavior;
+		Printf(TEXTCOLOR_RED "%s: invalid ACS module\n", Wads.GetLumpFullName(lumpnum));
+		return NULL;
+	}
 }
 
 bool FBehavior::StaticCheckAllGood ()
@@ -1547,25 +1610,33 @@ void FBehavior::StaticSerializeModuleStates (FArchive &arc)
 
 	if (modnum != StaticModules.Size())
 	{
-		I_Error ("Level was saved with a different number of ACS modules.");
+		I_Error("Level was saved with a different number of ACS modules. (Have %d, save has %d)", StaticModules.Size(), modnum);
 	}
 
 	for (modnum = 0; modnum < StaticModules.Size(); ++modnum)
 	{
 		FBehavior *module = StaticModules[modnum];
+		int ModSize = module->GetDataSize();
 
 		if (arc.IsStoring())
 		{
 			arc.WriteString (module->ModuleName);
+			if (SaveVersion >= 4516) arc << ModSize;
 		}
 		else
 		{
 			char *modname = NULL;
 			arc << modname;
+			if (SaveVersion >= 4516) arc << ModSize;
 			if (stricmp (modname, module->ModuleName) != 0)
 			{
 				delete[] modname;
-				I_Error ("Level was saved with a different set of ACS modules.");
+				I_Error("Level was saved with a different set or order of ACS modules. (Have %s, save has %s)", module->ModuleName, modname);
+			}
+			else if (ModSize != module->GetDataSize())
+			{
+				delete[] modname;
+				I_Error("ACS module %s has changed from what was saved. (Have %d bytes, save has %d bytes)", module->ModuleName, module->GetDataSize(), ModSize);
 			}
 			delete[] modname;
 		}
@@ -1658,11 +1729,28 @@ void FBehavior::SerializeVarSet (FArchive &arc, SDWORD *vars, int max)
 	}
 }
 
-FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
+static int ParseLocalArrayChunk(void *chunk, ACSLocalArrays *arrays, int offset)
 {
-	BYTE *object;
-	int i;
+	unsigned count = (LittleShort(static_cast<unsigned short>(((unsigned *)chunk)[1]) - 2)) / 4;
+	int *sizes = (int *)((BYTE *)chunk + 10);
+	arrays->Count = count;
+	if (count > 0)
+	{
+		ACSLocalArrayInfo *info = new ACSLocalArrayInfo[count];
+		arrays->Info = info;
+		for (unsigned i = 0; i < count; ++i)
+		{
+			info[i].Size = LittleLong(sizes[i]);
+			info[i].Offset = offset;
+			offset += info[i].Size;
+		}
+	}
+	// Return the new local variable size, with space for the arrays
+	return offset;
+}
 
+FBehavior::FBehavior()
+{
 	NumScripts = 0;
 	NumFunctions = 0;
 	NumArrays = 0;
@@ -1674,10 +1762,20 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	Chunks = NULL;
 	Data = NULL;
 	Format = ACS_Unknown;
-	LumpNum = lumpnum;
+	LumpNum = -1;
 	memset (MapVarStore, 0, sizeof(MapVarStore));
 	ModuleName[0] = 0;
 	FunctionProfileData = NULL;
+
+}
+	
+	
+bool FBehavior::Init(int lumpnum, FileReader * fr, int len)
+{
+	BYTE *object;
+	int i;
+
+	LumpNum = lumpnum;
 
 	// Now that everything is set up, record this module as being among the loaded modules.
 	// We need to do this before resolving any imports, because an import might (indirectly)
@@ -1689,7 +1787,6 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	// 1. If not, corrupt modules cause memory leaks
 	// 2. Corrupt modules won't be reported when a level is being loaded if this function quits before
 	//    adding it to the list.
-    LibraryID = StaticModules.Push (this) << LIBRARYID_SHIFT;
 
 	if (fr == NULL) len = Wads.LumpLength (lumpnum);
 
@@ -1701,7 +1798,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	// has 24 bytes if it is completely empty. An empty SPTR chunk adds 8 bytes.)
 	if (len < 32)
 	{
-		return;
+		return false;
 	}
 
 	object = new BYTE[len];
@@ -1717,7 +1814,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	if (object[0] != 'A' || object[1] != 'C' || object[2] != 'S')
 	{
 		delete[] object;
-		return;
+		return false;
 	}
 
 	switch (object[3])
@@ -1733,8 +1830,9 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 		break;
 	default:
 		delete[] object;
-		return;
+		return false;
 	}
+    LibraryID = StaticModules.Push (this) << LIBRARYID_SHIFT;
 
 	if (fr == NULL)
 	{
@@ -1807,12 +1905,45 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	{
 		DWORD *chunk;
 
-		Functions = FindChunk (MAKE_ID('F','U','N','C'));
-		if (Functions != NULL)
+		// Load functions
+		BYTE *funcs;
+		Functions = NULL;
+		funcs = FindChunk (MAKE_ID('F','U','N','C'));
+		if (funcs != NULL)
 		{
-			NumFunctions = LittleLong(((DWORD *)Functions)[1]) / 8;
-			Functions += 8;
+			NumFunctions = LittleLong(((DWORD *)funcs)[1]) / 8;
+			funcs += 8;
 			FunctionProfileData = new ACSProfileInfo[NumFunctions];
+			Functions = new ScriptFunction[NumFunctions];
+			for (i = 0; i < NumFunctions; ++i)
+			{
+				ScriptFunctionInFile *funcf = &((ScriptFunctionInFile *)funcs)[i];
+				ScriptFunction *funcm = &Functions[i];
+				funcm->ArgCount = funcf->ArgCount;
+				funcm->HasReturnValue = funcf->HasReturnValue;
+				funcm->ImportNum = funcf->ImportNum;
+				funcm->LocalCount = funcf->LocalCount;
+				funcm->Address = LittleLong(funcf->Address);
+			}
+		}
+
+		// Load local arrays for functions
+		if (NumFunctions > 0)
+		{
+			for (chunk = (DWORD *)FindChunk(MAKE_ID('F','A','R','Y')); chunk != NULL; chunk = (DWORD *)NextChunk((BYTE *)chunk))
+			{
+				int size = LittleLong(chunk[1]);
+				if (size >= 6)
+				{
+					unsigned int func_num = LittleShort(((WORD *)chunk)[4]);
+					if (func_num < (unsigned int)NumFunctions)
+					{
+						ScriptFunction *func = &Functions[func_num];
+						// Unlike scripts, functions do not include their arg count in their local count.
+						func->LocalCount = ParseLocalArrayChunk(chunk, &func->LocalArrays, func->LocalCount + func->ArgCount) - func->ArgCount;
+					}
+				}
+			}
 		}
 
 		// Load JUMP points
@@ -1867,11 +1998,14 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 			int arraynum = MapVarStore[LittleLong(chunk[2])];
 			if ((unsigned)arraynum < (unsigned)NumArrays)
 			{
-				int initsize = MIN<int> (ArrayStore[arraynum].ArraySize, (LittleLong(chunk[1])-4)/4);
+				// Use unsigned iterator here to avoid issue with GCC 4.9/5.x
+				// optimizer. Might be some undefined behavior in this code,
+				// but I don't know what it is.
+				unsigned int initsize = MIN<unsigned int> (ArrayStore[arraynum].ArraySize, (LittleLong(chunk[1])-4)/4);
 				SDWORD *elems = ArrayStore[arraynum].Elements;
-				for (i = 0; i < initsize; ++i)
+				for (unsigned int j = 0; j < initsize; ++j)
 				{
-					elems[i] = LittleLong(chunk[3+i]);
+					elems[j] = LittleLong(chunk[3+j]);
 				}
 			}
 			chunk = (DWORD *)NextChunk((BYTE *)chunk);
@@ -1899,13 +2033,12 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 			chunk = (DWORD *)FindChunk (MAKE_ID('M','S','T','R'));
 			if (chunk != NULL)
 			{
-				for (DWORD i = 0; i < chunk[1]/4; ++i)
+				for (DWORD i = 0; i < LittleLong(chunk[1])/4; ++i)
 				{
-//					MapVarStore[chunk[i+2]] |= LibraryID;
-					const char *str = LookupString(MapVarStore[chunk[i+2]]);
+					const char *str = LookupString(MapVarStore[LittleLong(chunk[i+2])]);
 					if (str != NULL)
 					{
-						MapVarStore[chunk[i+2]] = GlobalACSStrings.AddString(str, NULL, 0);
+						MapVarStore[LittleLong(chunk[i+2])] = GlobalACSStrings.AddString(str);
 					}
 				}
 			}
@@ -1913,7 +2046,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 			chunk = (DWORD *)FindChunk (MAKE_ID('A','S','T','R'));
 			if (chunk != NULL)
 			{
-				for (DWORD i = 0; i < chunk[1]/4; ++i)
+				for (DWORD i = 0; i < LittleLong(chunk[1])/4; ++i)
 				{
 					int arraynum = MapVarStore[LittleLong(chunk[i+2])];
 					if ((unsigned)arraynum < (unsigned)NumArrays)
@@ -1925,7 +2058,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 							const char *str = LookupString(*elems);
 							if (str != NULL)
 							{
-								*elems = GlobalACSStrings.AddString(str, NULL, 0);
+								*elems = GlobalACSStrings.AddString(str);
 							}
 						}
 					}
@@ -1940,13 +2073,13 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 				// First byte is version, it should be 0
 				if(*chunkData++ == 0)
 				{
-					int arraynum = MapVarStore[uallong(*(const int*)(chunkData))];
+					int arraynum = MapVarStore[uallong(LittleLong(*(const int*)(chunkData)))];
 					chunkData += 4;
 					if ((unsigned)arraynum < (unsigned)NumArrays)
 					{
 						SDWORD *elems = ArrayStore[arraynum].Elements;
 						// Ending zeros may be left out.
-						for (int j = MIN(chunk[1]-5, ArrayStore[arraynum].ArraySize); j > 0; --j, ++elems, ++chunkData)
+						for (int j = MIN(LittleLong(chunk[1])-5, ArrayStore[arraynum].ArraySize); j > 0; --j, ++elems, ++chunkData)
 						{
 							// For ATAG, a value of 0 = Integer, 1 = String, 2 = FunctionPtr
 							// Our implementation uses the same tags for both String and FunctionPtr
@@ -1959,11 +2092,10 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 								const char *str = LookupString(*elems);
 								if (str != NULL)
 								{
-									*elems = GlobalACSStrings.AddString(str, NULL, 0);
+									*elems = GlobalACSStrings.AddString(str);
 								}
 							}
 						}
-						i += 4+ArrayStore[arraynum].ArraySize;
 					}
 				}
 
@@ -1977,7 +2109,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 			const char *const parse = (char *)&chunk[2];
 			DWORD i;
 
-			for (i = 0; i < chunk[1]; )
+			for (i = 0; i < LittleLong(chunk[1]); )
 			{
 				if (parse[i])
 				{
@@ -1985,7 +2117,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 					int lump = Wads.CheckNumForName (&parse[i], ns_acslibrary);
 					if (lump < 0)
 					{
-						Printf ("Could not find ACS library %s.\n", &parse[i]);
+						Printf (TEXTCOLOR_RED "Could not find ACS library %s.\n", &parse[i]);
 					}
 					else
 					{
@@ -2014,7 +2146,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 					ScriptFunction *func = &((ScriptFunction *)Functions)[j];
 					if (func->Address == 0 && func->ImportNum == 0)
 					{
-						int libfunc = lib->FindFunctionName ((char *)(chunk + 2) + chunk[3+j]);
+						int libfunc = lib->FindFunctionName ((char *)(chunk + 2) + LittleLong(chunk[3+j]));
 						if (libfunc >= 0)
 						{
 							ScriptFunction *realfunc = &((ScriptFunction *)lib->Functions)[libfunc];
@@ -2026,15 +2158,15 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 								func->ImportNum = i+1;
 								if (realfunc->ArgCount != func->ArgCount)
 								{
-									Printf ("Function %s in %s has %d arguments. %s expects it to have %d.\n",
-										(char *)(chunk + 2) + chunk[3+j], lib->ModuleName, realfunc->ArgCount,
+									Printf (TEXTCOLOR_ORANGE "Function %s in %s has %d arguments. %s expects it to have %d.\n",
+										(char *)(chunk + 2) + LittleLong(chunk[3+j]), lib->ModuleName, realfunc->ArgCount,
 										ModuleName, func->ArgCount);
 									Format = ACS_Unknown;
 								}
 								// The next two properties do not affect code compatibility, so it is
 								// okay for them to be different in the imported module than they are
 								// in this one, as long as we make sure to use the real values.
-								func->LocalCount = realfunc->LocalCount;
+								func->LocalCount = LittleLong(realfunc->LocalCount);
 								func->HasReturnValue = realfunc->HasReturnValue;
 							}
 						}
@@ -2046,7 +2178,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 				if (chunk != NULL)
 				{
 					char *parse = (char *)&chunk[2];
-					for (DWORD j = 0; j < chunk[1]; )
+					for (DWORD j = 0; j < LittleLong(chunk[1]); )
 					{
 						DWORD varNum = LittleLong(*(DWORD *)&parse[j]);
 						j += 4;
@@ -2079,7 +2211,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 							if (lib->ArrayStore[impNum].ArraySize != expectedSize)
 							{
 								Format = ACS_Unknown;
-								Printf ("The array %s in %s has %u elements, but %s expects it to only have %u.\n",
+								Printf (TEXTCOLOR_ORANGE "The array %s in %s has %u elements, but %s expects it to only have %u.\n",
 									parse, lib->ModuleName, lib->ArrayStore[impNum].ArraySize,
 									ModuleName, expectedSize);
 							}
@@ -2093,6 +2225,7 @@ FBehavior::FBehavior (int lumpnum, FileReader * fr, int len)
 	}
 
 	DPrintf ("Loaded %d scripts, %d functions\n", NumScripts, NumFunctions);
+	return true;
 }
 
 FBehavior::~FBehavior ()
@@ -2119,6 +2252,11 @@ FBehavior::~FBehavior ()
 		}
 		delete[] ArrayStore;
 		ArrayStore = NULL;
+	}
+	if (Functions != NULL)
+	{
+		delete[] Functions;
+		Functions = NULL;
 	}
 	if (FunctionProfileData != NULL)
 	{
@@ -2220,6 +2358,12 @@ void FBehavior::LoadScriptsDirectory ()
 	default:
 		break;
 	}
+
+// [EP] Clang 3.5.0 optimizer miscompiles this function and causes random
+// crashes in the program. This is fixed in 3.5.1 onwards.
+#if defined(__clang__) && __clang_major__ == 3 && __clang_minor__ == 5 && __clang_patchlevel__ == 0
+	asm("" : "+g" (NumScripts));
+#endif
 	for (i = 0; i < NumScripts; ++i)
 	{
 		Scripts[i].Flags = 0;
@@ -2240,7 +2384,7 @@ void FBehavior::LoadScriptsDirectory ()
 			{
 				if (Scripts[i].Number == Scripts[i+1].Number)
 				{
-					Printf("%s appears more than once.\n",
+					Printf(TEXTCOLOR_ORANGE "%s appears more than once.\n",
 						ScriptPresentation(Scripts[i].Number).GetChars());
 					// Make the closed version the first one.
 					if (Scripts[i+1].Type == SCRIPT_Closed)
@@ -2259,7 +2403,7 @@ void FBehavior::LoadScriptsDirectory ()
 	scripts.b = FindChunk (MAKE_ID('S','F','L','G'));
 	if (scripts.dw != NULL)
 	{
-		max = scripts.dw[1] / 4;
+		max = LittleLong(scripts.dw[1]) / 4;
 		scripts.dw += 2;
 		for (i = max; i > 0; --i, scripts.w += 2)
 		{
@@ -2275,7 +2419,7 @@ void FBehavior::LoadScriptsDirectory ()
 	scripts.b = FindChunk (MAKE_ID('S','V','C','T'));
 	if (scripts.dw != NULL)
 	{
-		max = scripts.dw[1] / 4;
+		max = LittleLong(scripts.dw[1]) / 4;
 		scripts.dw += 2;
 		for (i = max; i > 0; --i, scripts.w += 2)
 		{
@@ -2283,6 +2427,21 @@ void FBehavior::LoadScriptsDirectory ()
 			if (ptr != NULL)
 			{
 				ptr->VarCount = LittleShort(scripts.w[1]);
+			}
+		}
+	}
+
+	// Load script array sizes. (One chunk per script that uses arrays.)
+	for (scripts.b = FindChunk(MAKE_ID('S','A','R','Y')); scripts.dw != NULL; scripts.b = NextChunk(scripts.b))
+	{
+		int size = LittleLong(scripts.dw[1]);
+		if (size >= 6)
+		{
+			int script_num = LittleShort(scripts.sw[4]);
+			ScriptPtr *ptr = const_cast<ScriptPtr *>(FindScript(script_num));
+			if (ptr != NULL)
+			{
+				ptr->VarCount = ParseLocalArrayChunk(scripts.b, &ptr->LocalArrays, ptr->VarCount);
 			}
 		}
 	}
@@ -2422,7 +2581,7 @@ bool FBehavior::IsGood ()
 		if (funcdef->Address == 0 && funcdef->ImportNum == 0)
 		{
 			DWORD *chunk = (DWORD *)FindChunk (MAKE_ID('F','N','A','M'));
-			Printf ("Could not find ACS function %s for use in %s.\n",
+			Printf (TEXTCOLOR_RED "Could not find ACS function %s for use in %s.\n",
 				(char *)(chunk + 2) + chunk[3+i], ModuleName);
 			bad = true;
 		}
@@ -2433,7 +2592,7 @@ bool FBehavior::IsGood ()
 	{
 		if (Imports[i] == NULL)
 		{
-			Printf ("Not all the libraries used by %s could be found.\n", ModuleName);
+			Printf (TEXTCOLOR_RED "Not all the libraries used by %s could be found.\n", ModuleName);
 			return false;
 		}
 	}
@@ -2574,7 +2733,7 @@ BYTE *FBehavior::FindChunk (DWORD id) const
 		{
 			return chunk;
 		}
-		chunk += ((DWORD *)chunk)[1] + 8;
+		chunk += LittleLong(((DWORD *)chunk)[1]) + 8;
 	}
 	return NULL;
 }
@@ -2582,14 +2741,14 @@ BYTE *FBehavior::FindChunk (DWORD id) const
 BYTE *FBehavior::NextChunk (BYTE *chunk) const
 {
 	DWORD id = *(DWORD *)chunk;
-	chunk += ((DWORD *)chunk)[1] + 8;
+	chunk += LittleLong(((DWORD *)chunk)[1]) + 8;
 	while (chunk != NULL && chunk < Data + DataSize)
 	{
 		if (((DWORD *)chunk)[0] == id)
 		{
 			return chunk;
 		}
-		chunk += ((DWORD *)chunk)[1] + 8;
+		chunk += LittleLong(((DWORD *)chunk)[1]) + 8;
 	}
 	return NULL;
 }
@@ -2774,9 +2933,57 @@ DACSThinker::~DACSThinker ()
 void DACSThinker::Serialize (FArchive &arc)
 {
 	int scriptnum;
+	int scriptcount = 0;
 
 	Super::Serialize (arc);
-	arc << Scripts << LastScript;
+	if (SaveVersion < 4515)
+		arc << Scripts << LastScript;
+	else
+	{
+		if (arc.IsStoring())
+		{
+			DLevelScript *script;
+			script = Scripts;
+			while (script)
+			{
+				scriptcount++;
+
+				// We want to store this list backwards, so we can't loose the last pointer
+				if (script->next == NULL)
+					break;
+				script = script->next;
+			}
+			arc << scriptcount;
+
+			while (script)
+			{
+				arc << script;
+				script = script->prev;
+			}
+		}
+		else
+		{
+			// We are running through this list backwards, so the next entry is the last processed
+			DLevelScript *next = NULL;
+			arc << scriptcount;
+			Scripts = NULL;
+			LastScript = NULL;
+			for (int i = 0; i < scriptcount; i++)
+			{
+				arc << Scripts;
+
+				Scripts->next = next;
+				Scripts->prev = NULL;
+				if (next != NULL)
+					next->prev = Scripts;
+
+				next = Scripts;
+
+				if (i == 0)
+					LastScript = Scripts;
+			}
+		}
+	}
 	if (arc.IsStoring ())
 	{
 		ScriptMap::Iterator it(RunningScripts);
@@ -2862,7 +3069,8 @@ void DLevelScript::Serialize (FArchive &arc)
 	DWORD i;
 
 	Super::Serialize (arc);
-	arc << next << prev;
+	if (SaveVersion < 4515)
+		arc << next << prev;
 
 	P_SerializeACSScriptNumber(arc, script, false);
 
@@ -3061,7 +3269,7 @@ do_count:
 			if (actor->health > 0 &&
 				(kind == NULL || actor->IsA (kind)))
 			{
-				if (actor->Sector->tag == tag || tag == -1)
+				if (tag == -1 || tagManager.SectorHasTag(actor->Sector, tag))
 				{
 					// Don't count items in somebody's inventory
 					if (!actor->IsKindOf (RUNTIME_CLASS(AInventory)) ||
@@ -3081,7 +3289,7 @@ do_count:
 			if (actor->health > 0 &&
 				(kind == NULL || actor->IsA (kind)))
 			{
-				if (actor->Sector->tag == tag || tag == -1)
+				if (tag == -1 || tagManager.SectorHasTag(actor->Sector, tag))
 				{
 					// Don't count items in somebody's inventory
 					if (!actor->IsKindOf (RUNTIME_CLASS(AInventory)) ||
@@ -3118,7 +3326,8 @@ void DLevelScript::ChangeFlat (int tag, int name, bool floorOrCeiling)
 
 	flat = TexMan.GetTexture (flatname, FTexture::TEX_Flat, FTextureManager::TEXMAN_Overridable);
 
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator it(tag);
+	while ((secnum = it.Next()) >= 0)
 	{
 		int pos = floorOrCeiling? sector_t::ceiling : sector_t::floor;
 		sectors[secnum].SetTexture(pos, flat);
@@ -3149,7 +3358,8 @@ void DLevelScript::SetLineTexture (int lineid, int side, int position, int name)
 
 	texture = TexMan.GetTexture (texname, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
 
-	while ((linenum = P_FindLineFromID (lineid, linenum)) >= 0)
+	FLineIdIterator itr(lineid);
+	while ((linenum = itr.Next()) >= 0)
 	{
 		side_t *sidedef;
 
@@ -3228,10 +3438,18 @@ int DLevelScript::DoSpawn (int type, fixed_t x, fixed_t y, fixed_t z, int tid, i
 
 	if (info != NULL)
 	{
+		info = info->GetReplacement ();
+
+		if ((GetDefaultByType (info)->flags3 & MF3_ISMONSTER) &&
+			((dmflags & DF_NO_MONSTERS) || (level.flags2 & LEVEL2_NOMONSTERS)))
+		{
+			return 0;
+		}
+
 		actor = Spawn (info, x, y, z, ALLOW_REPLACE);
 		if (actor != NULL)
 		{
-			DWORD oldFlags2 = actor->flags2;
+			ActorFlags2 oldFlags2 = actor->flags2;
 			actor->flags2 |= MF2_PASSMOBJ;
 			if (force || P_TestMobjLocation (actor))
 			{
@@ -3267,12 +3485,12 @@ int DLevelScript::DoSpawnSpot (int type, int spot, int tid, int angle, bool forc
 
 		while ( (aspot = iterator.Next ()) )
 		{
-			spawned += DoSpawn (type, aspot->x, aspot->y, aspot->z, tid, angle, force);
+			spawned += DoSpawn (type, aspot->X(), aspot->Y(), aspot->Z(), tid, angle, force);
 		}
 	}
 	else if (activator != NULL)
 	{
-			spawned += DoSpawn (type, activator->x, activator->y, activator->z, tid, angle, force);
+			spawned += DoSpawn (type, activator->X(), activator->Y(), activator->Z(), tid, angle, force);
 	}
 	return spawned;
 }
@@ -3288,12 +3506,12 @@ int DLevelScript::DoSpawnSpotFacing (int type, int spot, int tid, bool force)
 
 		while ( (aspot = iterator.Next ()) )
 		{
-			spawned += DoSpawn (type, aspot->x, aspot->y, aspot->z, tid, aspot->angle >> 24, force);
+			spawned += DoSpawn (type, aspot->X(), aspot->Y(), aspot->Z(), tid, aspot->angle >> 24, force);
 		}
 	}
 	else if (activator != NULL)
 	{
-			spawned += DoSpawn (type, activator->x, activator->y, activator->z, tid, activator->angle >> 24, force);
+			spawned += DoSpawn (type, activator->X(), activator->Y(), activator->Z(), tid, activator->angle >> 24, force);
 	}
 	return spawned;
 }
@@ -3459,7 +3677,7 @@ int DoGetMasterTID (AActor *self)
 	else return 0;
 }
 
-static AActor *SingleActorFromTID (int tid, AActor *defactor)
+AActor *SingleActorFromTID (int tid, AActor *defactor)
 {
 	if (tid == 0)
 	{
@@ -3514,7 +3732,10 @@ enum
 	APROP_ReactionTime  = 37,
 	APROP_MeleeRange	= 38,
 	APROP_ViewHeight	= 39,
-	APROP_AttackZOffset	= 40
+	APROP_AttackZOffset	= 40,
+	APROP_StencilColor	= 41,
+	APROP_Friction		= 42,
+	APROP_DamageMultiplier=43,
 };
 
 // These are needed for ACS's APROP_RenderStyle
@@ -3530,6 +3751,10 @@ static const int LegacyRenderStyleIndices[] =
 	65,	// STYLE_Add,
 	66,	// STYLE_Shaded,
 	67,	// STYLE_TranslucentStencil,
+	68,	// STYLE_Shadow,
+	69,	// STYLE_Subtract,
+	6,	// STYLE_AddStencil
+	7,	// STYLE_AddShaded
 	-1
 };
 
@@ -3640,16 +3865,16 @@ void DLevelScript::DoSetActorProperty (AActor *actor, int property, int value)
 		break;
 
 	case APROP_Friendly:
+		if (actor->CountsAsKill()) level.total_monsters--;
 		if (value)
 		{
-			if (actor->CountsAsKill()) level.total_monsters--;
 			actor->flags |= MF_FRIENDLY;
 		}
 		else
 		{
 			actor->flags &= ~MF_FRIENDLY;
-			if (actor->CountsAsKill()) level.total_monsters++;
 		}
+		if (actor->CountsAsKill()) level.total_monsters++;
 		break;
 
 
@@ -3700,6 +3925,10 @@ void DLevelScript::DoSetActorProperty (AActor *actor, int property, int value)
 		actor->DamageFactor = value;
 		break;
 
+	case APROP_DamageMultiplier:
+		actor->DamageMultiply = value;
+		break;
+
 	case APROP_MasterTID:
 		AActor *other;
 		other = SingleActorFromTID (value, NULL);
@@ -3730,9 +3959,19 @@ void DLevelScript::DoSetActorProperty (AActor *actor, int property, int value)
 		actor->reactiontime = value;
 		break;
 
+	case APROP_MeleeRange:
+		actor->meleerange = value;
+		break;
+
 	case APROP_ViewHeight:
 		if (actor->IsKindOf (RUNTIME_CLASS (APlayerPawn)))
+		{
 			static_cast<APlayerPawn *>(actor)->ViewHeight = value;
+			if (actor->player != NULL)
+			{
+				actor->player->viewheight = value;
+			}
+		}
 		break;
 
 	case APROP_AttackZOffset:
@@ -3740,13 +3979,20 @@ void DLevelScript::DoSetActorProperty (AActor *actor, int property, int value)
 			static_cast<APlayerPawn *>(actor)->AttackZOffset = value;
 		break;
 
+	case APROP_StencilColor:
+		actor->SetShade(value);
+		break;
+
+	case APROP_Friction:
+		actor->Friction = value;
+
 	default:
 		// do nothing.
 		break;
 	}
 }
 
-int DLevelScript::GetActorProperty (int tid, int property, const SDWORD *stack, int stackdepth)
+int DLevelScript::GetActorProperty (int tid, int property)
 {
 	AActor *actor = SingleActorFromTID (tid, activator);
 
@@ -3760,6 +4006,7 @@ int DLevelScript::GetActorProperty (int tid, int property, const SDWORD *stack, 
 	case APROP_Speed:		return actor->Speed;
 	case APROP_Damage:		return actor->Damage;	// Should this call GetMissileDamage() instead?
 	case APROP_DamageFactor:return actor->DamageFactor;
+	case APROP_DamageMultiplier: return actor->DamageMultiply;
 	case APROP_Alpha:		return actor->alpha;
 	case APROP_RenderStyle:	for (int style = STYLE_None; style < STYLE_Count; ++style)
 							{ // Check for a legacy render style that matches.
@@ -3830,13 +4077,15 @@ int DLevelScript::GetActorProperty (int tid, int property, const SDWORD *stack, 
 								return 0;
 							}
 
-	case APROP_SeeSound:	return GlobalACSStrings.AddString(actor->SeeSound, stack, stackdepth);
-	case APROP_AttackSound:	return GlobalACSStrings.AddString(actor->AttackSound, stack, stackdepth);
-	case APROP_PainSound:	return GlobalACSStrings.AddString(actor->PainSound, stack, stackdepth);
-	case APROP_DeathSound:	return GlobalACSStrings.AddString(actor->DeathSound, stack, stackdepth);
-	case APROP_ActiveSound:	return GlobalACSStrings.AddString(actor->ActiveSound, stack, stackdepth);
-	case APROP_Species:		return GlobalACSStrings.AddString(actor->GetSpecies(), stack, stackdepth);
-	case APROP_NameTag:		return GlobalACSStrings.AddString(actor->GetTag(), stack, stackdepth);
+	case APROP_SeeSound:	return GlobalACSStrings.AddString(actor->SeeSound);
+	case APROP_AttackSound:	return GlobalACSStrings.AddString(actor->AttackSound);
+	case APROP_PainSound:	return GlobalACSStrings.AddString(actor->PainSound);
+	case APROP_DeathSound:	return GlobalACSStrings.AddString(actor->DeathSound);
+	case APROP_ActiveSound:	return GlobalACSStrings.AddString(actor->ActiveSound);
+	case APROP_Species:		return GlobalACSStrings.AddString(actor->GetSpecies());
+	case APROP_NameTag:		return GlobalACSStrings.AddString(actor->GetTag());
+	case APROP_StencilColor:return actor->fillcolor;
+	case APROP_Friction:	return actor->Friction;
 
 	default:				return 0;
 	}
@@ -3883,7 +4132,8 @@ int DLevelScript::CheckActorProperty (int tid, int property, int value)
 		case APROP_MeleeRange:
 		case APROP_ViewHeight:
 		case APROP_AttackZOffset:
-			return (GetActorProperty(tid, property, NULL, 0) == value);
+		case APROP_StencilColor:
+			return (GetActorProperty(tid, property) == value);
 
 		// Boolean values need to compare to a binary version of value
 		case APROP_Ambush:
@@ -3895,7 +4145,7 @@ int DLevelScript::CheckActorProperty (int tid, int property, int value)
 		case APROP_Notarget:
 		case APROP_Notrigger:
 		case APROP_Dormant:
-			return (GetActorProperty(tid, property, NULL, 0) == (!!value));
+			return (GetActorProperty(tid, property) == (!!value));
 
 		// Strings are covered by GetActorProperty, but they're fairly
 		// heavy-duty, so make the check here.
@@ -3918,7 +4168,9 @@ bool DLevelScript::DoCheckActorTexture(int tid, AActor *activator, int string, b
 	{
 		return 0;
 	}
-	FTexture *tex = TexMan.FindTexture(FBehavior::StaticLookupString(string));
+	FTexture *tex = TexMan.FindTexture(FBehavior::StaticLookupString(string), FTexture::TEX_Flat,
+			FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny|FTextureManager::TEXMAN_DontCreate);
+
 	if (tex == NULL)
 	{ // If the texture we want to check against doesn't exist, then
 	  // they're obviously not the same.
@@ -3937,7 +4189,7 @@ bool DLevelScript::DoCheckActorTexture(int tid, AActor *activator, int string, b
 			F3DFloor *ff = sec->e->XFloor.ffloors[i];
 
 			if ((ff->flags & (FF_EXISTS | FF_SOLID)) == (FF_EXISTS | FF_SOLID) &&
-				actor->z >= ff->top.plane->ZatPoint(actor->x, actor->y))
+				actor->Z() >= ff->top.plane->ZatPoint(actor))
 			{ // This floor is beneath our feet.
 				secpic = *ff->top.texture;
 				break;
@@ -3950,14 +4202,14 @@ bool DLevelScript::DoCheckActorTexture(int tid, AActor *activator, int string, b
 	}
 	else
 	{
-		fixed_t z = actor->z + actor->height;
+		fixed_t z = actor->Top();
 		// Looking through planes from bottom to top
 		for (i = numff-1; i >= 0; --i)
 		{
 			F3DFloor *ff = sec->e->XFloor.ffloors[i];
 
 			if ((ff->flags & (FF_EXISTS | FF_SOLID)) == (FF_EXISTS | FF_SOLID) &&
-				z <= ff->bottom.plane->ZatPoint(actor->x, actor->y))
+				z <= ff->bottom.plane->ZatPoint(actor))
 			{ // This floor is above our eyes.
 				secpic = *ff->bottom.texture;
 				break;
@@ -4099,7 +4351,7 @@ int DLevelScript::DoClassifyActor(int tid)
 		{
 			classify |= ACTOR_VOODOODOLL;
 		}
-		if (actor->player->isbot)
+		if (actor->player->Bot != NULL)
 		{
 			classify |= ACTOR_BOT;
 		}
@@ -4236,6 +4488,37 @@ enum EACSFunctions
 	ACSF_CheckFont,
 	ACSF_DropItem,
 	ACSF_CheckFlag,
+	ACSF_SetLineActivation,
+	ACSF_GetLineActivation,
+	ACSF_GetActorPowerupTics,
+	ACSF_ChangeActorAngle,
+	ACSF_ChangeActorPitch,		// 80
+	ACSF_GetArmorInfo,
+	ACSF_DropInventory,
+	ACSF_PickActor,
+	ACSF_IsPointerEqual,
+	ACSF_CanRaiseActor,
+	ACSF_SetActorTeleFog,		// 86
+	ACSF_SwapActorTeleFog,
+	ACSF_SetActorRoll,
+	ACSF_ChangeActorRoll,
+	ACSF_GetActorRoll,
+	ACSF_QuakeEx,
+	ACSF_Warp,					// 92
+	ACSF_GetMaxInventory,
+	ACSF_SetSectorDamage,
+	ACSF_SetSectorTerrain,
+	ACSF_SpawnParticle,
+	
+	/* Zandronum's - these must be skipped when we reach 99!
+	-100:ResetMap(0),
+	-101 : PlayerIsSpectator(1),
+	-102 : ConsolePlayerNumber(0),
+	-103 : GetTeamProperty(2),
+	-104 : GetPlayerLivesLeft(1),
+	-105 : SetPlayerLivesLeft(2),
+	-106 : KickFromGame(2),
+	*/
 
 	// ZDaemon
 	ACSF_GetTeamScore = 19620,	// (int team)
@@ -4254,7 +4537,7 @@ int DLevelScript::SideFromID(int id, int side)
 	}
 	else
 	{
-		int line = P_FindLineFromID(id, -1);
+		int line = P_FindFirstLineFromID(id);
 		if (line == -1) return -1;
 		if (lines[line].sidedef[side] == NULL) return -1;
 		return lines[line].sidedef[side]->Index;
@@ -4270,7 +4553,7 @@ int DLevelScript::LineFromID(int id)
 	}
 	else
 	{
-		return P_FindLineFromID(id, -1);
+		return P_FindFirstLineFromID(id);
 	}
 }
 
@@ -4374,14 +4657,14 @@ static void DoSetCVar(FBaseCVar *cvar, int value, bool is_string, bool force=fal
 }
 
 // Converts floating- to fixed-point as required.
-static int DoGetCVar(FBaseCVar *cvar, bool is_string, const SDWORD *stack, int stackdepth)
+static int DoGetCVar(FBaseCVar *cvar, bool is_string)
 {
 	UCVarValue val;
 
 	if (is_string)
 	{
 		val = cvar->GetGenericRep(CVAR_String);
-		return GlobalACSStrings.AddString(val.String, stack, stackdepth);
+		return GlobalACSStrings.AddString(val.String);
 	}
 	else if (cvar->GetRealType() == CVAR_Float)
 	{
@@ -4395,7 +4678,7 @@ static int DoGetCVar(FBaseCVar *cvar, bool is_string, const SDWORD *stack, int s
 	}
 }
 
-static int GetUserCVar(int playernum, const char *cvarname, bool is_string, const SDWORD *stack, int stackdepth)
+static int GetUserCVar(int playernum, const char *cvarname, bool is_string)
 {
 	if ((unsigned)playernum >= MAXPLAYERS || !playeringame[playernum])
 	{
@@ -4407,10 +4690,10 @@ static int GetUserCVar(int playernum, const char *cvarname, bool is_string, cons
 	{
 		return 0;
 	}
-	return DoGetCVar(cvar, is_string, stack, stackdepth);
+	return DoGetCVar(cvar, is_string);
 }
 
-static int GetCVar(AActor *activator, const char *cvarname, bool is_string, const SDWORD *stack, int stackdepth)
+static int GetCVar(AActor *activator, const char *cvarname, bool is_string)
 {
 	FBaseCVar *cvar = FindCVar(cvarname, NULL);
 	// Either the cvar doesn't exist, or it's for a mod that isn't loaded, so return 0.
@@ -4427,9 +4710,9 @@ static int GetCVar(AActor *activator, const char *cvarname, bool is_string, cons
 			{
 				return 0;
 			}
-			return GetUserCVar(int(activator->player - players), cvarname, is_string, stack, stackdepth);
+			return GetUserCVar(int(activator->player - players), cvarname, is_string);
 		}
-		return DoGetCVar(cvar, is_string, stack, stackdepth);
+		return DoGetCVar(cvar, is_string);
 	}
 }
 
@@ -4490,12 +4773,137 @@ static bool DoSpawnDecal(AActor *actor, const FDecalTemplate *tpl, int flags, an
 	{
 		angle += actor->angle;
 	}
-	return NULL != ShootDecal(tpl, actor, actor->Sector, actor->x, actor->y,
-		actor->z + (actor->height>>1) - actor->floorclip + actor->GetBobOffset() + zofs,
+	return NULL != ShootDecal(tpl, actor, actor->Sector, actor->X(), actor->Y(),
+		actor->Z() + (actor->height>>1) - actor->floorclip + actor->GetBobOffset() + zofs,
 		angle, distance, !!(flags & SDF_PERMANENT));
 }
 
-int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const SDWORD *stack, int stackdepth)
+static void SetActorAngle(AActor *activator, int tid, int angle, bool interpolate)
+{
+	if (tid == 0)
+	{
+		if (activator != NULL)
+		{
+			activator->SetAngle(angle << 16, interpolate);
+		}
+	}
+	else
+	{
+		FActorIterator iterator(tid);
+		AActor *actor;
+
+		while ((actor = iterator.Next()))
+		{
+			actor->SetAngle(angle << 16, interpolate);
+		}
+	}
+}
+
+static void SetActorPitch(AActor *activator, int tid, int angle, bool interpolate)
+{
+	if (tid == 0)
+	{
+		if (activator != NULL)
+		{
+			activator->SetPitch(angle << 16, interpolate);
+		}
+	}
+	else
+	{
+		FActorIterator iterator(tid);
+		AActor *actor;
+
+		while ((actor = iterator.Next()))
+		{
+			actor->SetPitch(angle << 16, interpolate);
+		}
+	}
+}
+
+static void SetActorRoll(AActor *activator, int tid, int angle, bool interpolate)
+{
+	if (tid == 0)
+	{
+		if (activator != NULL)
+		{
+			activator->SetRoll(angle << 16, interpolate);
+		}
+	}
+	else
+	{
+		FActorIterator iterator(tid);
+		AActor *actor;
+
+		while ((actor = iterator.Next()))
+		{
+			actor->SetRoll(angle << 16, interpolate);
+		}
+	}
+}
+
+static void SetActorTeleFog(AActor *activator, int tid, FString telefogsrc, FString telefogdest)
+{
+	// Set the actor's telefog to the specified actor. Handle "" as "don't
+	// change" since "None" should work just fine for disabling the fog (given
+	// that it will resolve to NAME_None which is not a valid actor name).
+	if (tid == 0)
+	{
+		if (activator != NULL)
+		{
+			if (telefogsrc.IsNotEmpty())
+				activator->TeleFogSourceType = PClass::FindClass(telefogsrc);
+			if (telefogdest.IsNotEmpty())
+				activator->TeleFogDestType = PClass::FindClass(telefogdest);
+		}
+	}
+	else
+	{
+		FActorIterator iterator(tid);
+		AActor *actor;
+
+		const PClass *src = PClass::FindClass(telefogsrc);
+		const PClass * dest = PClass::FindClass(telefogdest);
+		while ((actor = iterator.Next()))
+		{
+			if (telefogsrc.IsNotEmpty())
+				actor->TeleFogSourceType = src;
+			if (telefogdest.IsNotEmpty())
+				actor->TeleFogDestType = dest;
+		}
+	}
+}
+
+static int SwapActorTeleFog(AActor *activator, int tid)
+{
+	int count = 0;
+	if (tid == 0)
+	{
+		if ((activator == NULL) || (activator->TeleFogSourceType == activator->TeleFogDestType)) 
+			return 0; //Does nothing if they're the same.
+
+		swapvalues (activator->TeleFogSourceType, activator->TeleFogDestType);
+		return 1;
+	}
+	else
+	{
+		FActorIterator iterator(tid);
+		AActor *actor;
+		
+		while ((actor = iterator.Next()))
+		{
+			if (actor->TeleFogSourceType == actor->TeleFogDestType) 
+				continue; //They're the same. Save the effort.
+
+			swapvalues (actor->TeleFogSourceType, actor->TeleFogDestType);
+			count++;
+		}
+	}
+	return count;
+}
+
+
+
+int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args)
 {
 	AActor *actor;
 	switch(funcIndex)
@@ -4511,10 +4919,10 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 			return 0;	// Not implemented yet
 
 		case ACSF_GetSectorUDMFInt:
-			return GetUDMFInt(UDMF_Sector, P_FindSectorFromTag(args[0], -1), FBehavior::StaticLookupString(args[1]));
+			return GetUDMFInt(UDMF_Sector, P_FindFirstSectorFromTag(args[0]), FBehavior::StaticLookupString(args[1]));
 
 		case ACSF_GetSectorUDMFFixed:
-			return GetUDMFFixed(UDMF_Sector, P_FindSectorFromTag(args[0], -1), FBehavior::StaticLookupString(args[1]));
+			return GetUDMFFixed(UDMF_Sector, P_FindFirstSectorFromTag(args[0]), FBehavior::StaticLookupString(args[1]));
 
 		case ACSF_GetSideUDMFInt:
 			return GetUDMFInt(UDMF_Side, SideFromID(args[0], args[1]), FBehavior::StaticLookupString(args[2]));
@@ -4655,6 +5063,41 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 			return 0;
 		}
 
+		case ACSF_GetArmorInfo:
+		{
+			if (activator == NULL || activator->player == NULL) return 0;
+
+			ABasicArmor * equippedarmor = (ABasicArmor *) activator->FindInventory(NAME_BasicArmor);
+
+			if (equippedarmor && equippedarmor->Amount != 0)
+			{
+				switch(args[0])
+				{
+					case ARMORINFO_CLASSNAME:
+						return GlobalACSStrings.AddString(equippedarmor->ArmorType.GetChars());
+
+					case ARMORINFO_SAVEAMOUNT:
+						return equippedarmor->MaxAmount;
+
+					case ARMORINFO_SAVEPERCENT:
+						return equippedarmor->SavePercent;
+
+					case ARMORINFO_MAXABSORB:
+						return equippedarmor->MaxAbsorb;
+
+					case ARMORINFO_MAXFULLABSORB:
+						return equippedarmor->MaxFullAbsorb;
+
+					case ARMORINFO_ACTUALSAVEAMOUNT:
+						return equippedarmor->ActualSaveAmount;
+
+					default:
+						return 0;
+				}
+			}
+			return args[0] == ARMORINFO_CLASSNAME ? GlobalACSStrings.AddString("None") : 0;
+		}
+
 		case ACSF_SpawnSpotForced:
 			return DoSpawnSpot(args[0], args[1], args[2], args[3], true);
 
@@ -4771,7 +5214,7 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 		case ACSF_GetActorClass:
 		{
 			AActor *a = SingleActorFromTID(args[0], activator);
-			return GlobalACSStrings.AddString(a == NULL ? "None" : a->GetClass()->TypeName.GetChars(), stack, stackdepth);
+			return GlobalACSStrings.AddString(a == NULL ? "None" : a->GetClass()->TypeName.GetChars());
 		}
 
 		case ACSF_SoundSequenceOnActor:
@@ -4806,11 +5249,11 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 				int space = args[2] < CHAN_FLOOR || args[2] > CHAN_INTERIOR ? CHAN_FULLHEIGHT : args[2];
 				if (seqname != NULL)
 				{
-					int secnum = -1;
-
-					while ((secnum = P_FindSectorFromTag(args[0], secnum)) >= 0)
+					FSectorTagIterator it(args[0]);
+					int s;
+					while ((s = it.Next()) >= 0)
 					{
-						SN_StartSequence(&sectors[secnum], args[2], seqname, 0);
+						SN_StartSequence(&sectors[s], args[2], seqname, 0);
 					}
 				}
 			}
@@ -4919,7 +5362,7 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 			break;
 
 		case ACSF_UniqueTID:
-			return P_FindUniqueTID(argCount > 0 ? args[0] : 0, argCount > 1 ? args[1] : 0);
+			return P_FindUniqueTID(argCount > 0 ? args[0] : 0, (argCount > 1 && args[1] >= 0) ? args[1] : 0);
 
 		case ACSF_IsTIDUsed:
 			return P_IsTIDUsed(args[0]);
@@ -4939,6 +5382,7 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 			ClipRectWidth = argCount > 2 ? args[2] : 0;
 			ClipRectHeight = argCount > 3 ? args[3] : 0;
 			WrapWidth = argCount > 4 ? args[4] : 0;
+			HandleAspect = argCount > 5 ? !!args[5] : true;
 			break;
 
 		case ACSF_SetHUDWrapWidth:
@@ -4948,7 +5392,7 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 		case ACSF_GetCVarString:
 			if (argCount == 1)
 			{
-				return GetCVar(activator, FBehavior::StaticLookupString(args[0]), true, stack, stackdepth);
+				return GetCVar(activator, FBehavior::StaticLookupString(args[0]), true);
 			}
 			break;
 
@@ -4969,14 +5413,14 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 		case ACSF_GetUserCVar:
 			if (argCount == 2)
 			{
-				return GetUserCVar(args[0], FBehavior::StaticLookupString(args[1]), false, stack, stackdepth);
+				return GetUserCVar(args[0], FBehavior::StaticLookupString(args[1]), false);
 			}
 			break;
 
 		case ACSF_GetUserCVarString:
 			if (argCount == 2)
 			{
-				return GetUserCVar(args[0], FBehavior::StaticLookupString(args[1]), true, stack, stackdepth);
+				return GetUserCVar(args[0], FBehavior::StaticLookupString(args[1]), true);
 			}
 			break;
 
@@ -5004,12 +5448,20 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 				FName damagetype	= argCount > 5 && args[5]? FName(FBehavior::StaticLookupString(args[5])) : NAME_None;
 				fixed_t	range		= argCount > 6 && args[6]? args[6] : MISSILERANGE;
 				int flags			= argCount > 7 && args[7]? args[7] : 0;
+				int pufftid			= argCount > 8 && args[8]? args[8] : 0;
 
-				int fhflags = (flags & FHF_NORANDOMPUFFZ)? LAF_NORANDOMPUFFZ : 0;
+				int fhflags = 0;
+				if (flags & FHF_NORANDOMPUFFZ) fhflags |= LAF_NORANDOMPUFFZ;
+				if (flags & FHF_NOIMPACTDECAL) fhflags |= LAF_NOIMPACTDECAL;
 
 				if (args[0] == 0)
 				{
-					P_LineAttack(activator, angle, range, pitch, damage, damagetype, pufftype, fhflags);
+					AActor *puff = P_LineAttack(activator, angle, range, pitch, damage, damagetype, pufftype, fhflags);
+					if (puff != NULL && pufftid != 0)
+					{
+						puff->tid = pufftid;
+						puff->AddToHash();
+					}
 				}
 				else
 				{
@@ -5018,7 +5470,12 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, SDWORD *args, const 
 
 					while ((source = it.Next()) != NULL)
 					{
-						P_LineAttack(activator, angle, range, pitch, damage, damagetype, pufftype, fhflags);
+						AActor *puff = P_LineAttack(source, angle, range, pitch, damage, damagetype, pufftype, fhflags);
+						if (puff != NULL && pufftid != 0)
+						{
+							puff->tid = pufftid;
+							puff->AddToHash();
+						}
 					}
 				}
 			}
@@ -5150,7 +5607,7 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 				const char *oldstr = FBehavior::StaticLookupString(args[0]);
 				if (oldstr == NULL || *oldstr == '\0')
 				{
-					return GlobalACSStrings.AddString("", stack, stackdepth);
+					return GlobalACSStrings.AddString("");
 				}
 				size_t oldlen = strlen(oldstr);
 				size_t newlen = args[1];
@@ -5160,7 +5617,7 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 					newlen = oldlen;
 				}
 				FString newstr(funcIndex == ACSF_StrLeft ? oldstr : oldstr + oldlen - newlen, newlen);
-				return GlobalACSStrings.AddString(newstr, stack, stackdepth);
+				return GlobalACSStrings.AddString(newstr);
 			}
 			break;
 
@@ -5170,7 +5627,7 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 				const char *oldstr = FBehavior::StaticLookupString(args[0]);
 				if (oldstr == NULL || *oldstr == '\0')
 				{
-					return GlobalACSStrings.AddString("", stack, stackdepth);
+					return GlobalACSStrings.AddString("");
 				}
 				size_t oldlen = strlen(oldstr);
 				size_t pos = args[1];
@@ -5178,13 +5635,13 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 
 				if (pos >= oldlen)
 				{
-					return GlobalACSStrings.AddString("", stack, stackdepth);
+					return GlobalACSStrings.AddString("");
 				}
 				if (pos + newlen > oldlen || pos + newlen < pos)
 				{
 					newlen = oldlen - pos;
 				}
-				return GlobalACSStrings.AddString(FString(oldstr + pos, newlen), stack, stackdepth);
+				return GlobalACSStrings.AddString(FString(oldstr + pos, newlen));
 			}
 			break;
 
@@ -5192,11 +5649,11 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
             if (activator == NULL || activator->player == NULL || // Non-players do not have weapons
                 activator->player->ReadyWeapon == NULL)
             {
-                return GlobalACSStrings.AddString("None", stack, stackdepth);
+                return GlobalACSStrings.AddString("None");
             }
             else
             {
-				return GlobalACSStrings.AddString(activator->player->ReadyWeapon->GetClass()->TypeName.GetChars(), stack, stackdepth);
+				return GlobalACSStrings.AddString(activator->player->ReadyWeapon->GetClass()->TypeName.GetChars());
             }
 
 		case ACSF_SpawnDecal:
@@ -5271,6 +5728,42 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 			break;
 		}
 
+		case ACSF_DropInventory:
+		{
+			const char *type = FBehavior::StaticLookupString(args[1]);
+			AInventory *inv;
+			
+			if (type != NULL)
+			{
+				if (args[0] == 0)
+				{
+					if (activator != NULL)
+					{
+						inv = activator->FindInventory(type);
+						if (inv)
+						{
+							activator->DropInventory(inv);
+						}
+					}
+				}
+				else
+				{
+					FActorIterator it(args[0]);
+					AActor *actor;
+					
+					while ((actor = it.Next()) != NULL)
+					{
+						inv = actor->FindInventory(type);
+						if (inv)
+						{
+							actor->DropInventory(inv);
+						}
+					}
+				}
+			}
+		break;
+		}
+
 		case ACSF_CheckFlag:
 		{
 			AActor *actor = SingleActorFromTID(args[0], activator);
@@ -5281,9 +5774,298 @@ doplaysound:			if (funcIndex == ACSF_PlayActorSound)
 			break;
 		}
 
+		case ACSF_QuakeEx:
+		{
+			return P_StartQuakeXYZ(activator, args[0], args[1], args[2], args[3], args[4], args[5], args[6], FBehavior::StaticLookupString(args[7]), 
+				argCount > 8 ? args[8] : 0,
+				argCount > 9 ? FIXED2DBL(args[9]) : 1.0, 
+				argCount > 10 ? FIXED2DBL(args[10]) : 1.0, 
+				argCount > 11 ? FIXED2DBL(args[11]) : 1.0 );
+		}
+
+		case ACSF_SetLineActivation:
+			if (argCount >= 2)
+			{
+				int line;
+				FLineIdIterator itr(args[0]);
+				while ((line = itr.Next()) >= 0)
+				{
+					lines[line].activation = args[1];
+				}
+			}
+			break;
+
+		case ACSF_GetLineActivation:
+			if (argCount > 0)
+			{
+				int line = P_FindFirstLineFromID(args[0]);
+				return line >= 0 ? lines[line].activation : 0;
+			}
+			break;
+
+		case ACSF_GetActorPowerupTics:
+			if (argCount >= 2)
+			{
+				const PClass *powerupclass = PClass::FindClass(FBehavior::StaticLookupString(args[1]));
+				if (powerupclass == NULL || !RUNTIME_CLASS(APowerup)->IsAncestorOf(powerupclass))
+				{
+					Printf("'%s' is not a type of Powerup.\n", FBehavior::StaticLookupString(args[1]));
+					return 0;
+				}
+
+				AActor *actor = SingleActorFromTID(args[0], activator);
+				if (actor != NULL)
+				{
+					APowerup* powerup = (APowerup*)actor->FindInventory(powerupclass);
+					if (powerup != NULL)
+						return powerup->EffectTics;
+				}
+				return 0;
+			}
+			break;
+
+		case ACSF_ChangeActorAngle:
+			if (argCount >= 2)
+			{
+				SetActorAngle(activator, args[0], args[1], argCount > 2 ? !!args[2] : false);
+			}
+			break;
+
+		case ACSF_ChangeActorPitch:
+			if (argCount >= 2)
+			{
+				SetActorPitch(activator, args[0], args[1], argCount > 2 ? !!args[2] : false);
+			}
+			break;
+		case ACSF_SetActorTeleFog:
+			if (argCount >= 3)
+			{
+				SetActorTeleFog(activator, args[0], FBehavior::StaticLookupString(args[1]), FBehavior::StaticLookupString(args[2]));
+			}
+			break;
+		case ACSF_SwapActorTeleFog:
+			if (argCount >= 1)
+			{
+				return SwapActorTeleFog(activator, args[0]);
+			}
+			break;
+		case ACSF_PickActor:
+			if (argCount >= 5)
+			{
+				actor = SingleActorFromTID(args[0], activator);
+				if (actor == NULL)
+				{
+					return 0;
+				}
+
+				ActorFlags actorMask = MF_SHOOTABLE;
+				if (argCount >= 6) {
+					actorMask = ActorFlags::FromInt(args[5]);
+				}
+
+				DWORD wallMask = ML_BLOCKEVERYTHING | ML_BLOCKHITSCAN;
+				if (argCount >= 7) {
+					wallMask = args[6];
+				}
+
+				int flags = 0;
+				if (argCount >= 8)
+				{
+					flags = args[7];
+				}
+
+				AActor* pickedActor = P_LinePickActor(actor, args[1] << 16, args[3], args[2] << 16, actorMask, wallMask);
+				if (pickedActor == NULL) {
+					return 0;
+				}
+
+				if (!(flags & PICKAF_FORCETID) && (args[4] == 0) && (pickedActor->tid == 0))
+					return 0;
+
+				if ((pickedActor->tid == 0) || (flags & PICKAF_FORCETID))
+				{
+					pickedActor->RemoveFromHash();
+					pickedActor->tid = args[4];
+					pickedActor->AddToHash();
+				}
+				if (flags & PICKAF_RETURNTID)
+				{
+					return pickedActor->tid;
+				}
+				return 1;
+			}
+			break;
+
+		case ACSF_IsPointerEqual:
+			{
+				int tid1 = 0, tid2 = 0;
+				switch (argCount)
+				{
+				case 4: tid2 = args[3];
+				case 3: tid1 = args[2];
+				}
+
+				actor = SingleActorFromTID(tid1, activator);
+				AActor * actor2 = tid2 == tid1 ? actor : SingleActorFromTID(tid2, activator);
+
+				return COPY_AAPTR(actor, args[0]) == COPY_AAPTR(actor2, args[1]);
+			}
+			break;
+
+		case ACSF_CanRaiseActor:
+			if (argCount >= 1) {
+				if (args[0] == 0) {
+					actor = SingleActorFromTID(args[0], activator);
+					if (actor != NULL) {
+						return P_Thing_CanRaise(actor);
+					}
+				}
+
+				FActorIterator iterator(args[0]);
+				bool canraiseall = true;
+				while ((actor = iterator.Next()))
+				{
+					canraiseall = P_Thing_CanRaise(actor) & canraiseall;
+				}
+				
+				return canraiseall;
+			}
+			break;
+
+		// [Nash] Actor roll functions. Let's roll!
+		case ACSF_SetActorRoll:
+			actor = SingleActorFromTID(args[0], activator);
+			if (actor != NULL)
+			{
+				actor->SetRoll(args[1] << 16, false);
+			}
+			return 0;
+
+		case ACSF_ChangeActorRoll:
+			if (argCount >= 2)
+			{
+				SetActorRoll(activator, args[0], args[1], argCount > 2 ? !!args[2] : false);
+			}
+			break;
+
+		case ACSF_GetActorRoll:
+			actor = SingleActorFromTID(args[0], activator);
+			return actor != NULL? actor->roll >> 16 : 0;
+		
+		// [ZK] A_Warp in ACS
+		case ACSF_Warp:
+		{
+			int tid_dest = args[0];
+			fixed_t xofs = args[1];
+			fixed_t yofs = args[2];
+			fixed_t zofs = args[3];
+			angle_t angle = args[4];
+			int flags = args[5];
+			const char *statename = argCount > 6 ? FBehavior::StaticLookupString(args[6]) : "";
+			bool exact = argCount > 7 ? !!args[7] : false;
+			fixed_t heightoffset = argCount > 8 ? args[8] : 0;
+			fixed_t radiusoffset = argCount > 9 ? args[9] : 0;
+			fixed_t pitch = argCount > 10 ? args[10] : 0;
+
+			FState *state = argCount > 6 ? activator->GetClass()->ActorInfo->FindStateByString(statename, exact) : 0;
+
+			AActor *reference;
+			if((flags & WARPF_USEPTR) && tid_dest != AAPTR_DEFAULT)
+			{
+				reference = COPY_AAPTR(activator, tid_dest);
+			}
+			else
+			{
+				reference = SingleActorFromTID(tid_dest, activator);
+			}
+
+			// If there is no actor to warp to, fail.
+			if (!reference)
+				return false;
+
+			if (P_Thing_Warp(activator, reference, xofs, yofs, zofs, angle, flags, heightoffset, radiusoffset, pitch))
+			{
+				if (state && argCount > 6)
+				{
+					activator->SetState(state);
+				}
+				return true;
+			}
+			return false;
+		}
+		case ACSF_GetMaxInventory:
+			actor = SingleActorFromTID(args[0], activator);
+			if (actor != NULL)
+			{
+				return CheckInventory(actor, FBehavior::StaticLookupString(args[1]), true);
+			}
+			break;
+
+		case ACSF_SetSectorDamage:
+			if (argCount >= 2)
+			{
+				FSectorTagIterator it(args[0]);
+				int s;
+				while ((s = it.Next()) >= 0)
+				{
+					sector_t *sec = &sectors[s];
+
+					sec->damageamount = args[1];
+					sec->damagetype = argCount >= 3 ? FName(FBehavior::StaticLookupString(args[2])) : FName(NAME_None);
+					sec->damageinterval = argCount >= 4 ? clamp(args[3], 1, INT_MAX) : 32;
+					sec->leakydamage = argCount >= 5 ? args[4] : 0;
+				}
+			}
+			break;
+
+		case ACSF_SetSectorTerrain:
+			if (argCount >= 3)
+			{
+				if (args[1] == sector_t::floor || args[1] == sector_t::ceiling)
+				{
+					int terrain = P_FindTerrain(FBehavior::StaticLookupString(args[2]));
+					FSectorTagIterator it(args[0]);
+					int s;
+					while ((s = it.Next()) >= 0)
+					{
+						sectors[s].terrainnum[args[1]] = terrain;
+					}
+				}
+			}
+			break;
+		
+		case ACSF_SpawnParticle:
+		{
+			PalEntry color = args[0];
+			bool fullbright = argCount > 1 ? !!args[1] : false;
+			int lifetime = argCount > 2 ? args[2] : 35;
+			int size = argCount > 3 ? args[3] : 1;
+			fixed_t x = argCount > 4 ? args[4] : 0;
+			fixed_t y = argCount > 5 ? args[5] : 0;
+			fixed_t z = argCount > 6 ? args[6] : 0;
+			fixed_t xvel = argCount > 7 ? args[7] : 0;
+			fixed_t yvel = argCount > 8 ? args[8] : 0;
+			fixed_t zvel = argCount > 9 ? args[9] : 0;
+			fixed_t accelx = argCount > 10 ? args[10] : 0;
+			fixed_t accely = argCount > 11 ? args[11] : 0;
+			fixed_t accelz = argCount > 12 ? args[12] : 0;
+			int startalpha = argCount > 13 ? args[13] : 0xFF; // Byte trans			
+			int fadestep = argCount > 14 ? args[14] : -1;
+
+			startalpha = clamp<int>(startalpha, 0, 255); // Clamp to byte
+			lifetime = clamp<int>(lifetime, 0, 255); // Clamp to byte
+			fadestep = clamp<int>(fadestep, -1, 255); // Clamp to byte inc. -1 (indicating automatic)
+			size = clamp<int>(size, 0, 65535); // Clamp to word
+
+			if (lifetime != 0)
+				P_SpawnParticle(x, y, z, xvel, yvel, zvel, color, fullbright, startalpha, lifetime, size, fadestep, accelx, accely, accelz);
+		}
+		break;
+		
 		default:
 			break;
 	}
+
 
 	return 0;
 }
@@ -5318,13 +6100,49 @@ inline int getshort (int *&pc)
 	return res;
 }
 
+static bool CharArrayParms(int &capacity, int &offset, int &a, int *Stack, int &sp, bool ranged)
+{
+	if (ranged)
+	{
+		capacity = STACK(1);
+		offset = STACK(2);
+		if (capacity < 1 || offset < 0)
+		{
+			sp -= 4;
+			return false;
+		}
+		sp -= 2;
+	}
+	else
+	{
+		capacity = INT_MAX;
+		offset = 0;
+	}
+	a = STACK(1);
+	offset += STACK(2);
+	sp -= 2;
+	return true;
+}
+
 int DLevelScript::RunScript ()
 {
 	DACSThinker *controller = DACSThinker::ActiveThinker;
 	SDWORD *locals = localvars;
+	ACSLocalArrays noarrays;
+	ACSLocalArrays *localarrays = &noarrays;
 	ScriptFunction *activeFunction = NULL;
 	FRemapTable *translation = 0;
 	int resultValue = 1;
+
+	if (InModuleScriptNumber >= 0)
+	{
+		ScriptPtr *ptr = activeBehavior->GetScriptPtr(InModuleScriptNumber);
+		assert(ptr != NULL);
+		if (ptr != NULL)
+		{
+			localarrays = &ptr->LocalArrays;
+		}
+	}
 
 	// Hexen truncates all special arguments to bytes (only when using an old MAPINFO and old ACS format
 	const int specialargmask = ((level.flags2 & LEVEL2_HEXENHACK) && activeBehavior->GetFormat() == ACS_Old) ? 255 : ~0;
@@ -5342,11 +6160,13 @@ int DLevelScript::RunScript ()
 		// Wait for tagged sector(s) to go inactive, then enter
 		// state running
 	{
-		int secnum = -1;
-
-		while ((secnum = P_FindSectorFromTag (statedata, secnum)) >= 0)
+		int secnum;
+		FSectorTagIterator it(statedata);
+		while ((secnum = it.Next()) >= 0)
+		{
 			if (sectors[secnum].floordata || sectors[secnum].ceilingdata)
 				return resultValue;
+		}
 
 		// If we got here, none of the tagged sectors were busy
 		state = SCRIPT_Running;
@@ -5380,10 +6200,13 @@ int DLevelScript::RunScript ()
 		break;
 	}
 
-	SDWORD Stack[STACK_SIZE];
-	int sp = 0;
+	FACSStack stackobj;
+	SDWORD *Stack = stackobj.buffer;
+	int &sp = stackobj.sp;
+
 	int *pc = this->pc;
 	ACSFormat fmt = activeBehavior->GetFormat();
+	FBehavior* const savedActiveBehavior = activeBehavior;
 	unsigned int runaway = 0;	// used to prevent infinite loops
 	int pcd;
 	FString work;
@@ -5417,6 +6240,7 @@ int DLevelScript::RunScript ()
 		{
 		default:
 			Printf ("Unknown P-Code %d in %s\n", pcd, ScriptPresentation(script).GetChars());
+			activeBehavior = savedActiveBehavior;
 			// fall through
 		case PCD_TERMINATE:
 			DPrintf ("%s finished\n", ScriptPresentation(script).GetChars());
@@ -5432,7 +6256,7 @@ int DLevelScript::RunScript ()
 
 		case PCD_TAGSTRING:
 			//Stack[sp-1] |= activeBehavior->GetLibraryID();
-			Stack[sp-1] = GlobalACSStrings.AddString(activeBehavior->LookupString(Stack[sp-1]), Stack, sp);
+			Stack[sp-1] = GlobalACSStrings.AddString(activeBehavior->LookupString(Stack[sp-1]));
 			break;
 
 		case PCD_PUSHNUMBER:
@@ -5630,7 +6454,7 @@ int DLevelScript::RunScript ()
 				int argCount = NEXTBYTE;
 				int funcIndex = NEXTSHORT;
 
-				int retval = CallFunction(argCount, funcIndex, &STACK(argCount), Stack, sp);
+				int retval = CallFunction(argCount, funcIndex, &STACK(argCount));
 				sp -= argCount-1;
 				STACK(1) = retval;
 			}
@@ -5690,9 +6514,10 @@ int DLevelScript::RunScript ()
 				}
 				sp += i;
 				::new(&Stack[sp]) CallReturn(activeBehavior->PC2Ofs(pc), activeFunction,
-					activeBehavior, mylocals, pcd == PCD_CALLDISCARD, runaway);
+					activeBehavior, mylocals, localarrays, pcd == PCD_CALLDISCARD, runaway);
 				sp += (sizeof(CallReturn) + sizeof(int) - 1) / sizeof(int);
 				pc = module->Ofs2PC (func->Address);
+				localarrays = &func->LocalArrays;
 				activeFunction = func;
 				activeBehavior = module;
 				fmt = module->GetFormat();
@@ -5726,6 +6551,7 @@ int DLevelScript::RunScript ()
 				activeBehavior = ret->ReturnModule;
 				fmt = activeBehavior->GetFormat();
 				locals = ret->ReturnLocals;
+				localarrays = ret->ReturnArrays;
 				if (!ret->bDiscardResult)
 				{
 					Stack[sp++] = value;
@@ -5824,6 +6650,11 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_ASSIGNSCRIPTARRAY:
+			localarrays->Set(locals, NEXTBYTE, STACK(2), STACK(1));
+			sp -= 2;
+			break;
+
 		case PCD_ASSIGNMAPARRAY:
 			activeBehavior->SetArrayVal (*(activeBehavior->MapVars[NEXTBYTE]), STACK(2), STACK(1));
 			sp -= 2;
@@ -5853,6 +6684,10 @@ int DLevelScript::RunScript ()
 
 		case PCD_PUSHGLOBALVAR:
 			PushToStack (ACS_GlobalVars[NEXTBYTE]);
+			break;
+
+		case PCD_PUSHSCRIPTARRAY:
+			STACK(1) = localarrays->Get(locals, NEXTBYTE, STACK(1));
 			break;
 
 		case PCD_PUSHMAPARRAY:
@@ -5885,6 +6720,14 @@ int DLevelScript::RunScript ()
 		case PCD_ADDGLOBALVAR:
 			ACS_GlobalVars[NEXTBYTE] += STACK(1);
 			sp--;
+			break;
+
+		case PCD_ADDSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) + STACK(1));
+				sp -= 2;
+			}
 			break;
 
 		case PCD_ADDMAPARRAY:
@@ -5932,6 +6775,14 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_SUBSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) - STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_SUBMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -5975,6 +6826,14 @@ int DLevelScript::RunScript ()
 		case PCD_MULGLOBALVAR:
 			ACS_GlobalVars[NEXTBYTE] *= STACK(1);
 			sp--;
+			break;
+
+		case PCD_MULSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) * STACK(1));
+				sp -= 2;
+			}
 			break;
 
 		case PCD_MULMAPARRAY:
@@ -6047,6 +6906,19 @@ int DLevelScript::RunScript ()
 			{
 				ACS_GlobalVars[NEXTBYTE] /= STACK(1);
 				sp--;
+			}
+			break;
+
+		case PCD_DIVSCRIPTARRAY:
+			if (STACK(1) == 0)
+			{
+				state = SCRIPT_DivideBy0;
+			}
+			else
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) / STACK(1));
+				sp -= 2;
 			}
 			break;
 
@@ -6138,6 +7010,19 @@ int DLevelScript::RunScript ()
 			}
 			break;
 
+		case PCD_MODSCRIPTARRAY:
+			if (STACK(1) == 0)
+			{
+				state = SCRIPT_ModulusBy0;
+			}
+			else
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) % STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_MODMAPARRAY:
 			if (STACK(1) == 0)
 			{
@@ -6199,6 +7084,14 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_ANDSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) & STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_ANDMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -6244,6 +7137,14 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_EORSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) ^ STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_EORMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -6287,6 +7188,14 @@ int DLevelScript::RunScript ()
 		case PCD_ORGLOBALVAR:
 			ACS_GlobalVars[NEXTBYTE] |= STACK(1);
 			sp--;
+			break;
+
+		case PCD_ORSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) | STACK(1));
+				sp -= 2;
+			}
 			break;
 
 		case PCD_ORMAPARRAY:
@@ -6335,6 +7244,14 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_LSSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) << STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_LSMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -6380,6 +7297,14 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
+		case PCD_RSSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(2);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) >> STACK(1));
+				sp -= 2;
+			}
+			break;
+
 		case PCD_RSMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -6422,6 +7347,14 @@ int DLevelScript::RunScript ()
 			++ACS_GlobalVars[NEXTBYTE];
 			break;
 
+		case PCD_INCSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(1);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) + 1);
+				sp--;
+			}
+			break;
+
 		case PCD_INCMAPARRAY:
 			{
 				int a = *(activeBehavior->MapVars[NEXTBYTE]);
@@ -6461,6 +7394,14 @@ int DLevelScript::RunScript ()
 
 		case PCD_DECGLOBALVAR:
 			--ACS_GlobalVars[NEXTBYTE];
+			break;
+
+		case PCD_DECSCRIPTARRAY:
+			{
+				int a = NEXTBYTE, i = STACK(1);
+				localarrays->Set(locals, a, i, localarrays->Get(locals, a, i) - 1);
+				sp--;
+			}
 			break;
 
 		case PCD_DECMAPARRAY:
@@ -6506,9 +7447,9 @@ int DLevelScript::RunScript ()
 			sp--;
 			break;
 
-		case PCD_DROP:
 		case PCD_SETRESULTVALUE:
 			resultValue = STACK(1);
+		case PCD_DROP: //fall through.
 			sp--;
 			break;
 
@@ -6744,7 +7685,7 @@ scriptwait:
 				while (min <= max)
 				{
 					int mid = (min + max) / 2;
-					SDWORD caseval = pc[mid*2];
+					SDWORD caseval = LittleLong(pc[mid*2]);
 					if (caseval == STACK(1))
 					{
 						pc = activeBehavior->Ofs2PC (LittleLong(pc[mid*2+1]));
@@ -6792,7 +7733,9 @@ scriptwait:
 			break;
 
 		case PCD_PRINTBINARY:
+			IGNORE_FORMAT_PRE
 			work.AppendFormat ("%B", STACK(1));
+			IGNORE_FORMAT_POST
 			--sp;
 			break;
 
@@ -6826,7 +7769,7 @@ scriptwait:
 						break;
 
 					case PRINTNAME_LEVEL:
-						work += level.mapname;
+						work += level.MapName;
 						break;
 
 					case PRINTNAME_SKILL:
@@ -6874,37 +7817,35 @@ scriptwait:
 			}
 			break;
 
+		// Print script character array
+		case PCD_PRINTSCRIPTCHARARRAY:
+		case PCD_PRINTSCRIPTCHRANGE:
+			{
+				int capacity, offset, a, c;
+				if (CharArrayParms(capacity, offset, a, Stack, sp, pcd == PCD_PRINTSCRIPTCHRANGE))
+				{
+					while (capacity-- && (c = localarrays->Get(locals, a, offset)) != '\0')
+					{
+						work += (char)c;
+						offset++;
+					}
+				}
+			}
+			break;
+
 		// [JB] Print map character array
 		case PCD_PRINTMAPCHARARRAY:
 		case PCD_PRINTMAPCHRANGE:
 			{
-				int capacity, offset;
-
-				if (pcd == PCD_PRINTMAPCHRANGE)
+				int capacity, offset, a, c;
+				if (CharArrayParms(capacity, offset, a, Stack, sp, pcd == PCD_PRINTMAPCHRANGE))
 				{
-					capacity = STACK(1);
-					offset = STACK(2);
-					if (capacity < 1 || offset < 0)
+					while (capacity-- && (c = activeBehavior->GetArrayVal (a, offset)) != '\0')
 					{
-						sp -= 4;
-						break;
+						work += (char)c;
+						offset++;
 					}
-					sp -= 2;
 				}
-				else
-				{
-					capacity = 0x7FFFFFFF;
-					offset = 0;
-				}
-
-				int a = *(activeBehavior->MapVars[STACK(1)]);
-				offset += STACK(2);
-				int c;
-				while(capacity-- && (c = activeBehavior->GetArrayVal (a, offset)) != '\0') {
-					work += (char)c;
-					offset++;
-				}
-				sp-= 2;
 			}
 			break;
 
@@ -6912,32 +7853,15 @@ scriptwait:
 		case PCD_PRINTWORLDCHARARRAY:
 		case PCD_PRINTWORLDCHRANGE:
 			{
-				int capacity, offset;
-				if (pcd == PCD_PRINTWORLDCHRANGE)
+				int capacity, offset, a, c;
+				if (CharArrayParms(capacity, offset, a, Stack, sp, pcd == PCD_PRINTWORLDCHRANGE))
 				{
-					capacity = STACK(1);
-					offset = STACK(2);
-					if (capacity < 1 || offset < 0)
+					while (capacity-- && (c = ACS_WorldArrays[a][offset]) != '\0')
 					{
-						sp -= 4;
-						break;
+						work += (char)c;
+						offset++;
 					}
-					sp -= 2;
 				}
-				else
-				{
-					capacity = 0x7FFFFFFF;
-					offset = 0;
-				}
-
-				int a = STACK(1);
-				offset += STACK(2);
-				int c;
-				while(capacity-- && (c = ACS_WorldArrays[a][offset]) != '\0') {
-					work += (char)c;
-					offset++;
-				}
-				sp-= 2;
 			}
 			break;
 
@@ -6945,32 +7869,15 @@ scriptwait:
 		case PCD_PRINTGLOBALCHARARRAY:
 		case PCD_PRINTGLOBALCHRANGE:
 			{
-				int capacity, offset;
-				if (pcd == PCD_PRINTGLOBALCHRANGE)
+				int capacity, offset, a, c;
+				if (CharArrayParms(capacity, offset, a, Stack, sp, pcd == PCD_PRINTGLOBALCHRANGE))
 				{
-					capacity = STACK(1);
-					offset = STACK(2);
-					if (capacity < 1 || offset < 0)
+					while (capacity-- && (c = ACS_GlobalArrays[a][offset]) != '\0')
 					{
-						sp -= 4;
-						break;
+						work += (char)c;
+						offset++;
 					}
-					sp -= 2;
 				}
-				else
-				{
-					capacity = 0x7FFFFFFF;
-					offset = 0;
-				}
-
-				int a = STACK(1);
-				offset += STACK(2);
-				int c;
-				while(capacity-- && (c = ACS_GlobalArrays[a][offset]) != '\0') {
-					work += (char)c;
-					offset++;
-				}
-				sp-= 2;
 			}
 			break;
 
@@ -7097,7 +8004,7 @@ scriptwait:
 						}
 						break;
 					}
-					msg->SetClipRect(ClipRectLeft, ClipRectTop, ClipRectWidth, ClipRectHeight);
+					msg->SetClipRect(ClipRectLeft, ClipRectTop, ClipRectWidth, ClipRectHeight, HandleAspect);
 					if (WrapWidth != 0)
 					{
 						msg->SetWrapWidth(WrapWidth);
@@ -7131,13 +8038,6 @@ scriptwait:
 						AddToConsole (-1, consolecolor);
 						AddToConsole (-1, work);
 						AddToConsole (-1, bar);
-						if (Logfile)
-						{
-							fputs (logbar, Logfile);
-							fputs (work, Logfile);
-							fputs (logbar, Logfile);
-							fflush (Logfile);
-						}
 					}
 				}
 			}
@@ -7310,9 +8210,10 @@ scriptwait:
 
 		case PCD_SETLINEBLOCKING:
 			{
-				int line = -1;
+				int line;
 
-				while ((line = P_FindLineFromID (STACK(2), line)) >= 0)
+				FLineIdIterator itr(STACK(2));
+				while ((line = itr.Next()) >= 0)
 				{
 					switch (STACK(1))
 					{
@@ -7345,9 +8246,10 @@ scriptwait:
 
 		case PCD_SETLINEMONSTERBLOCKING:
 			{
-				int line = -1;
+				int line;
 
-				while ((line = P_FindLineFromID (STACK(2), line)) >= 0)
+				FLineIdIterator itr(STACK(2));
+				while ((line = itr.Next()) >= 0)
 				{
 					if (STACK(1))
 						lines[line].flags |= ML_BLOCKMONSTERS;
@@ -7372,7 +8274,8 @@ scriptwait:
 					arg0 = -FName(FBehavior::StaticLookupString(arg0));
 				}
 
-				while ((linenum = P_FindLineFromID (STACK(7), linenum)) >= 0)
+				FLineIdIterator itr(STACK(7));
+				while ((linenum = itr.Next()) >= 0)
 				{
 					line_t *line = &lines[linenum];
 					line->special = specnum;
@@ -7584,17 +8487,17 @@ scriptwait:
 			break;
 
 		case PCD_CHECKINVENTORY:
-			STACK(1) = CheckInventory (activator, FBehavior::StaticLookupString (STACK(1)));
+			STACK(1) = CheckInventory (activator, FBehavior::StaticLookupString (STACK(1)), false);
 			break;
 
 		case PCD_CHECKACTORINVENTORY:
 			STACK(2) = CheckInventory (SingleActorFromTID(STACK(2), NULL),
-										FBehavior::StaticLookupString (STACK(1)));
+										FBehavior::StaticLookupString (STACK(1)), false);
 			sp--;
 			break;
 
 		case PCD_CHECKINVENTORYDIRECT:
-			PushToStack (CheckInventory (activator, FBehavior::StaticLookupString (TAGSTR(uallong(pc[0])))));
+			PushToStack (CheckInventory (activator, FBehavior::StaticLookupString (TAGSTR(uallong(pc[0]))), false));
 			pc += 1;
 			break;
 
@@ -7770,11 +8673,11 @@ scriptwait:
 				}
 				else if (pcd == PCD_GETACTORZ)
 				{
-					STACK(1) = actor->z + actor->GetBobOffset();
+					STACK(1) = actor->Z() + actor->GetBobOffset();
 				}
 				else
 				{
-					STACK(1) =  (&actor->x)[pcd - PCD_GETACTORX];
+					STACK(1) = pcd == PCD_GETACTORX ? actor->X() : pcd == PCD_GETACTORY ? actor->Y() : actor->Z();
 				}
 			}
 			break;
@@ -7822,14 +8725,22 @@ scriptwait:
 		case PCD_GETSECTORCEILINGZ:
 			// Arguments are (tag, x, y). If you don't use slopes, then (x, y) don't
 			// really matter and can be left as (0, 0) if you like.
+			// [Dusk] If tag = 0, then this returns the z height at whatever sector
+			// is in x, y.
 			{
-				int secnum = P_FindSectorFromTag (STACK(3), -1);
+				int tag = STACK(3);
+				int secnum;
+				fixed_t x = STACK(2) << FRACBITS;
+				fixed_t y = STACK(1) << FRACBITS;
 				fixed_t z = 0;
+
+				if (tag != 0)
+					secnum = P_FindFirstSectorFromTag (tag);
+				else
+					secnum = int(P_PointInSector (x, y) - sectors);
 
 				if (secnum >= 0)
 				{
-					fixed_t x = STACK(2) << FRACBITS;
-					fixed_t y = STACK(1) << FRACBITS;
 					if (pcd == PCD_GETSECTORFLOORZ)
 					{
 						z = sectors[secnum].floorplane.ZatPoint (x, y);
@@ -7846,7 +8757,7 @@ scriptwait:
 
 		case PCD_GETSECTORLIGHTLEVEL:
 			{
-				int secnum = P_FindSectorFromTag (STACK(1), -1);
+				int secnum = P_FindFirstSectorFromTag (STACK(1));
 				int z = -1;
 
 				if (secnum >= 0)
@@ -8067,7 +8978,7 @@ scriptwait:
 			break;
 
 		case PCD_GETACTORPROPERTY:
-			STACK(2) = GetActorProperty (STACK(2), STACK(1), Stack, sp);
+			STACK(2) = GetActorProperty (STACK(2), STACK(1));
 			sp -= 1;
 			break;
 
@@ -8088,7 +8999,7 @@ scriptwait:
 			break;
 
 		case PCD_PLAYERINGAME:
-			if (STACK(1) < 0 || STACK(1) > MAXPLAYERS)
+			if (STACK(1) < 0 || STACK(1) >= MAXPLAYERS)
 			{
 				STACK(1) = false;
 			}
@@ -8099,13 +9010,13 @@ scriptwait:
 			break;
 
 		case PCD_PLAYERISBOT:
-			if (STACK(1) < 0 || STACK(1) > MAXPLAYERS || !playeringame[STACK(1)])
+			if (STACK(1) < 0 || STACK(1) >= MAXPLAYERS || !playeringame[STACK(1)])
 			{
 				STACK(1) = false;
 			}
 			else
 			{
-				STACK(1) = players[STACK(1)].isbot;
+				STACK(1) = (players[STACK(1)].Bot != NULL);
 			}
 			break;
 
@@ -8145,11 +9056,26 @@ scriptwait:
 			break;
 
 		case PCD_STRLEN:
-			STACK(1) = SDWORD(strlen(FBehavior::StaticLookupString (STACK(1))));
+			{
+				const char *str = FBehavior::StaticLookupString(STACK(1));
+				if (str != NULL)
+				{
+					STACK(1) = SDWORD(strlen(str));
+					break;
+				}
+
+				static bool StrlenInvalidPrintedAlready = false;
+				if (!StrlenInvalidPrintedAlready)
+				{
+					Printf(PRINT_BOLD, "Warning: ACS function strlen called with invalid string argument.\n");
+					StrlenInvalidPrintedAlready = true;
+				}
+				STACK(1) = 0;
+			}
 			break;
 
 		case PCD_GETCVAR:
-			STACK(1) = GetCVar(activator, FBehavior::StaticLookupString(STACK(1)), false, Stack, sp);
+			STACK(1) = GetCVar(activator, FBehavior::StaticLookupString(STACK(1)), false);
 			break;
 
 		case PCD_SETHUDSIZE:
@@ -8187,13 +9113,11 @@ scriptwait:
 				sky2name = FBehavior::StaticLookupString (STACK(1));
 				if (sky1name[0] != 0)
 				{
-					strncpy (level.skypic1, sky1name, 8);
-					sky1texture = TexMan.GetTexture (sky1name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_ReturnFirst);
+					sky1texture = level.skytexture1 = TexMan.GetTexture (sky1name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_ReturnFirst);
 				}
 				if (sky2name[0] != 0)
 				{
-					strncpy (level.skypic2, sky2name, 8);
-					sky2texture = TexMan.GetTexture (sky2name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_ReturnFirst);
+					sky2texture = level.skytexture2 = TexMan.GetTexture (sky2name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_ReturnFirst);
 				}
 				R_InitSkyMap ();
 				sp -= 2;
@@ -8232,40 +9156,12 @@ scriptwait:
 			break;
 
 		case PCD_SETACTORANGLE:		// [GRB]
-			if (STACK(2) == 0)
-			{
-				if (activator != NULL)
-					activator->angle = STACK(1) << 16;
-			}
-			else
-			{
-				FActorIterator iterator (STACK(2));
-				AActor *actor;
-
-				while ( (actor = iterator.Next ()) )
-				{
-					actor->angle = STACK(1) << 16;
-				}
-			}
+			SetActorAngle(activator, STACK(2), STACK(1), false);
 			sp -= 2;
 			break;
 
 		case PCD_SETACTORPITCH:
-			if (STACK(2) == 0)
-			{
-				if (activator != NULL)
-					activator->pitch = STACK(1) << 16;
-			}
-			else
-			{
-				FActorIterator iterator (STACK(2));
-				AActor *actor;
-
-				while ( (actor = iterator.Next ()) )
-				{
-					actor->pitch = STACK(1) << 16;
-				}
-			}
+			SetActorPitch(activator, STACK(2), STACK(1), false);
 			sp -= 2;
 			break;
 
@@ -8405,7 +9301,7 @@ scriptwait:
 			{
 				int playernum = STACK(1);
 
-				if (playernum < 0 || playernum >= MAXPLAYERS || !playeringame[playernum] || players[playernum].camera == NULL)
+				if (playernum < 0 || playernum >= MAXPLAYERS || !playeringame[playernum] || players[playernum].camera == NULL || players[playernum].camera->player != NULL)
 				{
 					STACK(1) = -1;
 				}
@@ -8533,12 +9429,13 @@ scriptwait:
 		case PCD_SAVESTRING:
 			// Saves the string
 			{
-				const int str = GlobalACSStrings.AddString(work, Stack, sp);
+				const int str = GlobalACSStrings.AddString(work);
 				PushToStack(str);
 				STRINGBUILDER_FINISH(work);
 			}		
 			break;
 
+		case PCD_STRCPYTOSCRIPTCHRANGE:
 		case PCD_STRCPYTOMAPCHRANGE:
 		case PCD_STRCPYTOWORLDCHRANGE:
 		case PCD_STRCPYTOGLOBALCHRANGE:
@@ -8569,7 +9466,7 @@ scriptwait:
 					break;
 				}
 
-				for (int i = 0;i < STACK(1); i++)
+				for (int i = 0; i < STACK(1); i++)
 				{
 					if (! (*(lookup++)))
 					{
@@ -8580,48 +9477,64 @@ scriptwait:
 
 				switch (pcd)
 				{
-					case PCD_STRCPYTOMAPCHRANGE:
-						{
-							int a = STACK(5);
-							if (a < NUM_MAPVARS && a > 0 &&
-								activeBehavior->MapVars[a])
-							{
-								Stack[sp-6] = activeBehavior->CopyStringToArray(*(activeBehavior->MapVars[a]), index, capacity, lookup);
-							}
-						}
-						break;
-					case PCD_STRCPYTOWORLDCHRANGE:
-						{
-							int a = STACK(5);
+				case PCD_STRCPYTOSCRIPTCHRANGE:
+					{
+						int a = STACK(5);
 
-							while (capacity-- > 0)
-							{
-								ACS_WorldArrays[a][index++] = *lookup;
-								if (! (*(lookup++))) goto STRCPYTORANGECOMPLETE; // complete with terminating 0
-							}
-							
-							Stack[sp-6] = !(*lookup); // true/success if only terminating 0 was not copied
-						}
-						break;
-					case PCD_STRCPYTOGLOBALCHRANGE:
+						while (capacity-- > 0)
 						{
-							int a = STACK(5);
-
-							while (capacity-- > 0)
-							{
-								ACS_GlobalArrays[a][index++] = *lookup;
-								if (! (*(lookup++))) goto STRCPYTORANGECOMPLETE; // complete with terminating 0
-							}
-							
-							Stack[sp-6] = !(*lookup); // true/success if only terminating 0 was not copied
+							localarrays->Set(locals, a, index++, *lookup);
+							if (! (*(lookup++))) goto STRCPYTORANGECOMPLETE; // complete with terminating 0
 						}
-						break;
-					
+						
+						Stack[sp-6] = !(*lookup); // true/success if only terminating 0 was not copied
+					}
+					break;
+				case PCD_STRCPYTOMAPCHRANGE:
+					{
+						int a = STACK(5);
+						if (a < NUM_MAPVARS && a > 0 &&
+							activeBehavior->MapVars[a])
+						{
+							Stack[sp-6] = activeBehavior->CopyStringToArray(*(activeBehavior->MapVars[a]), index, capacity, lookup);
+						}
+					}
+					break;
+				case PCD_STRCPYTOWORLDCHRANGE:
+					{
+						int a = STACK(5);
+
+						while (capacity-- > 0)
+						{
+							ACS_WorldArrays[a][index++] = *lookup;
+							if (! (*(lookup++))) goto STRCPYTORANGECOMPLETE; // complete with terminating 0
+						}
+						
+						Stack[sp-6] = !(*lookup); // true/success if only terminating 0 was not copied
+					}
+					break;
+				case PCD_STRCPYTOGLOBALCHRANGE:
+					{
+						int a = STACK(5);
+
+						while (capacity-- > 0)
+						{
+							ACS_GlobalArrays[a][index++] = *lookup;
+							if (! (*(lookup++))) goto STRCPYTORANGECOMPLETE; // complete with terminating 0
+						}
+						
+						Stack[sp-6] = !(*lookup); // true/success if only terminating 0 was not copied
+					}
+					break;
 				}
 				sp -= 5;
 			}
 			break;
 
+		case PCD_CONSOLECOMMAND:
+			Printf (TEXTCOLOR_RED GAMENAME " doesn't support execution of console commands from scripts\n");
+			sp -= 3;
+			break;
  		}
  	}
 
@@ -8703,6 +9616,7 @@ DLevelScript::DLevelScript (AActor *who, line_t *where, int num, const ScriptPtr
 	activefont = SmallFont;
 	hudwidth = hudheight = 0;
 	ClipRectLeft = ClipRectTop = ClipRectWidth = ClipRectHeight = WrapWidth = 0;
+	HandleAspect = true;
 	state = SCRIPT_Running;
 
 	// Hexen waited one second before executing any open scripts. I didn't realize
@@ -8809,7 +9723,7 @@ static void addDefered (level_info_t *i, acsdefered_t::EType type, int script, c
 			def->playernum = -1;
 		}
 		i->defered = def;
-		DPrintf ("%s on map %s deferred\n", ScriptPresentation(script).GetChars(), i->mapname);
+		DPrintf ("%s on map %s deferred\n", ScriptPresentation(script).GetChars(), i->MapName.GetChars());
 	}
 }
 
@@ -8817,7 +9731,7 @@ EXTERN_CVAR (Bool, sv_cheats)
 
 int P_StartScript (AActor *who, line_t *where, int script, const char *map, const int *args, int argcount, int flags)
 {
-	if (map == NULL || 0 == strnicmp (level.mapname, map, 8))
+	if (map == NULL || 0 == strnicmp (level.MapName, map, 8))
 	{
 		FBehavior *module = NULL;
 		const ScriptPtr *scriptdata;
@@ -8870,17 +9784,17 @@ int P_StartScript (AActor *who, line_t *where, int script, const char *map, cons
 	return false;
 }
 
-void P_SuspendScript (int script, char *map)
+void P_SuspendScript (int script, const char *map)
 {
-	if (strnicmp (level.mapname, map, 8))
+	if (strnicmp (level.MapName, map, 8))
 		addDefered (FindLevelInfo (map), acsdefered_t::defsuspend, script, NULL, 0, NULL);
 	else
 		SetScriptState (script, DLevelScript::SCRIPT_Suspended);
 }
 
-void P_TerminateScript (int script, char *map)
+void P_TerminateScript (int script, const char *map)
 {
-	if (strnicmp (level.mapname, map, 8))
+	if (strnicmp (level.MapName, map, 8))
 		addDefered (FindLevelInfo (map), acsdefered_t::defterminate, script, NULL, 0, NULL);
 	else
 		SetScriptState (script, DLevelScript::SCRIPT_PleaseRemove);

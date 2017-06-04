@@ -60,6 +60,7 @@
 #include "farchive.h"
 #include "p_lnspec.h"
 #include "r_utility.h"
+#include "p_local.h"
 #include "menu/menu.h"
 
 // The conversations as they exist inside a SCRIPTxx lump.
@@ -105,11 +106,10 @@ void GiveSpawner (player_t *player, const PClass *type);
 
 TArray<FStrifeDialogueNode *> StrifeDialogues;
 
-typedef TMap<int, const PClass *> FStrifeTypeMap;	// maps conversation IDs to actor classes
 typedef TMap<int, int> FDialogueIDMap;				// maps dialogue IDs to dialogue array index (for ACS)
 typedef TMap<FName, int> FDialogueMap;				// maps actor class names to dialogue array index
 
-static FStrifeTypeMap StrifeTypes;
+FClassMap StrifeTypes;
 static FDialogueIDMap DialogueRoots;
 static FDialogueMap ClassRoots;
 static int ConversationMenuY;
@@ -522,19 +522,8 @@ static void ParseReplies (FStrifeDialogueReply **replyptr, Response *responses)
 
 		// If the first item check has a positive amount required, then
 		// add that to the reply string. Otherwise, use the reply as-is.
-		if (rsp->Count[0] > 0)
-		{
-			char moneystr[128];
-
-			mysnprintf (moneystr, countof(moneystr), "%s for %u", rsp->Reply, rsp->Count[0]);
-			reply->Reply = copystring (moneystr);
-			reply->NeedsGold = true;
-		}
-		else
-		{
-			reply->Reply = copystring (rsp->Reply);
-			reply->NeedsGold = false;
-		}
+		reply->Reply = copystring (rsp->Reply);
+		reply->NeedsGold = (rsp->Count[0] > 0);
 
 		// QuickYes messages are shown when you meet the item checks.
 		// QuickNo messages are shown when you don't.
@@ -660,15 +649,7 @@ static void TakeStrifeItem (player_t *player, const PClass *itemtype, int amount
 	if (itemtype == RUNTIME_CLASS(ASigil))
 		return;
 
-	AInventory *item = player->mo->FindInventory (itemtype);
-	if (item != NULL)
-	{
-		item->Amount -= amount;
-		if (item->Amount <= 0)
-		{
-			item->Destroy ();
-		}
-	}
+	player->mo->TakeInventory(itemtype, amount);
 }
 
 CUSTOM_CVAR(Float, dlg_musicvolume, 1.0f, CVAR_ARCHIVE)
@@ -752,7 +733,10 @@ public:
 			{
 				ReplyText = GStrings(ReplyText + 1);
 			}
-			FBrokenLines *ReplyLines = V_BreakLines (SmallFont, 320-50-10, ReplyText);
+			FString ReplyString = ReplyText;
+			if (reply->NeedsGold) ReplyString.AppendFormat(" for %u", reply->ItemCheck[0].Amount);
+
+			FBrokenLines *ReplyLines = V_BreakLines (SmallFont, 320-50-10, ReplyString);
 
 			mResponses.Push(mResponseLines.Size());
 			for (j = 0; ReplyLines[j].Width >= 0; ++j)
@@ -864,7 +848,7 @@ public:
 	bool MouseEvent(int type, int x, int y)
 	{
 		int sel = -1;
-		int fh = SmallFont->GetHeight();
+		int fh = OptionSettings.mLinespacing;
 
 		// convert x/y from screen to virtual coordinates, according to CleanX/Yfac use in DrawTexture
 		x = ((x - (screen->GetWidth() / 2)) / CleanXfac) + 160;
@@ -1133,7 +1117,7 @@ void P_StartConversation (AActor *npc, AActor *pc, bool facetalker, bool saveang
 	if (facetalker)
 	{
 		A_FaceTarget (npc);
-		pc->angle = R_PointToAngle2 (pc->x, pc->y, npc->x, npc->y);
+		pc->angle = pc->AngleTo(npc);
 	}
 	if ((npc->flags & MF_FRIENDLY) || (npc->flags4 & MF4_NOHATEPLAYERS))
 	{
@@ -1361,22 +1345,29 @@ static void HandleReply(player_t *player, bool isconsole, int nodenum, int reply
 	if (reply->NextNode != 0)
 	{
 		int rootnode = npc->ConversationRoot;
-		if (reply->NextNode < 0)
+		const bool isNegative = reply->NextNode < 0;
+		const unsigned next = (unsigned)(rootnode + (isNegative ? -1 : 1) * reply->NextNode - 1);
+
+		if (next < StrifeDialogues.Size())
 		{
-			npc->Conversation = StrifeDialogues[rootnode - reply->NextNode - 1];
-			if (gameaction != ga_slideshow)
+			npc->Conversation = StrifeDialogues[next];
+
+			if (isNegative)
 			{
-				P_StartConversation (npc, player->mo, player->ConversationFaceTalker, false);
-				return;
-			}
-			else
-			{
-				S_StopSound (npc, CHAN_VOICE);
+				if (gameaction != ga_slideshow)
+				{
+					P_StartConversation (npc, player->mo, player->ConversationFaceTalker, false);
+					return;
+				}
+				else
+				{
+					S_StopSound (npc, CHAN_VOICE);
+				}
 			}
 		}
 		else
 		{
-			npc->Conversation = StrifeDialogues[rootnode + reply->NextNode - 1];
+			Printf ("Next node %u is invalid, no such dialog page\n", next);
 		}
 	}
 

@@ -80,8 +80,8 @@ class ACSStringPool
 {
 public:
 	ACSStringPool();
-	int AddString(const char *str, const SDWORD *stack, int stackdepth);
-	int AddString(FString &str, const SDWORD *stack, int stackdepth);
+	int AddString(const char *str);
+	int AddString(FString &str);
 	const char *GetString(int strnum);
 	void LockString(int strnum);
 	void UnlockString(int strnum);
@@ -99,7 +99,8 @@ public:
 
 private:
 	int FindString(const char *str, size_t len, unsigned int h, unsigned int bucketnum);
-	int InsertString(FString &str, unsigned int h, unsigned int bucketnum, const SDWORD *stack, int stackdepth);
+	int InsertString(FString &str, unsigned int h, unsigned int bucketnum);
+	void FindFirstFreeEntry(unsigned int base);
 
 	enum { NUM_BUCKETS = 251 };
 	enum { FREE_ENTRY = 0xFFFFFFFE };	// Stored in PoolEntry's Next field
@@ -118,7 +119,7 @@ private:
 };
 extern ACSStringPool GlobalACSStrings;
 
-void P_CollectACSGlobalStrings(const SDWORD *stack, int stackdepth);
+void P_CollectACSGlobalStrings();
 void P_ReadACSVars(PNGHandle *);
 void P_WriteACSVars(FILE*);
 void P_ClearACSVars(bool);
@@ -143,6 +144,51 @@ struct ProfileCollector
 	int Index;
 };
 
+struct ACSLocalArrayInfo
+{
+	unsigned int Size;
+	int Offset;
+};
+
+struct ACSLocalArrays
+{
+	unsigned int Count;
+	ACSLocalArrayInfo *Info;
+
+	ACSLocalArrays()
+	{
+		Count = 0;
+		Info = NULL;
+	}
+	~ACSLocalArrays()
+	{
+		if (Info != NULL)
+		{
+			delete[] Info;
+			Info = NULL;
+		}
+	}
+
+	// Bounds-checking Set and Get for local arrays
+	void Set(int *locals, int arraynum, int arrayentry, int value)
+	{
+		if ((unsigned int)arraynum < Count &&
+			(unsigned int)arrayentry < Info[arraynum].Size)
+		{
+			locals[Info[arraynum].Offset + arrayentry] = value;
+		}
+	}
+	int Get(int *locals, int arraynum, int arrayentry)
+	{
+		if ((unsigned int)arraynum < Count &&
+			(unsigned int)arrayentry < Info[arraynum].Size)
+		{
+			return locals[Info[arraynum].Offset + arrayentry];
+		}
+		return 0;
+	}
+};
+
 // The in-memory version
 struct ScriptPtr
 {
@@ -152,6 +198,7 @@ struct ScriptPtr
 	BYTE ArgCount;
 	WORD VarCount;
 	WORD Flags;
+	ACSLocalArrays LocalArrays;
 
 	ACSProfileInfo ProfileData;
 };
@@ -188,13 +235,23 @@ struct ScriptFlagsPtr
 	WORD Flags;
 };
 
-struct ScriptFunction
+struct ScriptFunctionInFile
 {
 	BYTE ArgCount;
 	BYTE LocalCount;
 	BYTE HasReturnValue;
 	BYTE ImportNum;
 	DWORD Address;
+};
+
+struct ScriptFunction
+{
+	BYTE ArgCount;
+	BYTE HasReturnValue;
+	BYTE ImportNum;
+	int  LocalCount;
+	DWORD Address;
+	ACSLocalArrays LocalArrays;
 };
 
 // Script types
@@ -226,8 +283,9 @@ enum ACSFormat { ACS_Old, ACS_Enhanced, ACS_LittleEnhanced, ACS_Unknown };
 class FBehavior
 {
 public:
-	FBehavior (int lumpnum, FileReader * fr=NULL, int len=0);
+	FBehavior ();
 	~FBehavior ();
+	bool Init(int lumpnum, FileReader * fr = NULL, int len = 0);
 
 	bool IsGood ();
 	BYTE *FindChunk (DWORD id) const;
@@ -251,6 +309,7 @@ public:
 	int GetScriptIndex (const ScriptPtr *ptr) const { ptrdiff_t index = ptr - Scripts; return index >= NumScripts ? -1 : (int)index; }
 	ScriptPtr *GetScriptPtr(int index) const { return index >= 0 && index < NumScripts ? &Scripts[index] : NULL; }
 	int GetLumpNum() const { return LumpNum; }
+	int GetDataSize() const { return DataSize; }
 	const char *GetModuleName() const { return ModuleName; }
 	ACSProfileInfo *GetFunctionProfileData(int index) { return index >= 0 && index < NumFunctions ? &FunctionProfileData[index] : NULL; }
 	ACSProfileInfo *GetFunctionProfileData(ScriptFunction *func) { return GetFunctionProfileData((int)(func - (ScriptFunction *)Functions)); }
@@ -284,7 +343,7 @@ private:
 	BYTE *Chunks;
 	ScriptPtr *Scripts;
 	int NumScripts;
-	BYTE *Functions;
+	ScriptFunction *Functions;
 	ACSProfileInfo *FunctionProfileData;
 	int NumFunctions;
 	ArrayInfo *ArrayStore;
@@ -693,8 +752,25 @@ public:
 		PCD_SCRIPTWAITNAMED,
 		PCD_TRANSLATIONRANGE3,
 		PCD_GOTOSTACK,
+		PCD_ASSIGNSCRIPTARRAY,
+		PCD_PUSHSCRIPTARRAY,
+		PCD_ADDSCRIPTARRAY,
+		PCD_SUBSCRIPTARRAY,
+		PCD_MULSCRIPTARRAY,
+		PCD_DIVSCRIPTARRAY,
+/*370*/	PCD_MODSCRIPTARRAY,
+		PCD_INCSCRIPTARRAY,
+		PCD_DECSCRIPTARRAY,
+		PCD_ANDSCRIPTARRAY,
+		PCD_EORSCRIPTARRAY,
+		PCD_ORSCRIPTARRAY,
+		PCD_LSSCRIPTARRAY,
+		PCD_RSSCRIPTARRAY,
+		PCD_PRINTSCRIPTCHARARRAY,
+		PCD_PRINTSCRIPTCHRANGE,
+/*380*/	PCD_STRCPYTOSCRIPTCHRANGE,
 
-/*363*/	PCODE_COMMAND_COUNT
+/*381*/	PCODE_COMMAND_COUNT
 	};
 
 	// Some constants used by ACS scripts
@@ -815,6 +891,7 @@ protected:
 	int				hudwidth, hudheight;
 	int				ClipRectLeft, ClipRectTop, ClipRectWidth, ClipRectHeight;
 	int				WrapWidth;
+	bool			HandleAspect;
 	FBehavior	    *activeBehavior;
 	int				InModuleScriptNumber;
 
@@ -833,7 +910,7 @@ protected:
 	int DoSpawnSpot (int type, int spot, int tid, int angle, bool forced);
 	int DoSpawnSpotFacing (int type, int spot, int tid, bool forced);
 	int DoClassifyActor (int tid);
-	int CallFunction(int argCount, int funcIndex, SDWORD *args, const SDWORD *stack, int stackdepth);
+	int CallFunction(int argCount, int funcIndex, SDWORD *args);
 
 	void DoFadeTo (int r, int g, int b, int a, fixed_t time);
 	void DoFadeRange (int r1, int g1, int b1, int a1,
@@ -841,7 +918,7 @@ protected:
 	void DoSetFont (int fontnum);
 	void SetActorProperty (int tid, int property, int value);
 	void DoSetActorProperty (AActor *actor, int property, int value);
-	int GetActorProperty (int tid, int property, const SDWORD *stack, int stackdepth);
+	int GetActorProperty (int tid, int property);
 	int CheckActorProperty (int tid, int property, int value);
 	int GetPlayerInput (int playernum, int inputnum);
 

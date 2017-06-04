@@ -38,6 +38,7 @@
 #include "doomdef.h"
 #include "sc_man.h"
 #include "s_sound.h"
+#include "textures/textures.h"
 
 struct level_info_t;
 struct cluster_info_t;
@@ -51,7 +52,7 @@ class FScanner;
 #define GCC_YSEG
 #else
 #define MSVC_YSEG
-#define GCC_YSEG __attribute__((section(SECTION_YREG)))
+#define GCC_YSEG __attribute__((section(SECTION_YREG))) __attribute__((used))
 #endif
 
 struct FIntermissionDescriptor;
@@ -78,11 +79,11 @@ struct FMapInfoParser
 
 	bool ParseLookupName(FString &dest);
 	void ParseMusic(FString &name, int &order);
-	void ParseLumpOrTextureName(char *name);
+	//void ParseLumpOrTextureName(char *name);
 	void ParseLumpOrTextureName(FString &name);
 
 	void ParseCluster();
-	void ParseNextMap(char *mapname);
+	void ParseNextMap(FString &mapname);
 	level_info_t *ParseMapHeader(level_info_t &defaultinfo);
 	void ParseMapDefinition(level_info_t &leveldef);
 	void ParseGameInfo();
@@ -103,6 +104,9 @@ struct FMapInfoParser
 
 	void ParseIntermissionAction(FIntermissionDescriptor *Desc);
 	void ParseIntermission();
+	void ParseDoomEdNums();
+	void ParseSpawnNums();
+	void ParseConversationIDs();
 	void ParseAMColors(bool);
 	FName CheckEndSequence();
 	FName ParseEndGame();
@@ -215,6 +219,9 @@ enum ELevelFlags
 	LEVEL2_ENDGAME				= 0x20000000,	// This is an epilogue level that cannot be quit.
 	LEVEL2_NOAUTOSAVEHINT		= 0x40000000,	// tell the game that an autosave for this level does not need to be kept
 	LEVEL2_FORGETSTATE			= 0x80000000,	// forget this map's state in a hub
+	
+	// More flags!
+	LEVEL3_FORCEFAKECONTRAST	= 0x00000001,	// forces fake contrast even with fog enabled
 };
 
 
@@ -268,22 +275,24 @@ struct level_info_t
 {
 	int			levelnum;
 	
-	char		mapname[9];
-	char		pname[9];
-	char		nextmap[11];
-	char		secretmap[11];
-	char		skypic1[9];
-	char		skypic2[9];
-	char		fadetable[9];
-	char		f1[9];
-	char		bordertexture[9];
-	char		mapbg[9];
+	FString		MapName;
+	FString		NextMap;
+	FString		NextSecretMap;
+	FString		PName;
+	FString		SkyPic1;
+	FString		SkyPic2;
+	FString		FadeTable;
+	FString		F1Pic;
+	FString		BorderTexture;
+	FString		MapBackground;
 
 	int			cluster;
 	int			partime;
 	int			sucktime;
 	DWORD		flags;
 	DWORD		flags2;
+	DWORD		flags3;
+
 	FString		Music;
 	FString		LevelName;
 	SBYTE		WallVertLight, WallHorizLight;
@@ -312,7 +321,7 @@ struct level_info_t
 	// Redirection: If any player is carrying the specified item, then
 	// you go to the RedirectMap instead of this one.
 	FName		RedirectType;
-	char		RedirectMap[9];
+	FString		RedirectMapName;
 
 	FString		EnterPic;
 	FString		ExitPic;
@@ -330,6 +339,7 @@ struct level_info_t
 	TArray<FSpecialAction> specialactions;
 
 	TArray<FSoundID> PrecacheSounds;
+	TArray<FString> PrecacheTextures;
 
 	level_info_t() 
 	{ 
@@ -390,13 +400,14 @@ struct FLevelLocals
 	int			levelnum;
 	int			lumpnum;
 	FString		LevelName;
-	char		mapname[256];			// the lump name (E1M1, MAP01, etc)
-	char		nextmap[11];			// go here when using the regular exit
-	char		secretmap[11];			// map to go to when used secret exit
+	FString		MapName;			// the lump name (E1M1, MAP01, etc)
+	FString		NextMap;			// go here when using the regular exit
+	FString		NextSecretMap;		// map to go to when used secret exit
 	EMapType	maptype;
 
 	DWORD		flags;
 	DWORD		flags2;
+	DWORD		flags3;
 
 	DWORD		fadeto;					// The color the palette fades to (usually black)
 	DWORD		outsidefog;				// The fog for sectors with sky ceilings
@@ -405,9 +416,8 @@ struct FLevelLocals
 	int			musicorder;
 	int			cdtrack;
 	unsigned int cdid;
-	int			nextmusic;				// For MUSINFO purposes
-	char		skypic1[9];
-	char		skypic2[9];
+	FTextureID	skytexture1;
+	FTextureID	skytexture2;
 
 	float		skyspeed1;				// Scrolling speed of sky textures, in pixels per ms
 	float		skyspeed2;
@@ -524,7 +534,7 @@ level_info_t *CheckLevelRedirect (level_info_t *info);
 
 FString CalcMapName (int episode, int level);
 
-void G_ParseMapInfo (const char *basemapinfo);
+void G_ParseMapInfo (FString basemapinfo);
 
 void G_ClearSnapshots (void);
 void P_RemoveDefereds ();
@@ -553,7 +563,10 @@ enum ESkillProperty
 	SKILLP_FriendlyHealth,
 	SKILLP_NoPain,
 	SKILLP_ArmorFactor,
+	SKILLP_HealthFactor,
 	SKILLP_EasyKey,
+	SKILLP_SlowMonsters,
+	SKILLP_Infight,
 };
 int G_SkillProperty(ESkillProperty prop);
 const char * G_SkillName();
@@ -568,6 +581,7 @@ struct FSkillInfo
 	fixed_t AmmoFactor, DoubleAmmoFactor, DropAmmoFactor;
 	fixed_t DamageFactor;
 	bool FastMonsters;
+	bool SlowMonsters;
 	bool DisableCheats;
 	bool AutoUseHealth;
 
@@ -590,7 +604,9 @@ struct FSkillInfo
 	fixed_t MonsterHealth;
 	fixed_t FriendlyHealth;
 	bool NoPain;
+	int Infighting;
 	fixed_t ArmorFactor;
+	fixed_t HealthFactor;
 
 	FSkillInfo() {}
 	FSkillInfo(const FSkillInfo &other)

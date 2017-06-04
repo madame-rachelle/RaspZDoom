@@ -57,6 +57,9 @@ class AWeapon;
 
 void ST_SetNeedRefresh();
 
+bool ST_IsTimeVisible();
+bool ST_IsLatencyVisible();
+
 // HUD Message base object --------------------------------------------------
 
 class DHUDMessage : public DObject
@@ -94,12 +97,13 @@ public:
 		NoWrap = nowrap;
 		ResetText(SourceText);
 	}
-	void SetClipRect(int x, int y, int width, int height)
+	void SetClipRect(int x, int y, int width, int height, bool aspect)
 	{
 		ClipX = x;
 		ClipY = y;
 		ClipWidth = width;
 		ClipHeight = height;
+		HandleAspect = aspect;
 	}
 	void SetWrapWidth(int wrap)
 	{
@@ -119,6 +123,7 @@ protected:
 	int HUDWidth, HUDHeight;
 	int ClipX, ClipY, ClipWidth, ClipHeight, WrapWidth;	// in HUD coords
 	int ClipLeft, ClipTop, ClipRight, ClipBot;			// in screen coords
+	bool HandleAspect;
 	EColorRange TextColor;
 	FFont *Font;
 	FRenderStyle Style;
@@ -444,6 +449,20 @@ void ST_LoadCrosshair(bool alwaysload=false);
 void ST_Clear();
 extern FTexture *CrosshairImage;
 
-FTextureID GetWeaponIcon(AWeapon *weapon);
+FTextureID GetInventoryIcon(AInventory *item, DWORD flags, bool *applyscale);
+
+enum DI_Flags
+{
+	DI_SKIPICON = 0x1,
+	DI_SKIPALTICON = 0x2,
+	DI_SKIPSPAWN = 0x4,
+	DI_SKIPREADY = 0x8,
+	DI_ALTICONFIRST = 0x10,
+	
+	DI_DRAWINBOX = 0x20, // Set when either width or height is not zero
+	
+	DI_FORCESCALE = 0x40,
+	DI_ALTERNATEONFAIL = 0x80
+};
 
 #endif /* __SBAR_H__ */

@@ -55,6 +55,8 @@ inline FArchive &operator<< (FArchive &arc, DFloor::EFloor &type)
 
 static void StartFloorSound (sector_t *sec)
 {
+	if (sec->Flags & SECF_SILENTMOVE) return;
+
 	if (sec->seqType >= 0)
 	{
 		SN_StartSequence (sec, CHAN_FLOOR, sec->seqType, SEQ_PLATFORM, 0);
@@ -159,7 +161,7 @@ void DFloor::Tick ()
 				case donutRaise:
 				case genFloorChgT:
 				case genFloorChg0:
-					m_Sector->special = (m_Sector->special & SECRET_MASK) | m_NewSpecial;
+					m_Sector->SetSpecial(&m_NewSpecial);
 					//fall thru
 				case genFloorChg:
 					m_Sector->SetTexture(sector_t::floor, m_Texture);
@@ -175,7 +177,7 @@ void DFloor::Tick ()
 				case floorLowerAndChange:
 				case genFloorChgT:
 				case genFloorChg0:
-					m_Sector->special = (m_Sector->special & SECRET_MASK) | m_NewSpecial;
+					m_Sector->SetSpecial(&m_NewSpecial);
 					//fall thru
 				case genFloorChg:
 					m_Sector->SetTexture(sector_t::floor, m_Texture);
@@ -233,14 +235,14 @@ void DFloor::SetFloorChangeType (sector_t *sec, int change)
 	switch (change & 3)
 	{
 	case 1:
-		m_NewSpecial = 0;
+		m_NewSpecial.Clear();
 		m_Type = DFloor::genFloorChg0;
 		break;
 	case 2:
 		m_Type = DFloor::genFloorChg;
 		break;
 	case 3:
-		m_NewSpecial = sec->special & ~SECRET_MASK;
+		sec->GetSpecial(&m_NewSpecial);
 		m_Type = DFloor::genFloorChgT;
 		break;
 	}
@@ -290,28 +292,13 @@ bool EV_DoFloor (DFloor::EFloor floortype, line_t *line, int tag,
 	rtn = false;
 
 	// check if a manual trigger; if so do just the sector on the backside
-	if (tag == 0)
-	{
-		if (!line || !(sec = line->backsector))
-			return rtn;
-		secnum = (int)(sec-sectors);
-		goto manual_floor;
-	}
-
-	secnum = -1;
-	while (tag && (secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator it(tag, line);
+	while ((secnum = it.Next()) >= 0)
 	{
 		sec = &sectors[secnum];
-
-manual_floor:
 		// ALREADY MOVING?	IF SO, KEEP GOING...
 		if (sec->PlaneMoving(sector_t::floor))
 		{
-			// There was a test for 0/non-0 here, supposed to prevent 0-tags from executing "continue" and searching for unrelated sectors
-			// Unfortunately, the condition had been reversed, so that searches for tag-0 would continue,
-			// while numbered tags would abort (return false, even if some floors have been successfully triggered)
-
-			// All occurences of the condition (faulty or not) have been replaced by a looping condition: Looping only occurs if we're looking for a non-0 tag.
 			continue;
 		}
 		
@@ -320,7 +307,7 @@ manual_floor:
 		rtn = true;
 		floor = new DFloor (sec);
 		floor->m_Type = floortype;
-		floor->m_Crush = -1;
+		floor->m_Crush = crush;
 		floor->m_Hexencrush = hexencrush;
 		floor->m_Speed = speed;
 		floor->m_ResetCount = 0;				// [RH]
@@ -355,16 +342,16 @@ manual_floor:
 			floor->m_Speed = height;
 		case DFloor::floorLowerByValue:
 			floor->m_Direction = -1;
-			newheight = sec->floorplane.ZatPoint (0, 0) - height;
-			floor->m_FloorDestDist = sec->floorplane.PointToDist (0, 0, newheight);
+			newheight = sec->floorplane.ZatPoint (sec->soundorg[0], sec->soundorg[1]) - height;
+			floor->m_FloorDestDist = sec->floorplane.PointToDist (sec->soundorg[0], sec->soundorg[1], newheight);
 			break;
 
 		case DFloor::floorRaiseInstant:
 			floor->m_Speed = height;
 		case DFloor::floorRaiseByValue:
 			floor->m_Direction = 1;
-			newheight = sec->floorplane.ZatPoint (0, 0) + height;
-			floor->m_FloorDestDist = sec->floorplane.PointToDist (0, 0, newheight);
+			newheight = sec->floorplane.ZatPoint (sec->soundorg[0], sec->soundorg[1]) + height;
+			floor->m_FloorDestDist = sec->floorplane.PointToDist (sec->soundorg[0], sec->soundorg[1], newheight);
 			break;
 
 		case DFloor::floorMoveToValue:
@@ -374,7 +361,6 @@ manual_floor:
 			break;
 
 		case DFloor::floorRaiseAndCrushDoom:
-			floor->m_Crush = crush;
 		case DFloor::floorRaiseToLowestCeiling:
 			floor->m_Direction = 1;
 			newheight = sec->FindLowestCeilingSurrounding (&spot);
@@ -406,7 +392,6 @@ manual_floor:
 			break;
 
 		case DFloor::floorRaiseAndCrush:
-			floor->m_Crush = crush;
 			floor->m_Direction = 1;
 			newheight = sec->FindLowestCeilingPoint (&spot) - 8*FRACUNIT;
 			floor->m_FloorDestDist = sec->floorplane.PointToDist (spot, newheight);
@@ -455,11 +440,11 @@ manual_floor:
 			{
 				FTextureID oldpic = sec->GetTexture(sector_t::floor);
 				sec->SetTexture(sector_t::floor, line->frontsector->GetTexture(sector_t::floor));
-				sec->special = (sec->special & SECRET_MASK) | (line->frontsector->special & ~SECRET_MASK);
+				sec->TransferSpecial(line->frontsector);
 			}
 			else
 			{
-				sec->special &= SECRET_MASK;
+				sec->ClearSpecial();
 			}
 			break;
 		  
@@ -470,8 +455,7 @@ manual_floor:
 			floor->m_Texture = sec->GetTexture(sector_t::floor);
 			// jff 1/24/98 make sure floor->m_NewSpecial gets initialized
 			// in case no surrounding sector is at floordestheight
-			// --> should not affect compatibility <--
-			floor->m_NewSpecial = sec->special & ~SECRET_MASK; 
+			sec->GetSpecial(&floor->m_NewSpecial);
 
 			//jff 5/23/98 use model subroutine to unify fixes and handling
 			sector_t *modelsec;
@@ -479,7 +463,7 @@ manual_floor:
 			if (modelsec != NULL)
 			{
 				floor->m_Texture = modelsec->GetTexture(sector_t::floor);
-				floor->m_NewSpecial = modelsec->special & ~SECRET_MASK;
+				modelsec->GetSpecial(&floor->m_NewSpecial);
 			}
 			break;
 
@@ -494,7 +478,7 @@ manual_floor:
 			(floor->m_Direction<0 && floor->m_FloorDestDist<sec->floorplane.d) ||	// moving down but going up
 			(floor->m_Speed >= abs(sec->floorplane.d - floor->m_FloorDestDist)))	// moving in one step
 		{
-			floor->StopInterpolation();
+			floor->StopInterpolation(true);
 
 			// [Graf Zahl]
 			// Don't make sounds for instant movement hacks but make an exception for
@@ -547,9 +531,9 @@ manual_floor:
 
 bool EV_FloorCrushStop (int tag)
 {
-	int secnum = -1;
-
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	int secnum;
+	FSectorTagIterator it(tag);
+	while ((secnum = it.Next()) >= 0)
 	{
 		sector_t *sec = sectors + secnum;
 
@@ -566,21 +550,6 @@ bool EV_FloorCrushStop (int tag)
 
 //==========================================================================
 //
-// Linear tag search to emulate stair building from Doom.exe
-//
-//==========================================================================
-
-static int P_FindSectorFromTagLinear (int tag, int start)
-{
-    for (int i=start+1;i<numsectors;i++)
-	{
-		if (sectors[i].tag == tag) return i;
-	}
-    return -1;
-}
-
-//==========================================================================
-//
 // BUILD A STAIRCASE!
 // [RH] Added stairsize, srcspeed, delay, reset, igntxt, usespecials parameters
 //		If usespecials is non-zero, then each sector in a stair is determined
@@ -593,7 +562,7 @@ bool EV_BuildStairs (int tag, DFloor::EStair type, line_t *line,
 					 fixed_t stairsize, fixed_t speed, int delay, int reset, int igntxt,
 					 int usespecials)
 {
-	int 				secnum;
+	int 				secnum = -1;
 	int					osecnum;	//jff 3/4/98 save old loop index
 	int 				height;
 	fixed_t				stairstep;
@@ -609,44 +578,27 @@ bool EV_BuildStairs (int tag, DFloor::EStair type, line_t *line,
 	sector_t*			prev = NULL;
 
 	DFloor*				floor;
-	bool				manual = false;
 
 	if (speed == 0)
 		return false;
 
 	persteptime = FixedDiv (stairsize, speed) >> FRACBITS;
 
-	int (* FindSector) (int tag, int start)  =
-		(i_compatflags & COMPATF_STAIRINDEX)? P_FindSectorFromTagLinear : P_FindSectorFromTag;
-
 	// check if a manual trigger, if so do just the sector on the backside
-	if (tag == 0)
-	{
-		if (!line || !(sec = line->backsector))
-			return rtn;
-		secnum = (int)(sec-sectors);
-		manual = true;
-		goto manual_stair;
-	}
-
+	FSectorTagIterator itr(tag, line);
 	// The compatibility mode doesn't work with a hashing algorithm.
 	// It needs the original linear search method. This was broken in Boom.
-
-	secnum = -1;
-	while ((secnum = FindSector (tag, secnum)) >= 0)
+	bool compatible = tag != 0 && (i_compatflags & COMPATF_STAIRINDEX);
+	while ((secnum = itr.NextCompat(compatible, secnum)) >= 0)
 	{
 		sec = &sectors[secnum];
 
-manual_stair:
 		// ALREADY MOVING?	IF SO, KEEP GOING...
 		//jff 2/26/98 add special lockout condition to wait for entire
 		//staircase to build before retriggering
 		if (sec->PlaneMoving(sector_t::floor) || sec->stairlock)
 		{
-			if (!manual)
-				continue;
-			else
-				return rtn;
+			continue;
 		}
 		
 		// new floor thinker
@@ -684,7 +636,7 @@ manual_stair:
 			{
 				// [RH] Find the next sector by scanning for Stairs_Special?
 				tsec = sec->NextSpecialSector (
-						(sec->special & 0xff) == Stairs_Special1 ?
+						sec->special == Stairs_Special1 ?
 							Stairs_Special2 : Stairs_Special1, prev);
 
 				if ( (ok = (tsec != NULL)) )
@@ -776,6 +728,7 @@ manual_stair:
 				floor->m_Type = DFloor::buildStair;	//jff 3/31/98 do not leave uninited
 				//jff 2/27/98 fix uninitialized crush field
 				floor->m_Crush = (!usespecials && speed == 4*FRACUNIT) ? 10 : -1;
+				floor->m_Hexencrush = false;
 				floor->m_ResetCount = reset;	// [RH] Tics until reset (0 if never)
 				floor->m_OrgDist = sec->floorplane.d;	// [RH] Height to reset to
 			}
@@ -783,14 +736,6 @@ manual_stair:
 		// [RH] make sure the first sector doesn't point to a previous one, otherwise
 		// it can infinite loop when the first sector stops moving.
 		sectors[osecnum].prevsec = -1;	
-		if (manual)
-		{
-			return rtn;
-		}
-		if (!(i_compatflags & COMPATF_STAIRINDEX))
-		{
-			secnum = osecnum;	//jff 3/4/98 restore loop index
-		}
 	}
 	return rtn;
 }
@@ -813,21 +758,13 @@ bool EV_DoDonut (int tag, line_t *line, fixed_t pillarspeed, fixed_t slimespeed)
 	vertex_t*			spot;
 	fixed_t				height;
 		
-	secnum = -1;
 	rtn = false;
 
-	if (tag == 0)
-	{
-		if (!line || !(s1 = line->backsector))
-			return rtn;
-		goto manual_donut;
-	}
-
-	while (tag && (secnum = P_FindSectorFromTag(tag,secnum)) >= 0)
+	FSectorTagIterator itr(tag, line);
+	while ((secnum = itr.Next()) >= 0)
 	{
 		s1 = &sectors[secnum];					// s1 is pillar's sector
 
-manual_donut:
 		// ALREADY MOVING?	IF SO, KEEP GOING...
 		if (s1->PlaneMoving(sector_t::floor))
 			continue; // safe now, because we check that tag is non-0 in the looping condition [fdari]
@@ -856,7 +793,7 @@ manual_donut:
 			floor->m_Sector = s2;
 			floor->m_Speed = slimespeed;
 			floor->m_Texture = s3->GetTexture(sector_t::floor);
-			floor->m_NewSpecial = 0;
+			floor->m_NewSpecial.Clear();
 			height = s3->FindHighestFloorPoint (&spot);
 			floor->m_FloorDestDist = s2->floorplane.PointToDist (spot, height);
 			floor->StartFloorSound ();
@@ -1044,19 +981,12 @@ bool EV_DoElevator (line_t *line, DElevator::EElevator elevtype,
 	secnum = -1;
 	rtn = false;
 
-	if (tag == 0)
-	{
-		if (!line || !(sec = line->backsector))
-			return rtn;
-		goto manual_elevator;
-	}
-
+	FSectorTagIterator itr(tag, line);
 
 	// act on all sectors with the same tag as the triggering linedef
-	while (tag && (secnum = P_FindSectorFromTag (tag, secnum)) >= 0) // never loop for a non-0 tag (condition moved to beginning of loop) [FDARI]
+	while ((secnum = itr.Next()) >= 0)
 	{
 		sec = &sectors[secnum];
-manual_elevator:
 		// If either floor or ceiling is already activated, skip it
 		if (sec->PlaneMoving(sector_t::floor) || sec->ceilingdata) //jff 2/22/98
 			continue; // the loop used to break at the end if tag were 0, but would miss that step if "continue" occured [FDARI]
@@ -1144,10 +1074,10 @@ bool EV_DoChange (line_t *line, EChange changetype, int tag)
 	sector_t	*sec;
 	sector_t	*secm;
 
-	secnum = -1;
 	rtn = false;
 	// change all sectors with the same tag as the linedef
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator it(tag);
+	while ((secnum = it.Next()) >= 0)
 	{
 		sec = &sectors[secnum];
               
@@ -1162,7 +1092,7 @@ bool EV_DoChange (line_t *line, EChange changetype, int tag)
 			if (line)
 			{ // [RH] if no line, no change
 				sec->SetTexture(sector_t::floor, line->frontsector->GetTexture(sector_t::floor));
-				sec->special = (sec->special & SECRET_MASK) | (line->frontsector->special & ~SECRET_MASK);
+				sec->TransferSpecial(line->frontsector);
 			}
 			break;
 		case numChangeOnly:
@@ -1170,7 +1100,7 @@ bool EV_DoChange (line_t *line, EChange changetype, int tag)
 			if (secm)
 			{ // if no model, no change
 				sec->SetTexture(sector_t::floor, secm->GetTexture(sector_t::floor));
-				sec->special = secm->special;
+				sec->TransferSpecial(secm);
 			}
 			break;
 		default:
@@ -1376,20 +1306,12 @@ bool EV_StartWaggle (int tag, line_t *line, int height, int speed, int offset,
 	bool retCode;
 
 	retCode = false;
-	sectorIndex = -1;
 
-	if (tag == 0)
-	{
-		if (!line || !(sector = line->backsector))
-			return retCode;
-		goto manual_waggle;
-	}
+	FSectorTagIterator itr(tag, line);
 
-
-	while (tag && (sectorIndex = P_FindSectorFromTag(tag, sectorIndex)) >= 0)
+	while ((sectorIndex = itr.Next()) >= 0)
 	{
 		sector = &sectors[sectorIndex];
-manual_waggle:
 		if ((!ceiling && sector->PlaneMoving(sector_t::floor)) || 
 			(ceiling && sector->PlaneMoving(sector_t::ceiling)))
 		{ // Already busy with another thinker

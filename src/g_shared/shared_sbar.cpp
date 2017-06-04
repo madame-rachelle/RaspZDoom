@@ -131,7 +131,7 @@ void ST_FormatMapName(FString &mapname, const char *mapnamecolor)
 
 	if (am_showmaplabel == 1 || (am_showmaplabel == 2 && !ishub))
 	{
-		mapname << level.mapname << ": ";
+		mapname << level.MapName << ": ";
 	}
 	mapname << mapnamecolor << level.LevelName;
 }
@@ -146,7 +146,6 @@ void ST_LoadCrosshair(bool alwaysload)
 {
 	int num = 0;
 	char name[16], size;
-	int lump;
 
 	if (!crosshairforce &&
 		players[consoleplayer].camera != NULL &&
@@ -179,18 +178,20 @@ void ST_LoadCrosshair(bool alwaysload)
 		num = -num;
 	}
 	size = (SCREENWIDTH < 640) ? 'S' : 'B';
+
 	mysnprintf (name, countof(name), "XHAIR%c%d", size, num);
-	if ((lump = Wads.CheckNumForName (name, ns_graphics)) == -1)
+	FTextureID texid = TexMan.CheckForTexture(name, FTexture::TEX_MiscPatch, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ShortNameOnly);
+	if (!texid.isValid())
 	{
 		mysnprintf (name, countof(name), "XHAIR%c1", size);
-		if ((lump = Wads.CheckNumForName (name, ns_graphics)) == -1)
+		texid = TexMan.CheckForTexture(name, FTexture::TEX_MiscPatch, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ShortNameOnly);
+		if (!texid.isValid())
 		{
-			strcpy (name, "XHAIRS1");
+			texid = TexMan.CheckForTexture("XHAIRS1", FTexture::TEX_MiscPatch, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ShortNameOnly);
 		}
-		num = 1;
 	}
 	CrosshairNum = num;
-	CrosshairImage = TexMan[TexMan.CheckForTexture(name, FTexture::TEX_MiscPatch)];
+	CrosshairImage = TexMan[texid];
 }
 
 //---------------------------------------------------------------------------
@@ -1057,7 +1058,7 @@ void DBaseStatusBar::RefreshBackground () const
 	int x, x2, y, ratio;
 
 	ratio = CheckRatio (SCREENWIDTH, SCREENHEIGHT);
-	x = (!(ratio & 3) || !Scaled) ? ST_X : SCREENWIDTH*(48-BaseRatioSizes[ratio][3])/(48*2);
+	x = (!IsRatioWidescreen(ratio) || !Scaled) ? ST_X : SCREENWIDTH*(48-BaseRatioSizes[ratio][3])/(48*2);
 	y = x == ST_X && x > 0 ? ST_Y : ::ST_Y;
 
 	if(!CompleteBorder)
@@ -1077,7 +1078,7 @@ void DBaseStatusBar::RefreshBackground () const
 	{
 		if(!CompleteBorder)
 		{
-			x2 = !(ratio & 3) || !Scaled ? ST_X+HorizontalResolution :
+			x2 = !IsRatioWidescreen(ratio) || !Scaled ? ST_X+HorizontalResolution :
 				SCREENWIDTH - (SCREENWIDTH*(48-BaseRatioSizes[ratio][3])+48*2-1)/(48*2);
 		}
 		else
@@ -1090,12 +1091,12 @@ void DBaseStatusBar::RefreshBackground () const
 
 		if (setblocks >= 10)
 		{
-			const gameborder_t *border = gameinfo.border;
-			FTexture *p;
-
-			p = TexMan[border->b];
-			screen->FlatFill(0, y, x, y + p->GetHeight(), p, true);
-			screen->FlatFill(x2, y, SCREENWIDTH, y + p->GetHeight(), p, true);
+			FTexture *p = TexMan[gameinfo.Border.b];
+			if (p != NULL)
+			{
+				screen->FlatFill(0, y, x, y + p->GetHeight(), p, true);
+				screen->FlatFill(x2, y, SCREENWIDTH, y + p->GetHeight(), p, true);
+			}
 		}
 	}
 }
@@ -1122,7 +1123,7 @@ void DBaseStatusBar::DrawCrosshair ()
 	ST_LoadCrosshair();
 
 	// Don't draw the crosshair if there is none
-	if (CrosshairImage == NULL || gamestate == GS_TITLELEVEL)
+	if (CrosshairImage == NULL || gamestate == GS_TITLELEVEL || camera->health <= 0)
 	{
 		return;
 	}
@@ -1184,8 +1185,8 @@ void DBaseStatusBar::DrawCrosshair ()
 	}
 
 	screen->DrawTexture (CrosshairImage,
-		viewwidth / 2 + viewwindowx,
-		viewheight / 2 + viewwindowy,
+		realviewwidth / 2 + viewwindowx,
+		realviewheight / 2 + viewwindowy,
 		DTA_DestWidth, w,
 		DTA_DestHeight, h,
 		DTA_AlphaChannel, true,
@@ -1285,8 +1286,8 @@ void DBaseStatusBar::Draw (EHudState state)
 				y -= height * 2;
 		}
 
-		value = &CPlayer->mo->z;
-		for (i = 2, value = &CPlayer->mo->z; i >= 0; y -= height, --value, --i)
+		fixedvec3 pos = CPlayer->mo->Pos();
+		for (i = 2, value = &pos.z; i >= 0; y -= height, --value, --i)
 		{
 			mysnprintf (line, countof(line), "%c: %d", labels[i], *value >> FRACBITS);
 			screen->DrawText (SmallFont, CR_GREEN, xpos, y, line, 
@@ -1306,8 +1307,8 @@ void DBaseStatusBar::Draw (EHudState state)
 	}
 	else if (automapactive)
 	{
-		int y, time = level.time / TICRATE, height;
-		int totaltime = level.totaltime / TICRATE;
+		int y, time = Tics2Seconds(level.time), height;
+		int totaltime = Tics2Seconds(level.totaltime);
 		EColorRange highlight = (gameinfo.gametype & GAME_DoomChex) ?
 			CR_UNTRANSLATED : CR_YELLOW;
 
@@ -1337,17 +1338,17 @@ void DBaseStatusBar::Draw (EHudState state)
 		{
 			if (Scaled)
 			{
-				y -= Scale (10, SCREENHEIGHT, 200);
+				y -= Scale (11, SCREENHEIGHT, 200);
 			}
 			else
 			{
 				if (SCREENWIDTH < 640)
 				{
-					y -= 11;
+					y -= 12;
 				}
 				else
 				{ // Get past the tops of the gargoyles' wings
-					y -= 26;
+					y -= 28;
 				}
 			}
 		}
@@ -1501,7 +1502,7 @@ void DBaseStatusBar::DrawTopStuff (EHudState state)
 	{
 		screen->DrawText (SmallFont, CR_TAN, 0, ST_Y - 40 * CleanYfac,
 			"Demo was recorded with a different version\n"
-			"of ZDoom. Expect it to go out of sync.",
+			"of " GAMENAME ". Expect it to go out of sync.",
 			DTA_CleanNoMove, true, TAG_DONE);
 	}
 
@@ -1532,9 +1533,12 @@ void DBaseStatusBar::DrawPowerups ()
 	// Each icon gets a 32x32 block to draw itself in.
 	int x, y;
 	AInventory *item;
+	const int yshift = SmallFont->GetHeight();
 
 	x = -20;
-	y = 17;
+	y = 17 
+		+ (ST_IsTimeVisible()    ? yshift : 0)
+		+ (ST_IsLatencyVisible() ? yshift : 0);
 	for (item = CPlayer->mo->Inventory; item != NULL; item = item->Inventory)
 	{
 		if (item->DrawPowerup (x, y))

@@ -14,27 +14,25 @@ class ALoreShot : public AActor
 {
 	DECLARE_CLASS (ALoreShot, AActor)
 public:
-	int DoSpecialDamage (AActor *target, int damage, FName damagetype);
+	int DoSpecialDamage (AActor *victim, int damage, FName damagetype);
 };
 
 IMPLEMENT_CLASS (ALoreShot)
 
-int ALoreShot::DoSpecialDamage (AActor *target, int damage, FName damagetype)
+int ALoreShot::DoSpecialDamage (AActor *victim, int damage, FName damagetype)
 {
-	FVector3 thrust;
 	
-	if (this->target != NULL)
+	if (victim != NULL && target != NULL && !(victim->flags7 & MF7_DONTTHRUST))
 	{
-		thrust.X = float(this->target->x - target->x);
-		thrust.Y = float(this->target->y - target->y);
-		thrust.Z = float(this->target->z - target->z);
-	
+		fixedvec3 fixthrust = victim->Vec3To(target);
+		TVector3<double> thrust(fixthrust.x, fixthrust.y, fixthrust.z);
+
 		thrust.MakeUnit();
-		thrust *= float((255*50*FRACUNIT) / (target->Mass ? target->Mass : 1));
+		thrust *= double((255*50*FRACUNIT) / (victim->Mass ? victim->Mass : 1));
 	
-		target->velx += fixed_t(thrust.X);
-		target->vely += fixed_t(thrust.Y);
-		target->velz += fixed_t(thrust.Z);
+		victim->velx += fixed_t(thrust.X);
+		victim->vely += fixed_t(thrust.Y);
+		victim->velz += fixed_t(thrust.Z);
 	}
 	return damage;
 }
@@ -42,7 +40,7 @@ int ALoreShot::DoSpecialDamage (AActor *target, int damage, FName damagetype)
 DEFINE_ACTION_FUNCTION(AActor, A_LoremasterChain)
 {
 	S_Sound (self, CHAN_BODY, "loremaster/active", 1, ATTN_NORM);
-	Spawn("LoreShot2", self->x, self->y, self->z, ALLOW_REPLACE);
-	Spawn("LoreShot2", self->x - (self->velx >> 1), self->y - (self->vely >> 1), self->z - (self->velz >> 1), ALLOW_REPLACE);
-	Spawn("LoreShot2", self->x - self->velx, self->y - self->vely, self->z - self->velz, ALLOW_REPLACE);
+	Spawn("LoreShot2", self->Pos(), ALLOW_REPLACE);
+	Spawn("LoreShot2", self->Vec3Offset(-(self->velx >> 1), -(self->vely >> 1), -(self->velz >> 1)), ALLOW_REPLACE);
+	Spawn("LoreShot2", self->Vec3Offset(-self->velx, -self->vely, -self->velz), ALLOW_REPLACE);
 }

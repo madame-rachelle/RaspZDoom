@@ -2,6 +2,8 @@
 
 [enu default]
 
+SECRETMESSAGE = "A secret is revealed!";
+
 D_DEVSTR = "Useless mode ON.\n";
 D_CDROM = "CD-ROM Version: zdoom.ini from c:\\zdoomdat\n";
 PRESSKEY = "press a key.";
@@ -290,6 +292,8 @@ STSTR_MUS = "Music Change";
 STSTR_NOMUS = "IMPOSSIBLE SELECTION";
 STSTR_DQDON = "Degreelessness Mode ON";
 STSTR_DQDOFF = "Degreelessness Mode OFF";
+STSTR_DQD2ON = "Ultimate Degreelessness Mode ON";
+STSTR_DQD2OFF = "Ultimate Degreelessness Mode OFF";
 STSTR_KFAADDED = "Very Happy Ammo Added";
 STSTR_FAADDED = "Ammo (no keys) Added";
 STSTR_NCON = "No Clipping Mode ON";
@@ -301,6 +305,8 @@ STSTR_CHOPPERS = "... doesn't suck - GM";
 STSTR_CLEV = "Changing Level...\n";
 TXT_BUDDHAON = "Buddha mode ON";
 TXT_BUDDHAOFF = "Buddha mode OFF";
+TXT_BUDDHA2ON = "Ultimate Buddha Mode ON";
+TXT_BUDDHA2OFF = "Ultimate Buddha Mode OFF";
 TXT_DEFAULTPICKUPMSG = "You got a pickup";
 
 E1TEXT =
@@ -834,10 +840,13 @@ SCORE_BONUS = "BONUS";
 SCORE_COLOR = "COLOR";
 SCORE_SECRET = "SECRET";
 SCORE_NAME = "NAME";
+SCORE_DELAY = "DELAY(ms)";
 SCORE_KILLS = "KILLS";
 SCORE_FRAGS = "FRAGS";
+SCORE_DEATHS = "DEATHS";
 SCORE_MISSED = "MISSED";
 SCORE_TOTAL = "TOTAL";
+SCORE_LVLTIME = "LEVEL TIME";
 
 // Item tags: Doom weapons
 TAG_FIST = "Brass Knuckles";
@@ -1237,6 +1246,7 @@ TXT_AMMOPHOENIXROD2 = "INFERNO ORB";
 
 // Weapons
 
+TXT_WPNGOLDWAND = "GOLD WAND";
 TXT_WPNMACE = "FIREMACE";
 TXT_WPNCROSSBOW = "ETHEREAL CROSSBOW";
 TXT_WPNBLASTER = "DRAGON CLAW";
@@ -1270,6 +1280,14 @@ TXT_LEADBOOTSON = "LEAD BOOTS ON";
 TXT_LEADBOOTSOFF = "LEAD BOOTS OFF";
 TXT_LIGHTER = "You feel lighter";
 TXT_GRAVITY = "Gravity weighs you down";
+
+// Raven intermission
+
+TXT_IMKILLS = "KILLS";
+TXT_IMITEMS = "ITEMS";
+TXT_IMSECRETS = "SECRETS";
+TXT_IMTIME = "TIME";
+
 
 RAVENQUITMSG = "ARE YOU SURE YOU WANT TO QUIT?";
 
@@ -1531,6 +1549,10 @@ TXT_RANDOMGOODBYE_2 = "Thanks, bye!";
 TXT_RANDOMGOODBYE_3 = "See you later!";
 TXT_HAVEENOUGH		= "You seem to have enough!";
 TXT_GOAWAY			= "Go away!";
+
+TXT_COMM0			= "Incoming Message";
+TXT_COMM1			= "Incoming Message from BlackBird";
+
 
 // Skills:
 

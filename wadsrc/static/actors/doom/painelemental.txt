@@ -3,10 +3,8 @@
 // Pain Elemental
 //
 //===========================================================================
-ACTOR PainElemental 71
+ACTOR PainElemental
 {
-	Game Doom
-	SpawnID 115
 	Health 400
 	Radius 31
 	Height 56
@@ -31,8 +29,8 @@ ACTOR PainElemental 71
 	Missile:
 		PAIN D 5 A_FaceTarget
 		PAIN E 5 A_FaceTarget
-		PAIN F 4 BRIGHT A_FaceTarget
-		PAIN F 1 BRIGHT A_PainAttack
+		PAIN F 5 BRIGHT A_FaceTarget
+		PAIN F 0 BRIGHT A_PainAttack
 		Goto See
 	Pain:
 		PAIN G 6

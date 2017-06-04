@@ -31,6 +31,8 @@
 **---------------------------------------------------------------------------
 **
 */
+#include "v_text.h"
+#include "gstrings.h"
 
 
 void M_DrawConText (int color, int x, int y, const char *str);
@@ -198,6 +200,7 @@ public:
 		{
 			text = (*opt)->mValues[Selection].Text;
 		}
+		if (*text == '$') text = GStrings(text + 1);
 		screen->DrawText (SmallFont, OptionSettings.mFontColorValue, indent + CURSORSPACE, y, 
 			text, DTA_CleanNoMove_1, true, DTA_ColorOverlay, overlay, TAG_DONE);
 		return indent;
@@ -225,6 +228,10 @@ public:
 			}
 			SetSelection(Selection);
 			S_Sound (CHAN_VOICE | CHAN_UI, "menu/change", snd_menuvolume, ATTN_NONE);
+		}
+		else
+		{
+			return FOptionMenuItem::MenuEvent(mkey, fromcontroller);
 		}
 		return true;
 	}
@@ -502,6 +509,7 @@ public:
 	int Draw(FOptionMenuDescriptor *desc, int y, int indent, bool selected)
 	{
 		const char *txt = mCurrent? (const char*)mAltText : mLabel;
+		if (*txt == '$') txt = GStrings(txt + 1);
 		int w = SmallFont->StringWidth(txt) * CleanXfac_1;
 		int x = (screen->GetWidth() - w) / 2;
 		screen->DrawText (SmallFont, mColor, x, y, txt, DTA_CleanNoMove_1, true, TAG_DONE);
@@ -560,8 +568,8 @@ public:
 		mSliderShort = 0;
 	}
 
-	virtual double GetValue() = 0;
-	virtual void SetValue(double val) = 0;
+	virtual double GetSliderValue() = 0;
+	virtual void SetSliderValue(double val) = 0;
 
 	//=============================================================================
 	//
@@ -614,14 +622,14 @@ public:
 	{
 		drawLabel(indent, y, selected? OptionSettings.mFontColorSelection : OptionSettings.mFontColor);
 		mDrawX = indent + CURSORSPACE;
-		DrawSlider (mDrawX, y, mMin, mMax, GetValue(), mShowValue, indent);
+		DrawSlider (mDrawX, y, mMin, mMax, GetSliderValue(), mShowValue, indent);
 		return indent;
 	}
 
 	//=============================================================================
 	bool MenuEvent (int mkey, bool fromcontroller)
 	{
-		double value = GetValue();
+		double value = GetSliderValue();
 
 		if (mkey == MKEY_Left)
 		{
@@ -635,7 +643,7 @@ public:
 		{
 			return FOptionMenuItem::MenuEvent(mkey, fromcontroller);
 		}
-		SetValue(clamp(value, mMin, mMax));
+		SetSliderValue(clamp(value, mMin, mMax));
 		S_Sound (CHAN_VOICE | CHAN_UI, "menu/change", snd_menuvolume, ATTN_NONE);
 		return true;
 	}
@@ -662,9 +670,9 @@ public:
 
 		x = clamp(x, slide_left, slide_right);
 		double v = mMin + ((x - slide_left) * (mMax - mMin)) / (slide_right - slide_left);
-		if (v != GetValue())
+		if (v != GetSliderValue())
 		{
-			SetValue(v);
+			SetSliderValue(v);
 			//S_Sound (CHAN_VOICE | CHAN_UI, "menu/change", snd_menuvolume, ATTN_NONE);
 		}
 		if (type == DMenu::MOUSE_Click)
@@ -692,7 +700,7 @@ public:
 		mCVar = FindCVar(menu, NULL);
 	}
 
-	double GetValue()
+	double GetSliderValue()
 	{
 		if (mCVar != NULL)
 		{
@@ -704,7 +712,7 @@ public:
 		}
 	}
 
-	void SetValue(double val)
+	void SetSliderValue(double val)
 	{
 		if (mCVar != NULL)
 		{
@@ -732,12 +740,12 @@ public:
 		mPVal = pVal;
 	}
 
-	double GetValue()
+	double GetSliderValue()
 	{
 		return *mPVal;
 	}
 
-	void SetValue(double val)
+	void SetSliderValue(double val)
 	{
 		*mPVal = (float)val;
 	}
@@ -941,20 +949,227 @@ public:
 	{
 		return mMaxValid >= 0;
 	}
-};
 
-#ifndef NO_IMP
-CCMD(am_restorecolors)
-{
-	if (DMenu::CurrentMenu != NULL && DMenu::CurrentMenu->IsKindOf(RUNTIME_CLASS(DOptionMenu)))
+	void Ticker()
 	{
-		DOptionMenu *m = (DOptionMenu*)DMenu::CurrentMenu;
-		const FOptionMenuDescriptor *desc = m->GetDescriptor();
-		// Find the color cvars by scanning the MapColors menu.
-		for (unsigned i = 0; i < desc->mItems.Size(); ++i)
+		if (Selectable() && mSelection > mMaxValid)
 		{
-			desc->mItems[i]->SetValue(FOptionMenuItemColorPicker::CPF_RESET, 0);
+			mSelection = mMaxValid;
 		}
 	}
-}
-#endif
+};
+
+
+//=============================================================================
+//
+// [TP] FOptionMenuFieldBase
+//
+// Base class for input fields
+//
+//=============================================================================
+
+class FOptionMenuFieldBase : public FOptionMenuItem
+{
+public:
+	FOptionMenuFieldBase ( const char* label, const char* menu, const char* graycheck ) :
+		FOptionMenuItem ( label, menu ),
+		mCVar ( FindCVar( mAction, NULL )),
+		mGrayCheck (( graycheck && strlen( graycheck )) ? FindCVar( graycheck, NULL ) : NULL ) {}
+
+	const char* GetCVarString()
+	{
+		if ( mCVar == NULL )
+			return "";
+
+		return mCVar->GetGenericRep( CVAR_String ).String;
+	}
+
+	virtual FString Represent()
+	{
+		return GetCVarString();
+	}
+
+	int Draw ( FOptionMenuDescriptor*, int y, int indent, bool selected )
+	{
+		bool grayed = mGrayCheck != NULL && !( mGrayCheck->GetGenericRep( CVAR_Bool ).Bool );
+		drawLabel( indent, y, selected ? OptionSettings.mFontColorSelection : OptionSettings.mFontColor, grayed );
+		int overlay = grayed? MAKEARGB( 96, 48, 0, 0 ) : 0;
+
+		screen->DrawText( SmallFont, OptionSettings.mFontColorValue, indent + CURSORSPACE, y,
+			Represent().GetChars(), DTA_CleanNoMove_1, true, DTA_ColorOverlay, overlay, TAG_DONE );
+		return indent;
+	}
+
+	bool GetString ( int i, char* s, int len )
+	{
+		if ( i == 0 )
+		{
+			strncpy( s, GetCVarString(), len );
+			s[len - 1] = '\0';
+			return true;
+		}
+
+		return false;
+	}
+
+	bool SetString ( int i, const char* s )
+	{
+		if ( i == 0 )
+		{
+			if ( mCVar )
+			{
+				UCVarValue vval;
+				vval.String = s;
+				mCVar->SetGenericRep( vval, CVAR_String );
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+protected:
+	// Action is a CVar in this class and derivatives.
+	FBaseCVar* mCVar;
+	FBaseCVar* mGrayCheck;
+};
+
+//=============================================================================
+//
+// [TP] FOptionMenuTextField
+//
+// A text input field widget, for use with string CVars.
+//
+//=============================================================================
+
+class FOptionMenuTextField : public FOptionMenuFieldBase
+{
+public:
+	FOptionMenuTextField ( const char *label, const char* menu, const char* graycheck ) :
+		FOptionMenuFieldBase ( label, menu, graycheck ),
+		mEntering ( false ) {}
+
+	FString Represent()
+	{
+		FString text = mEntering ? mEditName : GetCVarString();
+
+		if ( mEntering )
+			text += ( gameinfo.gametype & GAME_DoomStrifeChex ) ? '_' : '[';
+
+		return text;
+	}
+
+	int Draw(FOptionMenuDescriptor*desc, int y, int indent, bool selected)
+	{
+		if (mEntering)
+		{
+			// reposition the text so that the cursor is visible when in entering mode.
+			FString text = Represent();
+			int tlen = SmallFont->StringWidth(text) * CleanXfac_1;
+			int newindent = screen->GetWidth() - tlen - CURSORSPACE;
+			if (newindent < indent) indent = newindent;
+		}
+		return FOptionMenuFieldBase::Draw(desc, y, indent, selected);
+	}
+
+	bool MenuEvent ( int mkey, bool fromcontroller )
+	{
+		if ( mkey == MKEY_Enter )
+		{
+			S_Sound( CHAN_VOICE | CHAN_UI, "menu/choose", snd_menuvolume, ATTN_NONE );
+			strcpy( mEditName, GetCVarString() );
+			mEntering = true;
+			DMenu* input = new DTextEnterMenu ( DMenu::CurrentMenu, mEditName, sizeof mEditName, 2, fromcontroller );
+			M_ActivateMenu( input );
+			return true;
+		}
+		else if ( mkey == MKEY_Input )
+		{
+			if ( mCVar )
+			{
+				UCVarValue vval;
+				vval.String = mEditName;
+				mCVar->SetGenericRep( vval, CVAR_String );
+			}
+
+			mEntering = false;
+			return true;
+		}
+		else if ( mkey == MKEY_Abort )
+		{
+			mEntering = false;
+			return true;
+		}
+
+		return FOptionMenuItem::MenuEvent( mkey, fromcontroller );
+	}
+
+private:
+	bool mEntering;
+	char mEditName[128];
+};
+
+//=============================================================================
+//
+// [TP] FOptionMenuNumberField
+//
+// A numeric input field widget, for use with number CVars where sliders are inappropriate (i.e.
+// where the user is interested in the exact value specifically)
+//
+//=============================================================================
+
+class FOptionMenuNumberField : public FOptionMenuFieldBase
+{
+public:
+	FOptionMenuNumberField ( const char *label, const char* menu, float minimum, float maximum,
+		float step, const char* graycheck )
+		: FOptionMenuFieldBase ( label, menu, graycheck ),
+		mMinimum ( minimum ),
+		mMaximum ( maximum ),
+		mStep ( step )
+	{
+		if ( mMaximum <= mMinimum )
+			swapvalues( mMinimum, mMaximum );
+
+		if ( mStep <= 0 )
+			mStep = 1;
+	}
+
+	bool MenuEvent ( int mkey, bool fromcontroller )
+	{
+		if ( mCVar )
+		{
+			float value = mCVar->GetGenericRep( CVAR_Float ).Float;
+
+			if ( mkey == MKEY_Left )
+			{
+				value -= mStep;
+
+				if ( value < mMinimum )
+					value = mMaximum;
+			}
+			else if ( mkey == MKEY_Right || mkey == MKEY_Enter )
+			{
+				value += mStep;
+
+				if ( value > mMaximum )
+					value = mMinimum;
+			}
+			else
+				return FOptionMenuItem::MenuEvent( mkey, fromcontroller );
+
+			UCVarValue vval;
+			vval.Float = value;
+			mCVar->SetGenericRep( vval, CVAR_Float );
+			S_Sound( CHAN_VOICE | CHAN_UI, "menu/change", snd_menuvolume, ATTN_NONE );
+		}
+
+		return true;
+	}
+
+private:
+	float mMinimum;
+	float mMaximum;
+	float mStep;
+};

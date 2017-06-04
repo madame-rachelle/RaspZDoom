@@ -41,6 +41,7 @@
 #include "w_wad.h"
 #include "sc_man.h"
 #include "g_level.h"
+#include "p_terrain.h"
 #include "r_data/colormaps.h"
 
 #ifdef _3DFLOORS
@@ -121,6 +122,7 @@ static void P_Add3DFloor(sector_t* sec, sector_t* sec2, line_t* master, int flag
 	
 	//Add the floor
 	ffloor = new F3DFloor;
+	ffloor->top.copied = ffloor->bottom.copied = false;
 	ffloor->top.model = ffloor->bottom.model = ffloor->model = sec2;
 	ffloor->target = sec;
 	ffloor->ceilingclip = ffloor->floorclip = NULL;
@@ -220,18 +222,19 @@ static int P_Set3DFloor(line_t * line, int param, int param2, int alpha)
 	int tag=line->args[0];
     sector_t * sec = line->frontsector, * ss;
 
-    for (s=-1; (s = P_FindSectorFromTag(tag,s)) >= 0;)
+	FSectorTagIterator it(tag);
+	while ((s = it.Next()) >= 0)
 	{
 		ss=&sectors[s];
 
 		if (param==0)
 		{
 			flags=FF_EXISTS|FF_RENDERALL|FF_SOLID|FF_INVERTSECTOR;
+			alpha = 255;
 			for (i=0;i<sec->linecount;i++)
 			{
 				line_t * l=sec->lines[i];
 
-				alpha=255;
 				if (l->special==Sector_SetContents && l->frontsector==sec)
 				{
 					alpha=clamp<int>(l->args[1], 0, 100);
@@ -253,9 +256,8 @@ static int P_Set3DFloor(line_t * line, int param, int param2, int alpha)
 
 						l->frontsector->ColorMap = 
 							GetSpecialLights (l->frontsector->ColorMap->Color, 
-											  (unsigned int)(vavoomcolors[l->args[0]]&VC_COLORMASK), 
-											  (unsigned int)(vavoomcolors[l->args[0]]&VC_ALPHAMASK)>>24);
-										//	  l->frontsector->ColorMap->Desaturate);
+											  vavoomcolors[l->args[0]], 
+											  l->frontsector->ColorMap->Desaturate);
 					}
 					alpha=(alpha*255)/100;
 					break;
@@ -291,11 +293,13 @@ static int P_Set3DFloor(line_t * line, int param, int param2, int alpha)
 			// if flooding is used the floor must be non-solid and is automatically made shootthrough and seethrough
 			if ((param2&128) && !(flags & FF_SOLID)) flags |= FF_FLOOD|FF_SEETHROUGH|FF_SHOOTTHROUGH;
 			if (param2&512) flags |= FF_FADEWALLS;
+			if (param2&1024) flags |= FF_RESET;
 			FTextureID tex = line->sidedef[0]->GetTexture(side_t::top);
 			if (!tex.Exists() && alpha<255)
 			{
-				alpha=clamp(-tex.GetIndex(), 0, 255);
+				alpha = -tex.GetIndex();
 			}
+			alpha = clamp(alpha, 0, 255);
 			if (alpha==0) flags&=~(FF_RENDERALL|FF_BOTHPLANES|FF_ALLSIDES);
 			else if (alpha!=255) flags|=FF_TRANSLUCENT;
 										 
@@ -331,17 +335,23 @@ void P_PlayerOnSpecial3DFloor(player_t* player)
 		if(rover->flags & FF_SOLID)
 		{
 			// Player must be on top of the floor to be affected...
-			if(player->mo->z != rover->top.plane->ZatPoint(player->mo->x, player->mo->y)) continue;
+			if(player->mo->Z() != rover->top.plane->ZatPoint(player->mo)) continue;
 		}
 		else
 		{
 			//Water and DEATH FOG!!! heh
-			if (player->mo->z > rover->top.plane->ZatPoint(player->mo->x, player->mo->y) || 
-				(player->mo->z + player->mo->height) < rover->bottom.plane->ZatPoint(player->mo->x, player->mo->y))
+			if (player->mo->Z() > rover->top.plane->ZatPoint(player->mo) || 
+				player->mo->Top() < rover->bottom.plane->ZatPoint(player->mo))
 				continue;
 		}
-		
-		if (rover->model->special || rover->model->damage) P_PlayerInSpecialSector(player, rover->model);
+
+		// Apply sector specials
+		P_PlayerInSpecialSector(player, rover->model);
+
+		// Apply flat specials (using the ceiling!)
+		P_PlayerOnSpecialFlat(
+			player, rover->model->GetTerrain(rover->top.isceiling));
+
 		break;
 	}
 }
@@ -366,7 +376,7 @@ bool P_CheckFor3DFloorHit(AActor * mo)
 
 		if(rover->flags & FF_SOLID && rover->model->SecActTarget)
 		{
-			if(mo->floorz == rover->top.plane->ZatPoint(mo->x, mo->y)) 
+			if(mo->floorz == rover->top.plane->ZatPoint(mo)) 
 			{
 				rover->model->SecActTarget->TriggerAction (mo, SECSPAC_HitFloor);
 				return true;
@@ -396,7 +406,7 @@ bool P_CheckFor3DCeilingHit(AActor * mo)
 
 		if(rover->flags & FF_SOLID && rover->model->SecActTarget)
 		{
-			if(mo->ceilingz == rover->bottom.plane->ZatPoint(mo->x, mo->y)) 
+			if(mo->ceilingz == rover->bottom.plane->ZatPoint(mo)) 
 			{
 				rover->model->SecActTarget->TriggerAction (mo, SECSPAC_HitCeiling);
 				return true;
@@ -421,11 +431,14 @@ void P_Recalculate3DFloors(sector_t * sector)
 	F3DFloor *		pick;
 	unsigned		pickindex;
 	F3DFloor *		clipped=NULL;
+	F3DFloor *		solid=NULL;
+	fixed_t			solid_bottom=0;
 	fixed_t			clipped_top;
 	fixed_t			clipped_bottom=0;
 	fixed_t			maxheight, minheight;
 	unsigned		i, j;
 	lightlist_t newlight;
+	lightlist_t resetlight;	// what it goes back to after FF_DOUBLESHADOW
 
 	TArray<F3DFloor*> & ffloors=sector->e->XFloor.ffloors;
 	TArray<lightlist_t> & lightlist = sector->e->XFloor.lightlist;
@@ -478,6 +491,7 @@ void P_Recalculate3DFloors(sector_t * sector)
 			}
 
 			oldlist.Delete(pickindex);
+			fixed_t pick_bottom=pick->bottom.plane->ZatPoint(CenterSpot(sector));
 
 			if (pick->flags & FF_THISINSIDE)
 			{
@@ -485,12 +499,40 @@ void P_Recalculate3DFloors(sector_t * sector)
 				// by the clipping code below.
 				ffloors.Push(pick);
 			}
-			else if (pick->flags&(FF_SWIMMABLE|FF_TRANSLUCENT) && pick->flags&FF_EXISTS)
+			else if ((pick->flags&(FF_SWIMMABLE|FF_TRANSLUCENT) || (!(pick->flags&FF_RENDERALL))) && pick->flags&FF_EXISTS)
 			{
-				clipped=pick;
-				clipped_top=height;
-				clipped_bottom=pick->bottom.plane->ZatPoint(CenterSpot(sector));
-				ffloors.Push(pick);
+				// We must check if this nonsolid segment gets clipped from the top by another 3D floor
+				if (solid != NULL && solid_bottom < height)
+				{
+					ffloors.Push(pick);
+					if (solid_bottom < pick_bottom)
+					{
+						// this one is fully covered
+						pick->flags|=FF_CLIPPED;
+						pick->flags&=~FF_EXISTS;
+					}
+					else
+					{
+						F3DFloor * dyn=new F3DFloor;
+						*dyn=*pick;
+						pick->flags|=FF_CLIPPED;
+						pick->flags&=~FF_EXISTS;
+						dyn->flags|=FF_DYNAMIC;
+						dyn->top.copyPlane(&solid->bottom);
+						ffloors.Push(dyn);
+
+						clipped = dyn;
+						clipped_top = solid_bottom;
+						clipped_bottom = pick_bottom;
+					}
+				}
+				else
+				{
+					clipped = pick;
+					clipped_top = height;
+					clipped_bottom = pick_bottom;
+					ffloors.Push(pick);
+				}
 			}
 			else if (clipped && clipped_bottom<height)
 			{
@@ -500,11 +542,9 @@ void P_Recalculate3DFloors(sector_t * sector)
 				clipped->flags|=FF_CLIPPED;
 				clipped->flags&=~FF_EXISTS;
 				dyn->flags|=FF_DYNAMIC;
-				dyn->bottom=pick->top;
+				dyn->bottom.copyPlane(&pick->top);
 				ffloors.Push(dyn);
 				ffloors.Push(pick);
-
-				fixed_t pick_bottom=pick->bottom.plane->ZatPoint(CenterSpot(sector));
 
 				if (pick_bottom<=clipped_bottom)
 				{
@@ -516,14 +556,25 @@ void P_Recalculate3DFloors(sector_t * sector)
 					dyn=new F3DFloor;
 					*dyn=*clipped;
 					dyn->flags|=FF_DYNAMIC|FF_EXISTS;
-					dyn->top=pick->bottom;
+					dyn->top.copyPlane(&pick->bottom);
 					ffloors.Push(dyn);
+					clipped = dyn;
+					clipped_top = pick_bottom;
 				}
+				solid = pick;
+				solid_bottom = pick_bottom;
 			}
 			else
 			{
-				clipped=NULL;
+				clipped = NULL;
+				if (solid == NULL || solid_bottom > pick_bottom)
+				{
+					// only if this one is lower
+					solid = pick;
+					solid_bottom = pick_bottom;
+				}
 				ffloors.Push(pick);
+
 			}
 
 		}
@@ -542,7 +593,9 @@ void P_Recalculate3DFloors(sector_t * sector)
 		lightlist[0].extra_colormap = sector->ColorMap;
 		lightlist[0].blend = 0;
 		lightlist[0].flags = 0;
-		
+
+		resetlight = lightlist[0];
+
 		maxheight = sector->CenterCeiling();
 		minheight = sector->CenterFloor();
 		for(i = 0; i < ffloors.Size(); i++)
@@ -565,7 +618,7 @@ void P_Recalculate3DFloors(sector_t * sector)
 				newlight.flags = rover->flags;
 				lightlist.Push(newlight);
 			}
-			else if (i==0)
+			else
 			{
 				fixed_t ff_bottom=rover->bottom.plane->ZatPoint(CenterSpot(sector));
 				if (ff_bottom<maxheight)
@@ -579,6 +632,18 @@ void P_Recalculate3DFloors(sector_t * sector)
 					lightlist[0].flags = rover->flags;
 				}
 			}
+			if (!(rover->flags & (FF_DOUBLESHADOW | FF_RESET)))
+			{
+				resetlight = lightlist.Last();
+			}
+			else if (rover->flags & FF_RESET)
+			{
+				resetlight.p_lightlevel = &sector->lightlevel;
+				resetlight.lightsource = NULL;
+				resetlight.extra_colormap = sector->ColorMap;
+				resetlight.blend = 0;
+			}
+
 			if (rover->flags&FF_DOUBLESHADOW)
 			{
 				fixed_t ff_bottom=rover->bottom.plane->ZatPoint(CenterSpot(sector));
@@ -586,20 +651,10 @@ void P_Recalculate3DFloors(sector_t * sector)
 				{
 					newlight.caster = rover;
 					newlight.plane = *rover->bottom.plane;
-					if (lightlist.Size()>1)
-					{
-						newlight.lightsource = lightlist[lightlist.Size()-2].lightsource;
-						newlight.p_lightlevel = lightlist[lightlist.Size()-2].p_lightlevel;
-						newlight.extra_colormap = lightlist[lightlist.Size()-2].extra_colormap;
-						newlight.blend = lightlist[lightlist.Size()-2].blend;
-					}
-					else
-					{
-						newlight.lightsource = NULL;
-						newlight.p_lightlevel = &sector->lightlevel;
-						newlight.extra_colormap = sector->ColorMap;
-						newlight.blend = 0;
-					}
+					newlight.lightsource = resetlight.lightsource;
+					newlight.p_lightlevel = resetlight.p_lightlevel;
+					newlight.extra_colormap = resetlight.extra_colormap;
+					newlight.blend = resetlight.blend;
 					newlight.flags = rover->flags;
 					lightlist.Push(newlight);
 				}
@@ -702,7 +757,7 @@ void P_LineOpening_XFloors (FLineOpening &open, AActor * thing, const line_t *li
     {
 		fixed_t thingbot, thingtop;
 		
-		thingbot = thing->z;
+		thingbot = thing->Z();
 		thingtop = thingbot + (thing->height==0? 1:thing->height);
 
 		extsector_t::xfloor *xf[2] = {&linedef->frontsector->e->XFloor, &linedef->backsector->e->XFloor};
@@ -716,6 +771,7 @@ void P_LineOpening_XFloors (FLineOpening &open, AActor * thing, const line_t *li
 				linedef->frontsector->floorplane.ZatPoint(x, y), 
 				linedef->backsector->floorplane.ZatPoint(x, y) };
 			FTextureID highestfloorpic;
+			int highestfloorterrain = -1;
 			FTextureID lowestceilingpic;
 			
 			highestfloorpic.SetInvalid();
@@ -742,12 +798,13 @@ void P_LineOpening_XFloors (FLineOpening &open, AActor * thing, const line_t *li
 						lowestceilingpic = *rover->bottom.texture;
 					}
 					
-					if(ff_top > highestfloor && delta1 < delta2 && (!restrict || thing->z >= ff_top))
+					if(ff_top > highestfloor && delta1 < delta2 && (!restrict || thing->Z() >= ff_top))
 					{
 						highestfloor = ff_top;
 						highestfloorpic = *rover->top.texture;
+						highestfloorterrain = rover->model->GetTerrain(rover->top.isceiling);
 					}
-					if(ff_top > lowestfloor[j] && ff_top <= thing->z + thing->MaxStepHeight) lowestfloor[j] = ff_top;
+					if(ff_top > lowestfloor[j] && ff_top <= thing->Z() + thing->MaxStepHeight) lowestfloor[j] = ff_top;
 				}
 			}
 			
@@ -755,6 +812,7 @@ void P_LineOpening_XFloors (FLineOpening &open, AActor * thing, const line_t *li
 			{
 				open.bottom = highestfloor;
 				open.floorpic = highestfloorpic;
+				open.floorterrain = highestfloorterrain;
 			}
 			
 			if(lowestceiling < open.top) 
@@ -776,7 +834,7 @@ void P_LineOpening_XFloors (FLineOpening &open, AActor * thing, const line_t *li
 //==========================================================================
 void P_Spawn3DFloors (void)
 {
-	static int flagvals[] = {128+512, 2+512, 512};
+	static int flagvals[] = {512, 2+512, 512+1024};
 	int i;
 	line_t * line;
 
@@ -803,7 +861,7 @@ void P_Spawn3DFloors (void)
 			{
 				if (line->args[1]&8)
 				{
-					line->id = line->args[4];
+					tagManager.AddLineID(i, line->args[4]);
 				}
 				else
 				{
@@ -910,4 +968,28 @@ int	P_Find3DFloor(sector_t * sec, fixed_t x, fixed_t y, fixed_t z, bool above, b
 	return -1;
 }
 
-#endif
+#include "c_dispatch.h"
+
+
+CCMD (dump3df)
+{
+	if (argv.argc() > 1) 
+	{
+		int sec = strtol(argv[1], NULL, 10);
+		sector_t *sector = &sectors[sec];
+		TArray<F3DFloor*> & ffloors=sector->e->XFloor.ffloors;
+
+		for (unsigned int i = 0; i < ffloors.Size(); i++)
+		{
+			fixed_t height=ffloors[i]->top.plane->ZatPoint(CenterSpot(sector));
+			fixed_t bheight=ffloors[i]->bottom.plane->ZatPoint(CenterSpot(sector));
+
+			IGNORE_FORMAT_PRE
+			Printf("FFloor %d @ top = %f (model = %d), bottom = %f (model = %d), flags = %B, alpha = %d %s %s\n", 
+				i, height / 65536., ffloors[i]->top.model->sectornum, 
+				bheight / 65536., ffloors[i]->bottom.model->sectornum,
+				ffloors[i]->flags, ffloors[i]->alpha, (ffloors[i]->flags&FF_EXISTS)? "Exists":"", (ffloors[i]->flags&FF_DYNAMIC)? "Dynamic":"");
+			IGNORE_FORMAT_POST
+		}
+	}
+}

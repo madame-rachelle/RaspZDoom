@@ -34,6 +34,10 @@
 // source files, so we can't use it. So define PATH_MAX to be what MAX_PATH
 // currently is:
 #define PATH_MAX 260
+
+// Disable warning about using unsized arrays in structs. It supports it just
+// fine, and so do Clang and GCC, but the latter two don't warn about it.
+#pragma warning(disable:4200)
 #endif
 
 #include <limits.h>
@@ -41,6 +45,9 @@
 #include "name.h"
 #include "zstring.h"
 #include "vectors.h"
+
+struct PClass;
+typedef TMap<int, const PClass *> FClassMap;
 
 // Since this file is included by everything, it seems an appropriate place
 // to check the NOASM/USEASM macros.
@@ -104,6 +111,28 @@
 #define NOVTABLE __declspec(novtable)
 #else
 #define NOVTABLE
+#endif
+
+#if defined(__clang__)
+#if defined(__has_feature) && __has_feature(address_sanitizer)
+#define NO_SANITIZE __attribute__((no_sanitize("address")))
+#else
+#define NO_SANITIZE
+#endif
+#else
+#define NO_SANITIZE
+#endif
+
+#if defined(__GNUC__)
+// With versions of GCC newer than 4.2, it appears it was determined that the
+// cost of an unaligned pointer on PPC was high enough to add padding to the
+// end of packed structs.  For whatever reason __packed__ and pragma pack are
+// handled differently in this regard. Note that this only needs to be applied
+// to types which are used in arrays or sizeof is needed. This also prevents
+// code from taking references to the struct members.
+#define FORCE_PACKED __attribute__((__packed__))
+#else
+#define FORCE_PACKED
 #endif
 
 #include "basictypes.h"

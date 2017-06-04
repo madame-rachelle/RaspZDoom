@@ -203,6 +203,11 @@ private: \
 #define IMPLEMENT_ABSTRACT_CLASS(cls) \
 	_IMP_PCLASS(cls,NULL,NULL)
 
+#define IMPLEMENT_ABSTRACT_POINTY_CLASS(cls) \
+	_IMP_PCLASS(cls,cls::PointerOffsets,NULL) \
+	const size_t cls::PointerOffsets[] = {
+
+
 enum EObjectFlags
 {
 	// GC flags
@@ -473,7 +478,7 @@ public:
 	// use this method.
 	virtual size_t PointerSubstitution (DObject *old, DObject *notOld);
 	static size_t StaticPointerSubstitution (DObject *old, DObject *notOld);
-	
+
 	PClass *GetClass() const
 	{
 		if (Class == NULL)

@@ -96,7 +96,6 @@ CVAR (Bool, gennodes, false, CVAR_SERVERINFO|CVAR_GLOBALCONFIG);
 CVAR (Bool, genglnodes, false, CVAR_SERVERINFO);
 CVAR (Bool, showloadtimes, false, 0);
 
-static void P_InitTagLists ();
 static void P_Shutdown ();
 
 bool P_IsBuildMap(MapData *map);
@@ -250,7 +249,7 @@ static int GetMapIndex(const char *mapname, int lastindex, const char *lumpname,
 //
 //===========================================================================
 
-MapData *P_OpenMapData(const char * mapname)
+MapData *P_OpenMapData(const char * mapname, bool justcheck)
 {
 	MapData * map = new MapData;
 	FileReader * wadReader = NULL;
@@ -272,11 +271,12 @@ MapData *P_OpenMapData(const char * mapname)
 		FString fmt;
 		int lump_wad;
 		int lump_map;
-		int lump_name;
+		int lump_name = -1;
 		
 		// Check for both *.wad and *.map in order to load Build maps
 		// as well. The higher one will take precedence.
-		lump_name = Wads.CheckNumForName(mapname);
+		// Names with more than 8 characters will only be checked as .wad and .map.
+		if (strlen(mapname) <= 8) lump_name = Wads.CheckNumForName(mapname);
 		fmt.Format("maps/%s.wad", mapname);
 		lump_wad = Wads.CheckNumForFullName(fmt);
 		fmt.Format("maps/%s.map", mapname);
@@ -311,7 +311,6 @@ MapData *P_OpenMapData(const char * mapname)
 
 			if (map->Encrypted)
 			{ // If it's encrypted, then it's a Blood file, presumably a map.
-				map->MapLumps[0].Reader = map->file = Wads.ReopenLumpNum(lump_name);
 				if (!P_IsBuildMap(map))
 				{
 					delete map;
@@ -331,12 +330,17 @@ MapData *P_OpenMapData(const char * mapname)
 					const char * lumpname = Wads.GetLumpFullName(lump_name + i);
 					try
 					{
-						index = GetMapIndex(mapname, index, lumpname, true);
+						index = GetMapIndex(mapname, index, lumpname, !justcheck);
 					}
 					catch(...)
 					{
 						delete map;
 						throw;
+					}
+					if (index == -2)
+					{
+						delete map;
+						return NULL;
 					}
 					if (index == ML_BEHAVIOR) map->HasBehavior = true;
 
@@ -471,12 +475,17 @@ MapData *P_OpenMapData(const char * mapname)
 			{
 				try
 				{
-					index = GetMapIndex(maplabel, index, lumpname, true);
+					index = GetMapIndex(maplabel, index, lumpname, !justcheck);
 				}
 				catch(...)
 				{
 					delete map;
 					throw;
+				}
+				if (index == -2)
+				{
+					delete map;
+					return NULL;
 				}
 				if (index == ML_BEHAVIOR) map->HasBehavior = true;
 
@@ -508,7 +517,7 @@ MapData *P_OpenMapData(const char * mapname)
 
 bool P_CheckMapData(const char *mapname)
 {
-	MapData *mapd = P_OpenMapData(mapname);
+	MapData *mapd = P_OpenMapData(mapname, true);
 	if (mapd == NULL) return false;
 	delete mapd;
 	return true;
@@ -527,34 +536,31 @@ void MapData::GetChecksum(BYTE cksum[16])
 {
 	MD5Context md5;
 
-	if (file != NULL)
+	if (isText)
 	{
-		if (isText)
+		Seek(ML_TEXTMAP);
+		if (file != NULL) md5.Update(file, Size(ML_TEXTMAP));
+	}
+	else
+	{
+		if (Size(ML_LABEL) != 0)
 		{
-			Seek(ML_TEXTMAP);
-			md5.Update(file, Size(ML_TEXTMAP));
+			Seek(ML_LABEL);
+			if (file != NULL) md5.Update(file, Size(ML_LABEL));
 		}
-		else
-		{
-			if (Size(ML_LABEL) != 0)
-			{
-				Seek(ML_LABEL);
-				md5.Update(file, Size(ML_LABEL));
-			}
-			Seek(ML_THINGS);
-			md5.Update(file, Size(ML_THINGS));
-			Seek(ML_LINEDEFS);
-			md5.Update(file, Size(ML_LINEDEFS));
-			Seek(ML_SIDEDEFS);
-			md5.Update(file, Size(ML_SIDEDEFS));
-			Seek(ML_SECTORS);
-			md5.Update(file, Size(ML_SECTORS));
-		}
-		if (HasBehavior)
-		{
-			Seek(ML_BEHAVIOR);
-			md5.Update(file, Size(ML_BEHAVIOR));
-		}
+		Seek(ML_THINGS);
+		if (file != NULL) md5.Update(file, Size(ML_THINGS));
+		Seek(ML_LINEDEFS);
+		if (file != NULL) md5.Update(file, Size(ML_LINEDEFS));
+		Seek(ML_SIDEDEFS);
+		if (file != NULL) md5.Update(file, Size(ML_SIDEDEFS));
+		Seek(ML_SECTORS);
+		if (file != NULL) md5.Update(file, Size(ML_SECTORS));
+	}
+	if (HasBehavior)
+	{
+		Seek(ML_BEHAVIOR);
+		if (file != NULL) md5.Update(file, Size(ML_BEHAVIOR));
 	}
 	md5.Final(cksum);
 }
@@ -566,13 +572,11 @@ void MapData::GetChecksum(BYTE cksum[16])
 //
 //===========================================================================
 
-static void SetTexture (side_t *side, int position, const char *name8, FMissingTextureTracker &track)
+static void SetTexture (side_t *side, int position, const char *name, FMissingTextureTracker &track)
 {
 	static const char *positionnames[] = { "top", "middle", "bottom" };
 	static const char *sidenames[] = { "first", "second" };
-	char name[9];
-	strncpy (name, name8, 8);
-	name[8] = 0;
+
 	FTextureID texture = TexMan.CheckForTexture (name, FTexture::TEX_Wall,
 			FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny);
 
@@ -608,12 +612,17 @@ static void SetTexture (side_t *side, int position, const char *name8, FMissingT
 //
 //===========================================================================
 
-void SetTexture (sector_t *sector, int index, int position, const char *name8, FMissingTextureTracker &track)
+void SetTexture (sector_t *sector, int index, int position, const char *name, FMissingTextureTracker &track, bool truncate)
 {
 	static const char *positionnames[] = { "floor", "ceiling" };
-	char name[9];
-	strncpy (name, name8, 8);
-	name[8] = 0;
+	char name8[9];
+	if (truncate)
+	{
+		strncpy(name8, name, 8);
+		name8[8] = 0;
+		name = name8;
+	}
+
 	FTextureID texture = TexMan.CheckForTexture (name, FTexture::TEX_Flat,
 			FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny);
 
@@ -663,11 +672,8 @@ static void SummarizeMissingTextures(const FMissingTextureTracker &missing)
 //
 //===========================================================================
 
-static void SetTexture (side_t *side, int position, DWORD *blend, char *name8)
+static void SetTexture (side_t *side, int position, DWORD *blend, const char *name)
 {
-	char name[9];
-	strncpy (name, name8, 8);
-	name[8] = 0;
 	FTextureID texture;
 	if ((*blend = R_ColormapNumForName (name)) == 0)
 	{
@@ -694,12 +700,9 @@ static void SetTexture (side_t *side, int position, DWORD *blend, char *name8)
 	side->SetTexture(position, texture);
 }
 
-static void SetTextureNoErr (side_t *side, int position, DWORD *color, char *name8, bool *validcolor, bool isFog)
+static void SetTextureNoErr (side_t *side, int position, DWORD *color, const char *name, bool *validcolor, bool isFog)
 {
-	char name[9];
 	FTextureID texture;
-	strncpy (name, name8, 8);
-	name[8] = 0;
 	*validcolor = false;
 	texture = TexMan.CheckForTexture (name, FTexture::TEX_Wall,	
 		FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny);
@@ -1307,7 +1310,7 @@ void P_LoadSegs (MapData * map)
 
 			ptp_angle = R_PointToAngle2 (li->v1->x, li->v1->y, li->v2->x, li->v2->y);
 			dis = 0;
-			delta_angle = (abs(ptp_angle-(segangle<<16))>>ANGLETOFINESHIFT)*360/FINEANGLES;
+			delta_angle = (absangle(ptp_angle-(segangle<<16))>>ANGLETOFINESHIFT)*360/FINEANGLES;
 
 			if (delta_angle != 0)
 			{
@@ -1358,7 +1361,7 @@ void P_LoadSegs (MapData * map)
 			}
 		}
 	}
-	catch (badseg bad)
+	catch (const badseg &bad) // the preferred way is to catch by (const) reference.
 	{
 		switch (bad.badtype)
 		{
@@ -1463,7 +1466,6 @@ void P_LoadSubsectors (MapData * map)
 
 void P_LoadSectors (MapData *map, FMissingTextureTracker &missingtex)
 {
-	char				fname[9];
 	int 				i;
 	char				*msp;
 	mapsector_t			*ms;
@@ -1482,7 +1484,6 @@ void P_LoadSectors (MapData *map, FMissingTextureTracker &missingtex)
 		defSeqType = -1;
 
 	fogMap = normMap = NULL;
-	fname[8] = 0;
 
 	msp = new char[lumplen];
 	map->Read(ML_SECTORS, msp);
@@ -1504,15 +1505,14 @@ void P_LoadSectors (MapData *map, FMissingTextureTracker &missingtex)
 		ss->ceilingplane.d = ss->GetPlaneTexZ(sector_t::ceiling);
 		ss->ceilingplane.c = -FRACUNIT;
 		ss->ceilingplane.ic = -FRACUNIT;
-		SetTexture(ss, i, sector_t::floor, ms->floorpic, missingtex);
-		SetTexture(ss, i, sector_t::ceiling, ms->ceilingpic, missingtex);
+		SetTexture(ss, i, sector_t::floor, ms->floorpic, missingtex, true);
+		SetTexture(ss, i, sector_t::ceiling, ms->ceilingpic, missingtex, true);
 		ss->lightlevel = LittleShort(ms->lightlevel);
 		if (map->HasBehavior)
 			ss->special = LittleShort(ms->special);
 		else	// [RH] Translate to new sector special
 			ss->special = P_TranslateSectorSpecial (LittleShort(ms->special));
-		ss->secretsector = !!(ss->special&SECRET_MASK);
-		ss->tag = LittleShort(ms->tag);
+		tagManager.AddSectorTag(i, LittleShort(ms->tag));
 		ss->thinglist = NULL;
 		ss->touching_thinglist = NULL;		// phares 3/14/98
 		ss->seqType = defSeqType;
@@ -1532,6 +1532,7 @@ void P_LoadSectors (MapData *map, FMissingTextureTracker &missingtex)
 
 		ss->gravity = 1.f;	// [RH] Default sector gravity of 1.0
 		ss->ZoneNumber = 0xFFFF;
+		ss->terrainnum[sector_t::ceiling] = ss->terrainnum[sector_t::floor] = -1;
 
 		// [RH] Sectors default to white light with the default fade.
 		//		If they are outside (have a sky ceiling), they use the outside fog.
@@ -1663,7 +1664,7 @@ AActor *SpawnMapThing(int index, FMapThing *mt, int position)
 	if (dumpspawnedthings)
 	{
 		Printf("%5d: (%5d, %5d, %5d), doomednum = %5d, flags = %04x, type = %s\n",
-			index, mt->x>>FRACBITS, mt->y>>FRACBITS, mt->z>>FRACBITS, mt->type, mt->flags, 
+			index, mt->x>>FRACBITS, mt->y>>FRACBITS, mt->z>>FRACBITS, mt->EdNum, mt->flags, 
 			spawned? spawned->GetClass()->TypeName.GetChars() : "(none)");
 	}
 	T_AddSpawnedThing(spawned);
@@ -1754,6 +1755,10 @@ void P_LoadThings (MapData * map)
 		mti[i].Conversation = 0;
 		mti[i].SkillFilter = MakeSkill(flags);
 		mti[i].ClassFilter = 0xffff;	// Doom map format doesn't have class flags so spawn for all player classes
+		mti[i].RenderStyle = STYLE_Count;
+		mti[i].alpha = -1;
+		mti[i].health = 1;
+		mti[i].FloatbobPhase = -1;
 		flags &= ~MTF_SKILLMASK;
 		mti[i].flags = (short)((flags & 0xf) | 0x7e0);
 		if (gameinfo.gametype == GAME_Strife)
@@ -1780,7 +1785,8 @@ void P_LoadThings (MapData * map)
 		mti[i].x = LittleShort(mt->x) << FRACBITS;
 		mti[i].y = LittleShort(mt->y) << FRACBITS;
 		mti[i].angle = LittleShort(mt->angle);
-		mti[i].type = LittleShort(mt->type);
+		mti[i].EdNum = LittleShort(mt->type);
+		mti[i].info = DoomEdMap.CheckKey(mti[i].EdNum);
 	}
 	delete [] mtp;
 }
@@ -1813,20 +1819,31 @@ void P_LoadThings2 (MapData * map)
 
 	for(int i = 0; i< numthings; i++)
 	{
+		memset (&mti[i], 0, sizeof(mti[i]));
+
 		mti[i].thingid = LittleShort(mth[i].thingid);
 		mti[i].x = LittleShort(mth[i].x)<<FRACBITS;
 		mti[i].y = LittleShort(mth[i].y)<<FRACBITS;
 		mti[i].z = LittleShort(mth[i].z)<<FRACBITS;
 		mti[i].angle = LittleShort(mth[i].angle);
-		mti[i].type = LittleShort(mth[i].type);
+		mti[i].EdNum = LittleShort(mth[i].type);
+		mti[i].info = DoomEdMap.CheckKey(mti[i].EdNum);
 		mti[i].flags = LittleShort(mth[i].flags);
 		mti[i].special = mth[i].special;
 		for(int j=0;j<5;j++) mti[i].args[j] = mth[i].args[j];
 		mti[i].SkillFilter = MakeSkill(mti[i].flags);
 		mti[i].ClassFilter = (mti[i].flags & MTF_CLASS_MASK) >> MTF_CLASS_SHIFT;
 		mti[i].flags &= ~(MTF_SKILLMASK|MTF_CLASS_MASK);
-		mti[i].Conversation = 0;
+		if (level.flags2 & LEVEL2_HEXENHACK)
+		{
+			mti[i].flags &= 0x7ff;	// mask out Strife flags if playing an original Hexen map.
+		}
+
 		mti[i].gravity = FRACUNIT;
+		mti[i].RenderStyle = STYLE_Count;
+		mti[i].alpha = -1;
+		mti[i].health = 1;
+		mti[i].FloatbobPhase = -1;
 	}
 	delete[] mtp;
 }
@@ -1874,13 +1891,6 @@ void P_AdjustLine (line_t *ld)
 	ld->dx = v2->x - v1->x;
 	ld->dy = v2->y - v1->y;
 	
-	if (ld->dx == 0)
-		ld->slopetype = ST_VERTICAL;
-	else if (ld->dy == 0)
-		ld->slopetype = ST_HORIZONTAL;
-	else
-		ld->slopetype = ((ld->dy ^ ld->dx) >= 0) ? ST_POSITIVE : ST_NEGATIVE;
-			
 	if (v1->x < v2->x)
 	{
 		ld->bbox[BOXLEFT] = v1->x;
@@ -1904,53 +1914,58 @@ void P_AdjustLine (line_t *ld)
 	}
 }
 
-void P_SetLineID (line_t *ld)
+void P_SetLineID (int i, line_t *ld)
 {
 	// [RH] Set line id (as appropriate) here
 	// for Doom format maps this must be done in P_TranslateLineDef because
 	// the tag doesn't always go into the first arg.
 	if (level.maptype == MAPTYPE_HEXEN)	
 	{
+		int setid = -1;
 		switch (ld->special)
 		{
 		case Line_SetIdentification:
 			if (!(level.flags2 & LEVEL2_HEXENHACK))
 			{
-				ld->id = ld->args[0] + 256 * ld->args[4];
+				setid = ld->args[0] + 256 * ld->args[4];
 				ld->flags |= ld->args[1]<<16;
 			}
 			else
 			{
-				ld->id = ld->args[0];
+				setid = ld->args[0];
 			}
 			ld->special = 0;
 			break;
 
 		case TranslucentLine:
-			ld->id = ld->args[0];
+			setid = ld->args[0];
 			ld->flags |= ld->args[3]<<16;
 			break;
 
 		case Teleport_Line:
 		case Scroll_Texture_Model:
-			ld->id = ld->args[0];
+			setid = ld->args[0];
 			break;
 
 		case Polyobj_StartLine:
-			ld->id = ld->args[3];
+			setid = ld->args[3];
 			break;
 
 		case Polyobj_ExplicitLine:
-			ld->id = ld->args[4];
+			setid = ld->args[4];
 			break;
 			
 		case Plane_Align:
-			ld->id = ld->args[2];
+			if (!(ib_compatflags & BCOMPATF_NOSLOPEID)) setid = ld->args[2];
 			break;
 			
 		case Static_Init:
-			if (ld->args[1] == Init_SectorLink) ld->id = ld->args[0];
+			if (ld->args[1] == Init_SectorLink) setid = ld->args[0];
 			break;
+		}
+		if (setid != -1)
+		{
+			tagManager.AddLineID(i, setid);
 		}
 	}
 }
@@ -2034,7 +2049,7 @@ void P_FinishLoadingLineDef(line_t *ld, int alpha)
 		{
 			for (j = 0; j < numlines; j++)
 			{
-				if (lines[j].id == ld->args[0])
+				if (tagManager.LineHasID(j, ld->args[0]))
 				{
 					lines[j].Alpha = alpha;
 					if (additive)
@@ -2136,17 +2151,16 @@ void P_LoadLineDefs (MapData * map)
 
 	mld = (maplinedef_t *)mldf;
 	ld = lines;
-	for (i = numlines; i > 0; i--, mld++, ld++)
+	for (i = 0; i < numlines; i++, mld++, ld++)
 	{
 		ld->Alpha = FRACUNIT;	// [RH] Opaque by default
 
 		// [RH] Translate old linedef special and flags to be
 		//		compatible with the new format.
-		P_TranslateLineDef (ld, mld);
+		P_TranslateLineDef (ld, mld, i);
 
 		ld->v1 = &vertexes[LittleShort(mld->v1)];
 		ld->v2 = &vertexes[LittleShort(mld->v2)];
-		//ld->id = -1;		ID has been assigned in P_TranslateLineDef
 
 		P_SetSideNum (&ld->sidedef[0], LittleShort(mld->sidenum[0]));
 		P_SetSideNum (&ld->sidedef[1], LittleShort(mld->sidenum[1]));
@@ -2216,7 +2230,7 @@ void P_LoadLineDefs2 (MapData * map)
 
 	mld = (maplinedef2_t *)mldf;
 	ld = lines;
-	for (i = numlines; i > 0; i--, mld++, ld++)
+	for (i = 0; i < numlines; i++, mld++, ld++)
 	{
 		int j;
 
@@ -2229,13 +2243,12 @@ void P_LoadLineDefs2 (MapData * map)
 		ld->v1 = &vertexes[LittleShort(mld->v1)];
 		ld->v2 = &vertexes[LittleShort(mld->v2)];
 		ld->Alpha = FRACUNIT;	// [RH] Opaque by default
-		ld->id = -1;
 
 		P_SetSideNum (&ld->sidedef[0], LittleShort(mld->sidenum[0]));
 		P_SetSideNum (&ld->sidedef[1], LittleShort(mld->sidenum[1]));
 
 		P_AdjustLine (ld);
-		P_SetLineID(ld);
+		P_SetLineID(i, ld);
 		P_SaveLineSpecial (ld);
 		if (level.flags2 & LEVEL2_CLIPMIDTEX) ld->flags |= ML_CLIP_MIDTEX;
 		if (level.flags2 & LEVEL2_WRAPMIDTEX) ld->flags |= ML_WRAP_MIDTEX;
@@ -2342,7 +2355,16 @@ static void P_LoopSidedefs (bool firstloop)
 		// instead of as part of another loop
 		if (line->frontsector == line->backsector)
 		{
-			right = DWORD(line->sidedef[!sidetemp[i].b.lineside] - sides);
+			const side_t* const rightside = line->sidedef[!sidetemp[i].b.lineside];
+
+			if (NULL == rightside)
+			{
+				// There is no right side!
+				if (firstloop) Printf ("Line %d's right edge is unconnected\n", linemap[unsigned(line-lines)]);
+				continue;
+			}
+
+			right = DWORD(rightside - sides);
 		}
 		else
 		{
@@ -2455,11 +2477,8 @@ int P_DetermineTranslucency (int lumpnum)
 	return newcolor.r;
 }
 
-void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, mapsidedef_t *msd, int special, int tag, short *alpha, FMissingTextureTracker &missingtex)
+void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, intmapsidedef_t *msd, int special, int tag, short *alpha, FMissingTextureTracker &missingtex)
 {
-	char name[9];
-	name[8] = 0;
-
 	switch (special)
 	{
 	case Transfer_Heights:	// variable colormap via 242 linedef
@@ -2485,7 +2504,6 @@ void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, mapside
 
 			SetTextureNoErr (sd, side_t::bottom, &fog, msd->bottomtexture, &foggood, true);
 			SetTextureNoErr (sd, side_t::top, &color, msd->toptexture, &colorgood, false);
-			strncpy (name, msd->midtexture, 8);
 			SetTexture(sd, side_t::mid, msd->midtexture, missingtex);
 
 			if (colorgood | foggood)
@@ -2495,7 +2513,7 @@ void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, mapside
 
 				for (s = 0; s < numsectors; s++)
 				{
-					if (sectors[s].tag == tag)
+					if (tagManager.SectorHasTag(s, tag))
 					{
 						if (!colorgood) color = sectors[s].ColorMap->Color;
 						if (!foggood) fog = sectors[s].ColorMap->Fade;
@@ -2512,12 +2530,10 @@ void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, mapside
 		}
 		break;
 
-#ifdef _3DFLOORS
 	case Sector_Set3DFloor:
 		if (msd->toptexture[0]=='#')
 		{
-			strncpy (name, msd->toptexture, 8);
-			sd->SetTexture(side_t::top, FNullTextureID() +(-strtol(name+1, NULL, 10)));	// store the alpha as a negative texture index
+			sd->SetTexture(side_t::top, FNullTextureID() +(-strtol(&msd->toptexture[1], NULL, 10)));	// store the alpha as a negative texture index
 														// This will be sorted out by the 3D-floor code later.
 		}
 		else
@@ -2528,7 +2544,6 @@ void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, mapside
 		SetTexture(sd, side_t::mid, msd->midtexture, missingtex);
 		SetTexture(sd, side_t::bottom, msd->bottomtexture, missingtex);
 		break;
-#endif
 
 	case TranslucentLine:	// killough 4/11/98: apply translucency to 2s normal texture
 		if (checktranmap)
@@ -2611,7 +2626,13 @@ void P_LoadSideDefs2 (MapData *map, FMissingTextureTracker &missingtex)
 		{
 			sd->sector = sec = &sectors[LittleShort(msd->sector)];
 		}
-		P_ProcessSideTextures(!map->HasBehavior, sd, sec, msd, 
+
+		intmapsidedef_t imsd;
+		imsd.toptexture.CopyCStrPart(msd->toptexture, 8);
+		imsd.midtexture.CopyCStrPart(msd->midtexture, 8);
+		imsd.bottomtexture.CopyCStrPart(msd->bottomtexture, 8);
+
+		P_ProcessSideTextures(!map->HasBehavior, sd, sec, &imsd, 
 							  sidetemp[i].a.special, sidetemp[i].a.tag, &sidetemp[i].a.alpha, missingtex);
 	}
 	delete[] msdf;
@@ -3039,15 +3060,12 @@ void P_LoadBlockMap (MapData * map)
 	blockmap = blockmaplump+4;
 }
 
-
-
 //
 // P_GroupLines
 // Builds sector line lists and subsector sector numbers.
 // Finds block bounding boxes for sectors.
 // [RH] Handles extra lights
 //
-struct linf { short tag; WORD count; };
 line_t**				linebuffer;
 
 static void P_GroupLines (bool buildmap)
@@ -3057,7 +3075,6 @@ static void P_GroupLines (bool buildmap)
 	int 				i;
 	int 				j;
 	int 				total;
-	int					totallights;
 	line_t* 			li;
 	sector_t*			sector;
 	FBoundingBox		bbox;
@@ -3090,7 +3107,6 @@ static void P_GroupLines (bool buildmap)
 	// count number of lines in each sector
 	times[1].Clock();
 	total = 0;
-	totallights = 0;
 	for (i = 0, li = lines; i < numlines; i++, li++)
 	{
 		if (li->frontsector == NULL)
@@ -3131,9 +3147,9 @@ static void P_GroupLines (bool buildmap)
 	{
 		if (sector->linecount == 0)
 		{
-			Printf ("Sector %i (tag %i) has no lines\n", i, sector->tag);
+			Printf ("Sector %i (tag %i) has no lines\n", i, tagManager.GetFirstSectorTag(sector));
 			// 0 the sector's tag so that no specials can use it
-			sector->tag = 0;
+			tagManager.RemoveSectorTags(i);
 		}
 		else
 		{
@@ -3209,7 +3225,8 @@ static void P_GroupLines (bool buildmap)
 
 	// [RH] Moved this here
 	times[4].Clock();
-	P_InitTagLists();   // killough 1/30/98: Create xref tables for tags
+	// killough 1/30/98: Create xref tables for tags
+	tagManager.HashTags();
 	times[4].Unclock();
 
 	times[5].Clock();
@@ -3306,62 +3323,20 @@ void P_LoadBehavior (MapData * map)
 	}
 }
 
-// Hash the sector tags across the sectors and linedefs.
-static void P_InitTagLists ()
-{
-	int i;
-
-	for (i=numsectors; --i>=0; )		// Initially make all slots empty.
-		sectors[i].firsttag = -1;
-	for (i=numsectors; --i>=0; )		// Proceed from last to first sector
-	{									// so that lower sectors appear first
-		int j = (unsigned) sectors[i].tag % (unsigned) numsectors;	// Hash func
-		sectors[i].nexttag = sectors[j].firsttag;	// Prepend sector to chain
-		sectors[j].firsttag = i;
-	}
-
-	// killough 4/17/98: same thing, only for linedefs
-
-	for (i=numlines; --i>=0; )			// Initially make all slots empty.
-		lines[i].firstid = -1;
-	for (i=numlines; --i>=0; )        // Proceed from last to first linedef
-	{									// so that lower linedefs appear first
-		int j = (unsigned) lines[i].id % (unsigned) numlines;	// Hash func
-		lines[i].nextid = lines[j].firstid;	// Prepend linedef to chain
-		lines[j].firstid = i;
-	}
-}
-
 void P_GetPolySpots (MapData * map, TArray<FNodeBuilder::FPolyStart> &spots, TArray<FNodeBuilder::FPolyStart> &anchors)
 {
 	if (map->HasBehavior)
 	{
-		int spot1, spot2, spot3, anchor;
-
-		if (gameinfo.gametype == GAME_Hexen)
-		{
-			spot1 = PO_HEX_SPAWN_TYPE;
-			spot2 = PO_HEX_SPAWNCRUSH_TYPE;
-			anchor = PO_HEX_ANCHOR_TYPE;
-		}
-		else
-		{
-			spot1 = PO_SPAWN_TYPE;
-			spot2 = PO_SPAWNCRUSH_TYPE;
-			anchor = PO_ANCHOR_TYPE;
-		}
-		spot3 = PO_SPAWNHURT_TYPE;
-
 		for (unsigned int i = 0; i < MapThingsConverted.Size(); ++i)
 		{
-			if (MapThingsConverted[i].type == spot1 || MapThingsConverted[i].type == spot2 || 
-				MapThingsConverted[i].type == spot3 || MapThingsConverted[i].type == anchor)
+			FDoomEdEntry *mentry = MapThingsConverted[i].info;
+			if (mentry != NULL && mentry->Type == NULL && mentry->Special >= SMT_PolyAnchor && mentry->Special <= SMT_PolySpawnHurt)
 			{
 				FNodeBuilder::FPolyStart newvert;
 				newvert.x = MapThingsConverted[i].x;
 				newvert.y = MapThingsConverted[i].y;
 				newvert.polynum = MapThingsConverted[i].angle;
-				if (MapThingsConverted[i].type == anchor)
+				if (mentry->Special == SMT_PolyAnchor)
 				{
 					anchors.Push (newvert);
 				}
@@ -3378,10 +3353,12 @@ extern polyblock_t **PolyBlockMap;
 
 void P_FreeLevelData ()
 {
+	interpolator.ClearInterpolations();	// [RH] Nothing to interpolate on a fresh level.
 	Renderer->CleanLevelData();
 	FPolyObj::ClearAllSubsectorLinks(); // can't be done as part of the polyobj deletion process.
 	SN_StopAllSequences ();
 	DThinker::DestroyAllThinkers ();
+	tagManager.Clear();
 	level.total_monsters = level.total_items = level.total_secrets =
 		level.killed_monsters = level.found_items = level.found_secrets =
 		wminfo.maxfrags = 0;
@@ -3542,7 +3519,7 @@ void P_FreeExtraLevelData()
 //
 
 // [RH] position indicates the start spot to spawn at
-void P_SetupLevel (char *lumpname, int position)
+void P_SetupLevel (const char *lumpname, int position)
 {
 	cycle_t times[20];
 	FMapThing *buildthings;
@@ -3608,9 +3585,8 @@ void P_SetupLevel (char *lumpname, int position)
 
 	// Free all level data from the previous map
 	P_FreeLevelData ();
-	interpolator.ClearInterpolations();	// [RH] Nothing to interpolate on a fresh level.
 
-	MapData *map = P_OpenMapData(lumpname);
+	MapData *map = P_OpenMapData(lumpname, true);
 	if (map == NULL)
 	{
 		I_Error("Unable to open map '%s'\n", lumpname);
@@ -3744,7 +3720,9 @@ void P_SetupLevel (char *lumpname, int position)
 		}
 		else
 		{
+			times[0].Clock();
 			P_ParseTextMap(map, missingtex);
+			times[0].Unclock();
 		}
 
 		times[6].Clock();
@@ -4071,7 +4049,7 @@ void P_SetupLevel (char *lumpname, int position)
 		{
 			if (mo->flags & MF_COUNTKILL)
 			{
-				if (mo->Sector->special == dDamage_End)
+				if (mo->Sector->damageamount > 0 && (mo->Sector->Flags & (SECF_ENDGODMODE|SECF_ENDLEVEL)) == (SECF_ENDGODMODE|SECF_ENDLEVEL))
 				{
 					mo->ClearCounters();
 				}

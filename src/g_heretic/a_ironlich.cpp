@@ -20,6 +20,10 @@ class AWhirlwind : public AActor
 	DECLARE_CLASS (AWhirlwind, AActor)
 public:
 	int DoSpecialDamage (AActor *target, int damage, FName damagetype);
+	void BeginPlay()
+	{
+		special1 = 60;
+	}
 };
 
 IMPLEMENT_CLASS(AWhirlwind)
@@ -28,10 +32,14 @@ int AWhirlwind::DoSpecialDamage (AActor *target, int damage, FName damagetype)
 {
 	int randVal;
 
-	target->angle += pr_foo.Random2() << 20;
-	target->velx += pr_foo.Random2() << 10;
-	target->vely += pr_foo.Random2() << 10;
-	if ((level.time & 16) && !(target->flags2 & MF2_BOSS))
+	if (!(target->flags7 & MF7_DONTTHRUST))
+	{
+		target->angle += pr_foo.Random2() << 20;
+		target->velx += pr_foo.Random2() << 10;
+		target->vely += pr_foo.Random2() << 10;
+	}
+
+	if ((level.time & 16) && !(target->flags2 & MF2_BOSS) && !(target->flags7 & MF7_DONTTHRUST))
 	{
 		randVal = pr_foo();
 		if (randVal > 160)
@@ -87,8 +95,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_LichAttack)
 		P_TraceBleed (newdam > 0 ? newdam : damage, target, self);
 		return;
 	}
-	dist = P_AproxDistance (self->x-target->x, self->y-target->y)
-		> 8*64*FRACUNIT;
+	dist = self->AproxDistance (target) > 8*64*FRACUNIT;
 	randAttack = pr_atk ();
 	if (randAttack < atkResolve1[dist])
 	{ // Ice ball
@@ -103,8 +110,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_LichAttack)
 			baseFire->SetState (baseFire->FindState("NoGrow"));
 			for (i = 0; i < 5; i++)
 			{
-				fire = Spawn("HeadFX3", baseFire->x, baseFire->y,
-					baseFire->z, ALLOW_REPLACE);
+				fire = Spawn("HeadFX3", baseFire->Pos(), ALLOW_REPLACE);
 				if (i == 0)
 				{
 					S_Sound (self, CHAN_BODY, "ironlich/attack1", 1, ATTN_NORM);
@@ -125,9 +131,8 @@ DEFINE_ACTION_FUNCTION(AActor, A_LichAttack)
 		mo = P_SpawnMissile (self, target, RUNTIME_CLASS(AWhirlwind));
 		if (mo != NULL)
 		{
-			mo->z -= 32*FRACUNIT;
+			mo->AddZ(-32*FRACUNIT, false);
 			mo->tracer = target;
-			mo->special1 = 60;
 			mo->special2 = 50; // Timer for active sound
 			mo->health = 20*TICRATE; // Duration
 			S_Sound (self, CHAN_BODY, "ironlich/attack3", 1, ATTN_NORM);
@@ -171,13 +176,13 @@ DEFINE_ACTION_FUNCTION(AActor, A_WhirlwindSeek)
 
 DEFINE_ACTION_FUNCTION(AActor, A_LichIceImpact)
 {
-	int i;
+	unsigned int i;
 	angle_t angle;
 	AActor *shard;
 
 	for (i = 0; i < 8; i++)
 	{
-		shard = Spawn("HeadFX2", self->x, self->y, self->z, ALLOW_REPLACE);
+		shard = Spawn("HeadFX2", self->Pos(), ALLOW_REPLACE);
 		angle = i*ANG45;
 		shard->target = self->target;
 		shard->angle = angle;
@@ -198,7 +203,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_LichIceImpact)
 DEFINE_ACTION_FUNCTION(AActor, A_LichFireGrow)
 {
 	self->health--;
-	self->z += 9*FRACUNIT;
+	self->AddZ(9*FRACUNIT);
 	if (self->health == 0)
 	{
 		self->Damage = self->GetDefault()->Damage;

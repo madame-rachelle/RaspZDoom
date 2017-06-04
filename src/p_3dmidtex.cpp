@@ -37,6 +37,7 @@
 
 #include "templates.h"
 #include "p_local.h"
+#include "p_terrain.h"
 
 
 //============================================================================
@@ -143,7 +144,9 @@ void P_Attach3dMidtexLinesToSector(sector_t *sector, int lineid, int tag, bool c
 
 	if (tag == 0)
 	{
-		for(int line = -1; (line = P_FindLineFromID(lineid,line)) >= 0; )
+		FLineIdIterator itr(lineid);
+		int line;
+		while ((line = itr.Next()) >= 0)
 		{
 			line_t *ln = &lines[line];
 
@@ -157,13 +160,15 @@ void P_Attach3dMidtexLinesToSector(sector_t *sector, int lineid, int tag, bool c
 	}
 	else
 	{
-		for(int sec = -1; (sec = P_FindSectorFromTag(tag, sec)) >= 0; )
+		FSectorTagIterator it(tag);
+		int sec;
+		while ((sec = it.Next()) >= 0)
 		{
 			for (int line = 0; line < sectors[sec].linecount; line ++)
 			{
 				line_t *ln = sectors[sec].lines[line];
 
-				if (lineid != 0 && ln->id != lineid) continue;
+				if (lineid != 0 && !tagManager.LineHasID(ln, lineid)) continue;
 
 				if (ln->frontsector == NULL || ln->backsector == NULL || !(ln->flags & ML_3DMIDTEX))
 				{
@@ -223,11 +228,12 @@ bool P_GetMidTexturePosition(const line_t *line, int sideno, fixed_t *ptextop, f
 	FTexture * tex= TexMan(texnum);
 	if (!tex) return false;
 
+	fixed_t totalscale = abs(FixedMul(side->GetTextureYScale(side_t::mid), tex->yScale));
 	fixed_t y_offset = side->GetTextureYOffset(side_t::mid);
-	fixed_t textureheight = tex->GetScaledHeight() << FRACBITS;
-	if (tex->yScale != FRACUNIT && !tex->bWorldPanning)
+	fixed_t textureheight = tex->GetScaledHeight(totalscale) << FRACBITS;
+	if (totalscale != FRACUNIT && !tex->bWorldPanning)
 	{ 
-		y_offset = FixedDiv(y_offset, tex->yScale);
+		y_offset = FixedDiv(y_offset, totalscale);
 	}
 
 	if(line->flags & ML_DONTPEGBOTTOM)
@@ -258,12 +264,19 @@ bool P_GetMidTexturePosition(const line_t *line, int sideno, fixed_t *ptextop, f
 
 bool P_LineOpening_3dMidtex(AActor *thing, const line_t *linedef, FLineOpening &open, bool restrict)
 {
+	// [TP] Impassible-like 3dmidtextures do not block missiles
+	if ((linedef->flags & ML_3DMIDTEX_IMPASS)
+		&& (thing->flags & MF_MISSILE || thing->BounceFlags & BOUNCE_MBF))
+	{
+		return false;
+	}
+
 	fixed_t tt, tb;
 
 	open.abovemidtex = false;
 	if (P_GetMidTexturePosition(linedef, 0, &tt, &tb))
 	{
-		if (thing->z + (thing->height/2) < (tt + tb)/2)
+		if (thing->Z() + (thing->height/2) < (tt + tb)/2)
 		{
 			if (tb < open.top)
 			{
@@ -273,14 +286,16 @@ bool P_LineOpening_3dMidtex(AActor *thing, const line_t *linedef, FLineOpening &
 		}
 		else
 		{
-			if (tt > open.bottom && (!restrict || thing->z >= tt))
+			if (tt > open.bottom && (!restrict || thing->Z() >= tt))
 			{
 				open.bottom = tt;
 				open.abovemidtex = true;
 				open.floorpic = linedef->sidedef[0]->GetTexture(side_t::mid);
+				open.floorterrain = TerrainTypes[open.floorpic];
+				
 			}
 			// returns true if it touches the midtexture
-			return (abs(thing->z - tt) <= thing->MaxStepHeight);
+			return (abs(thing->Z() - tt) <= thing->MaxStepHeight);
 		}
 	}
 	return false;

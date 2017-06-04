@@ -125,10 +125,7 @@ RtlVirtualUnwind (
 #define UPLOAD_BOUNDARY	"Von-DnrNbJl0 P9d_BD;cEEsQVWpYMq0pbZ6NUmYHus;yIbFbkgB?.N=YC5O=BGZm+Rab5"
 #define DBGHELP_URI		"/msredist/dbghelp.dl_"
 
-// If you are working on your own modified version of ZDoom, change
-// the last part of the UPLOAD_AGENT (between parentheses) to your
-// own program's name. e.g. (Skulltag) or (ZDaemon) or (ZDoomFu)
-#define UPLOAD_AGENT	"ZDoom/" VERSIONSTR " (" GAMESIG ")"
+#define UPLOAD_AGENT	GAMENAME "/" VERSIONSTR " (" GAMESIG ")"
 
 // Time, in milliseconds, to wait for a send() or recv() to complete.
 #define TIMEOUT			60000
@@ -842,10 +839,15 @@ HANDLE WriteTextReport ()
 		Writef (file,
 			"\r\nFPU State:\r\n ControlWord=%04x StatusWord=%04x TagWord=%04x\r\n"
 			" ErrorOffset=%08x\r\n ErrorSelector=%08x\r\n DataOffset=%08x\r\n DataSelector=%08x\r\n"
-			" Cr0NpxState=%08x\r\n\r\n",
+			// Cr0NpxState was renamed in recent Windows headers so better skip it here. Its meaning is unknown anyway.
+			//" Cr0NpxState=%08x\r\n"
+			"\r\n"
+			,
 			(WORD)ctxt->FloatSave.ControlWord, (WORD)ctxt->FloatSave.StatusWord, (WORD)ctxt->FloatSave.TagWord,
 			ctxt->FloatSave.ErrorOffset, ctxt->FloatSave.ErrorSelector, ctxt->FloatSave.DataOffset,
-			ctxt->FloatSave.DataSelector, ctxt->FloatSave.Cr0NpxState);
+			ctxt->FloatSave.DataSelector
+			//, ctxt->FloatSave.Cr0NpxState
+			);
 
 		for (i = 0; i < 8; ++i)
 		{
@@ -1962,8 +1964,8 @@ static INT_PTR CALLBACK OverviewDlgProc (HWND hDlg, UINT message, WPARAM wParam,
 		SendMessage (edit, EM_AUTOURLDETECT, TRUE, 0);
 		SendMessage (edit, WM_SETTEXT, 0, (LPARAM)"Please tell us about this problem.\n"
 			"The information will NOT be sent to Microsoft.\n\n"
-			"An error report has been created that you can submit to help improve "GAMENAME". "
-			"You can either save it to disk and make a report in the bugs forum at "FORUM_URL", "
+			"An error report has been created that you can submit to help improve " GAMENAME ". "
+			"You can either save it to disk and make a report in the bugs forum at " FORUM_URL ", "
 			"or you can send it directly without letting other people know about it.");
 		SendMessage (edit, EM_SETSEL, 0, 81);
 		SendMessage (edit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&charFormat);

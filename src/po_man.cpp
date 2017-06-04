@@ -676,13 +676,9 @@ void DPolyDoor::Tick ()
 		break;
 
 	case PODOOR_SWING:
-		if (poly->RotatePolyobj (m_Speed))
+		if (m_Dist <= 0 || poly->RotatePolyobj (m_Speed))
 		{
 			absSpeed = abs (m_Speed);
-			if (m_Dist == -1)
-			{ // perpetual polyobj
-				return;
-			}
 			m_Dist -= absSpeed;
 			if (m_Dist <= 0)
 			{
@@ -905,7 +901,8 @@ void FPolyObj::ThrustMobj (AActor *actor, side_t *side)
 	actor->vely += thrustY;
 	if (crush)
 	{
-		if (bHurtOnTouch || !P_CheckMove (actor, actor->x + thrustX, actor->y + thrustY))
+		fixedvec2 pos = actor->Vec2Offset(thrustX, thrustY);
+		if (bHurtOnTouch || !P_CheckMove (actor, pos.x, pos.y))
 		{
 			int newdam = P_DamageMobj (actor, NULL, NULL, crush, NAME_Crush);
 			P_TraceBleed (newdam > 0 ? newdam : crush, actor);
@@ -950,18 +947,6 @@ void FPolyObj::UpdateBBox ()
 		// Update the line's slopetype
 		line->dx = line->v2->x - line->v1->x;
 		line->dy = line->v2->y - line->v1->y;
-		if (!line->dx)
-		{
-			line->slopetype = ST_VERTICAL;
-		}
-		else if (!line->dy)
-		{
-			line->slopetype = ST_HORIZONTAL;
-		}
-		else
-		{
-			line->slopetype = ((line->dy ^ line->dx) >= 0) ? ST_POSITIVE : ST_NEGATIVE;
-		}
 	}
 	CalcCenter();
 }
@@ -1063,7 +1048,7 @@ static void RotatePt (int an, fixed_t *x, fixed_t *y, fixed_t startSpotX, fixed_
 //
 //==========================================================================
 
-bool FPolyObj::RotatePolyobj (angle_t angle)
+bool FPolyObj::RotatePolyobj (angle_t angle, bool fromsave)
 {
 	int an;
 	bool blocked;
@@ -1085,23 +1070,27 @@ bool FPolyObj::RotatePolyobj (angle_t angle)
 	validcount++;
 	UpdateBBox();
 
-	for(unsigned i=0;i < Sidedefs.Size(); i++)
+	// If we are loading a savegame we do not really want to damage actors and be blocked by them. This can also cause crashes when trying to damage incompletely deserialized player pawns.
+	if (!fromsave)
 	{
-		if (CheckMobjBlocking(Sidedefs[i]))
+		for (unsigned i = 0; i < Sidedefs.Size(); i++)
 		{
-			blocked = true;
+			if (CheckMobjBlocking(Sidedefs[i]))
+			{
+				blocked = true;
+			}
 		}
-	}
-	if (blocked)
-	{
-		for(unsigned i=0;i < Vertices.Size(); i++)
+		if (blocked)
 		{
-			Vertices[i]->x = PrevPts[i].x;
-			Vertices[i]->y = PrevPts[i].y;
+			for(unsigned i=0;i < Vertices.Size(); i++)
+			{
+				Vertices[i]->x = PrevPts[i].x;
+				Vertices[i]->y = PrevPts[i].y;
+			}
+			UpdateBBox();
+			LinkPolyobj();
+			return false;
 		}
-		UpdateBBox();
-		LinkPolyobj();
-		return false;
 	}
 	this->angle += angle;
 	LinkPolyobj();
@@ -1211,8 +1200,8 @@ bool FPolyObj::CheckMobjBlocking (side_t *sd)
 							&& !((mobj->flags & MF_FLOAT) && (ld->flags & ML_BLOCK_FLOATERS))
 							&& (!(ld->flags & ML_3DMIDTEX) ||
 								(!P_LineOpening_3dMidtex(mobj, ld, open) &&
-									(mobj->z + mobj->height < open.top)
-								) || (open.abovemidtex && mobj->z > mobj->floorz))
+									(mobj->Top() < open.top)
+								) || (open.abovemidtex && mobj->Z() > mobj->floorz))
 							)
 						{
 							// [BL] We can't just continue here since we must
@@ -1225,7 +1214,7 @@ bool FPolyObj::CheckMobjBlocking (side_t *sd)
 							performBlockingThrust = true;
 						}
 
-						FBoundingBox box(mobj->x, mobj->y, mobj->radius);
+						FBoundingBox box(mobj->X(), mobj->Y(), mobj->radius);
 
 						if (box.Right() <= ld->bbox[BOXLEFT]
 							|| box.Left() >= ld->bbox[BOXRIGHT]
@@ -1243,15 +1232,15 @@ bool FPolyObj::CheckMobjBlocking (side_t *sd)
 						// Best use the one facing the player and ignore the back side.
 						if (ld->sidedef[1] != NULL)
 						{
-							int side = P_PointOnLineSide(mobj->x, mobj->y, ld);
+							int side = P_PointOnLineSidePrecise(mobj->X(), mobj->Y(), ld);
 							if (ld->sidedef[side] != sd)
 							{
 								continue;
 							}
 							// [BL] See if we hit below the floor/ceiling of the poly.
 							else if(!performBlockingThrust && (
-									mobj->z < ld->sidedef[!side]->sector->GetSecPlane(sector_t::floor).ZatPoint(mobj->x, mobj->y) ||
-									mobj->z + mobj->height > ld->sidedef[!side]->sector->GetSecPlane(sector_t::ceiling).ZatPoint(mobj->x, mobj->y)
+									mobj->Z() < ld->sidedef[!side]->sector->GetSecPlane(sector_t::floor).ZatPoint(mobj) ||
+									mobj->Top() > ld->sidedef[!side]->sector->GetSecPlane(sector_t::ceiling).ZatPoint(mobj)
 								))
 							{
 								performBlockingThrust = true;
@@ -1545,11 +1534,15 @@ static void IterFindPolySides (FPolyObj *po, side_t *side)
 //
 //==========================================================================
 
+static int STACK_ARGS posicmp(const void *a, const void *b)
+{
+	return (*(const side_t **)a)->linedef->args[1] - (*(const side_t **)b)->linedef->args[1];
+}
+
 static void SpawnPolyobj (int index, int tag, int type)
 {
 	unsigned int ii;
 	int i;
-	int j;
 	FPolyObj *po = &polyobjs[index];
 
 	for (ii = 0; ii < KnownPolySides.Size(); ++ii)
@@ -1573,8 +1566,8 @@ static void SpawnPolyobj (int index, int tag, int type)
 			sd->linedef->args[0] = 0;
 			IterFindPolySides(&polyobjs[index], sd);
 			po->MirrorNum = sd->linedef->args[1];
-			po->crush = (type != PO_SPAWN_TYPE) ? 3 : 0;
-			po->bHurtOnTouch = (type == PO_SPAWNHURT_TYPE);
+			po->crush = (type != SMT_PolySpawn) ? 3 : 0;
+			po->bHurtOnTouch = (type == SMT_PolySpawnHurt);
 			po->tag = tag;
 			po->seqType = sd->linedef->args[2];
 			if (po->seqType < 0 || po->seqType > 63)
@@ -1589,63 +1582,28 @@ static void SpawnPolyobj (int index, int tag, int type)
 		// didn't find a polyobj through PO_LINE_START
 		TArray<side_t *> polySideList;
 		unsigned int psIndexOld;
-		for (j = 1; j < PO_MAXPOLYSEGS; j++)
-		{
-			psIndexOld = po->Sidedefs.Size();
-			for (ii = 0; ii < KnownPolySides.Size(); ++ii)
-			{
-				i = KnownPolySides[ii];
+		psIndexOld = po->Sidedefs.Size();
 
-				if (i >= 0 &&
-					sides[i].linedef->special == Polyobj_ExplicitLine &&
-					sides[i].linedef->args[0] == tag)
-				{
-					if (!sides[i].linedef->args[1])
-					{
-						I_Error ("SpawnPolyobj: Explicit line missing order number (probably %d) in poly %d.\n",
-							j+1, tag);
-					}
-					if (sides[i].linedef->args[1] == j)
-					{
-						po->Sidedefs.Push (&sides[i]);
-					}
-				}
-			}
-			// Clear out any specials for these segs...we cannot clear them out
-			// 	in the above loop, since we aren't guaranteed one seg per linedef.
-			for (ii = 0; ii < KnownPolySides.Size(); ++ii)
+		for (ii = 0; ii < KnownPolySides.Size(); ++ii)
+		{
+			i = KnownPolySides[ii];
+
+			if (i >= 0 &&
+				sides[i].linedef->special == Polyobj_ExplicitLine &&
+				sides[i].linedef->args[0] == tag)
 			{
-				i = KnownPolySides[ii];
-				if (i >= 0 &&
-					sides[i].linedef->special == Polyobj_ExplicitLine &&
-					sides[i].linedef->args[0] == tag && sides[i].linedef->args[1] == j)
+				if (!sides[i].linedef->args[1])
 				{
-					sides[i].linedef->special = 0;
-					sides[i].linedef->args[0] = 0;
-					KnownPolySides[ii] = -1;
+					I_Error("SpawnPolyobj: Explicit line missing order number in poly %d, linedef %d.\n", tag, int(sides[i].linedef - lines));
 				}
-			}
-			if (po->Sidedefs.Size() == psIndexOld)
-			{ // Check if an explicit line order has been skipped.
-			  // A line has been skipped if there are any more explicit
-			  // lines with the current tag value. [RH] Can this actually happen?
-				for (ii = 0; ii < KnownPolySides.Size(); ++ii)
-				{
-					i = KnownPolySides[ii];
-					if (i >= 0 &&
-						sides[i].linedef->special == Polyobj_ExplicitLine &&
-						sides[i].linedef->args[0] == tag)
-					{
-						I_Error ("SpawnPolyobj: Missing explicit line %d for poly %d\n",
-							j, tag);
-					}
-				}
+				po->Sidedefs.Push (&sides[i]);
 			}
 		}
+		qsort(&po->Sidedefs[0], po->Sidedefs.Size(), sizeof(po->Sidedefs[0]), posicmp);
 		if (po->Sidedefs.Size() > 0)
 		{
-			po->crush = (type != PO_SPAWN_TYPE) ? 3 : 0;
-			po->bHurtOnTouch = (type == PO_SPAWNHURT_TYPE);
+			po->crush = (type != SMT_PolySpawn) ? 3 : 0;
+			po->bHurtOnTouch = (type == SMT_PolySpawnHurt);
 			po->tag = tag;
 			po->seqType = po->Sidedefs[0]->linedef->args[3];
 			po->MirrorNum = po->Sidedefs[0]->linedef->args[2];
@@ -1768,9 +1726,7 @@ void PO_Init (void)
 	for (polyspawn = polyspawns, prev = &polyspawns; polyspawn;)
 	{
 		// 9301 (3001) = no crush, 9302 (3002) = crushing, 9303 = hurting touch
-		if (polyspawn->type == PO_SPAWN_TYPE ||
-			polyspawn->type == PO_SPAWNCRUSH_TYPE ||
-			polyspawn->type == PO_SPAWNHURT_TYPE)
+		if (polyspawn->type >= SMT_PolySpawn &&	polyspawn->type <= SMT_PolySpawnHurt)
 		{ 
 			// Polyobj StartSpot Pt.
 			polyobjs[polyIndex].StartSpot.x = polyspawn->x;
@@ -1790,7 +1746,7 @@ void PO_Init (void)
 	for (polyspawn = polyspawns; polyspawn;)
 	{
 		polyspawns_t *next = polyspawn->next;
-		if (polyspawn->type == PO_ANCHOR_TYPE)
+		if (polyspawn->type == SMT_PolyAnchor)
 		{ 
 			// Polyobj Anchor Pt.
 			TranslateToStartSpot (polyspawn->angle, polyspawn->x, polyspawn->y);

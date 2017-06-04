@@ -42,7 +42,6 @@ extern fixed_t			FocalLengthX, FocalLengthY;
 extern float			FocalLengthXfloat;
 extern fixed_t			InvZtoScale;
 
-extern float			WallTMapScale;
 extern float			WallTMapScale2;
 
 extern int				viewwindowx;
@@ -130,7 +129,7 @@ void R_InitTextureMapping ();
 
 // Called by G_Drawer.
 void R_RenderActorView (AActor *actor, bool dontmaplines = false);
-void R_SetupBuffer ();
+void R_SetupBuffer (bool inview);
 
 void R_RenderViewToCanvas (AActor *actor, DCanvas *canvas, int x, int y, int width, int height, bool dontmaplines = false);
 

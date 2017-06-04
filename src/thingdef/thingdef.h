@@ -266,11 +266,11 @@ enum EDefinitionType
 #define GCC_MSEG
 #else
 #define MSVC_ASEG
-#define GCC_ASEG __attribute__((section(SECTION_AREG)))
+#define GCC_ASEG __attribute__((section(SECTION_AREG))) __attribute__((used))
 #define MSVC_PSEG
-#define GCC_PSEG __attribute__((section(SECTION_GREG)))
+#define GCC_PSEG __attribute__((section(SECTION_GREG))) __attribute__((used))
 #define MSVC_MSEG
-#define GCC_MSEG __attribute__((section(SECTION_MREG)))
+#define GCC_MSEG __attribute__((section(SECTION_MREG))) __attribute__((used))
 #endif
 
 
@@ -382,7 +382,7 @@ struct StateCallData
 	void AF_##name (AActor *self, AActor *stateowner, FState *, int, StateCallData *); \
 	static AFuncDesc info_##cls##_##name = { #name, AF_##name }; \
 	MSVC_ASEG AFuncDesc *infoptr_##cls##_##name GCC_ASEG = &info_##cls##_##name; \
-	void AF_##name (AActor *self, AActor *stateowner, FState *, int, StateCallData *statecall)
+	void AF_##name (AActor *self, AActor *stateowner, FState *CallingState, int, StateCallData *statecall)
 
 #define DEFINE_ACTION_FUNCTION_PARAMS(cls, name) \
 	void AFP_##name (AActor *self, AActor *stateowner, FState *CallingState, int ParameterIndex, StateCallData *statecall); \

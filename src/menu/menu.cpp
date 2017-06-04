@@ -65,7 +65,7 @@ CVAR (Bool, show_obituaries, true, CVAR_ARCHIVE)
 
 
 CVAR (Float, snd_menuvolume, 0.6f, CVAR_ARCHIVE)
-CVAR(Int, m_use_mouse, 1, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CVAR(Int, m_use_mouse, 2, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR(Int, m_show_backbutton, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 DMenu *DMenu::CurrentMenu;
@@ -715,7 +715,11 @@ void M_Drawer (void)
 
 	if (DMenu::CurrentMenu != NULL && menuactive != MENU_Off) 
 	{
-		if (DMenu::CurrentMenu->DimAllowed()) screen->Dim(fade);
+		if (DMenu::CurrentMenu->DimAllowed())
+		{
+			screen->Dim(fade);
+			V_SetBorderNeedRefresh();
+		}
 		DMenu::CurrentMenu->Drawer();
 	}
 }

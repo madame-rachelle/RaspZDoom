@@ -49,8 +49,6 @@ struct sfxinfo_t
 
 	WORD		bRandomHeader:1;
 	WORD		bPlayerReserve:1;
-	WORD		bForce11025:1;
-	WORD		bForce22050:1;
 	WORD		bLoadRAW:1;
 	WORD		bPlayerCompat:1;
 	WORD		b16bit:1;
@@ -58,6 +56,8 @@ struct sfxinfo_t
 	WORD		bSingular:1;
 	WORD		bTentative:1;
 	WORD		bPlayerSilent:1;		// This player sound is intentionally silent.
+
+	WORD		RawRate;				// Sample rate to use when bLoadRAW is true
 
 	int			LoopStart;				// -1 means no specific loop defined
 
@@ -329,6 +329,7 @@ int S_GetMusic (char **name);
 
 // Stops the music for sure.
 void S_StopMusic (bool force);
+void S_UpdateMusic();
 
 // Stop and resume music, during game PAUSE.
 void S_PauseSound (bool notmusic, bool notsfx);
@@ -389,14 +390,26 @@ enum EMidiDevice
 	MDEV_DEFAULT = -1,
 	MDEV_MMAPI = 0,
 	MDEV_OPL = 1,
-	MDEV_FMOD = 2,
+	MDEV_SNDSYS = 2,
 	MDEV_TIMIDITY = 3,
 	MDEV_FLUIDSYNTH = 4,
 	MDEV_GUS = 5,
+	MDEV_WILDMIDI = 6,
+};
+
+struct MidiDeviceSetting
+{
+	int device;
+	FString args;
+
+	MidiDeviceSetting()
+	{
+		device = MDEV_DEFAULT;
+	}
 };
 
 typedef TMap<FName, FName> MusicAliasMap;
-typedef TMap<FName, int> MidiDeviceMap;
+typedef TMap<FName, MidiDeviceSetting> MidiDeviceMap;
 
 extern MusicAliasMap MusicAliases;
 extern MidiDeviceMap MidiDevices;

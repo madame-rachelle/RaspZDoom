@@ -40,7 +40,6 @@
 #include "r_bsp.h"
 #include "r_swrenderer.h"
 #include "r_3dfloors.h"
-#include "r_polymost.h"
 #include "textures/textures.h"
 #include "r_data/voxels.h"
 
@@ -49,7 +48,6 @@ class FArchive;
 void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, int trueratio);
 void R_SetupColormap(player_t *);
 void R_SetupFreelook();
-void R_SetupPolymost();
 void R_InitRenderer();
 
 extern float LastFOV;
@@ -86,7 +84,7 @@ void FSoftwareRenderer::PrecacheTexture(FTexture *tex, int cache)
 {
 	if (tex != NULL)
 	{
-		if (cache & 1)
+		if (cache & FTextureManager::HIT_Columnmode)
 		{
 			const FTexture::Span *spanp;
 			tex->GetColumn(0, &spanp);
@@ -111,6 +109,7 @@ void FSoftwareRenderer::PrecacheTexture(FTexture *tex, int cache)
 void FSoftwareRenderer::RenderView(player_t *player)
 {
 	R_RenderActorView (player->mo);
+	R_DetailDouble ();		// [RH] Apply detail mode expansion
 	// [RH] Let cameras draw onto textures that were visible this frame.
 	FCanvasTextureInfo::UpdateAll ();
 }
@@ -190,7 +189,7 @@ void FSoftwareRenderer::OnModeSet ()
 
 	RenderTarget = screen;
 	screen->Lock (true);
-	R_SetupBuffer ();
+	R_SetupBuffer (false);
 	screen->Unlock ();
 }
 
@@ -245,7 +244,6 @@ void FSoftwareRenderer::SetupFrame(player_t *player)
 {
 	R_SetupColormap(player);
 	R_SetupFreelook();
-	R_SetupPolymost();
 }
 
 //==========================================================================
@@ -270,6 +268,11 @@ void FSoftwareRenderer::RenderTextureView (FCanvasTexture *tex, AActor *viewpoin
 	BYTE *Pixels = const_cast<BYTE*>(tex->GetPixels());
 	DSimpleCanvas *Canvas = tex->GetCanvas();
 
+	// curse Doom's overuse of global variables in the renderer.
+	// These get clobbered by rendering to a camera texture but they need to be preserved so the final rendering can be done with the correct palette.
+	unsigned char *savecolormap = fixedcolormap;
+	FSpecialColormap *savecm = realfixedcolormap;
+
 	float savedfov = LastFOV;
 	R_SetFOV ((float)fov);
 	R_RenderViewToCanvas (viewpoint, Canvas, 0, 0, tex->GetWidth(), tex->GetHeight(), tex->bFirstUpdate);
@@ -283,6 +286,8 @@ void FSoftwareRenderer::RenderTextureView (FCanvasTexture *tex, AActor *viewpoin
 		FTexture::FlipNonSquareBlockRemap (Pixels, Canvas->GetBuffer(), tex->GetWidth(), tex->GetHeight(), Canvas->GetPitch(), GPalette.Remap);
 	}
 	tex->SetUpdated();
+	fixedcolormap = savecolormap;
+	realfixedcolormap = savecm;
 }
 
 //==========================================================================

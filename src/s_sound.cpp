@@ -134,7 +134,7 @@ BYTE *S_SoundCurve;
 int S_SoundCurveSize;
 
 FBoolCVar noisedebug ("noise", false, 0);	// [RH] Print sound debugging info?
-CVAR (Int, snd_channels, 32, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)	// number of channels available
+CVAR (Int, snd_channels, 16, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)	// number of channels available
 CVAR (Bool, snd_flipstereo, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 // CODE --------------------------------------------------------------------
@@ -175,9 +175,10 @@ void S_NoiseDebug (void)
 		return;
 	}
 
-	listener.X = FIXED2FLOAT(players[consoleplayer].camera->x);
-	listener.Y = FIXED2FLOAT(players[consoleplayer].camera->z);
-	listener.Z = FIXED2FLOAT(players[consoleplayer].camera->y);
+
+	listener.X = FIXED2FLOAT(players[consoleplayer].camera->SoundX());
+	listener.Y = FIXED2FLOAT(players[consoleplayer].camera->SoundZ());
+	listener.Z = FIXED2FLOAT(players[consoleplayer].camera->SoundY());
 
 	// Display the oldest channel first.
 	for (chan = Channels; chan->NextChan != NULL; chan = chan->NextChan)
@@ -383,7 +384,7 @@ void S_Start ()
 	{
 		// kill all playing sounds at start of level (trust me - a good idea)
 		S_StopAllChannels();
-		
+
 		// Check for local sound definitions. Only reload if they differ
 		// from the previous ones.
 		FString LocalSndInfo;
@@ -486,6 +487,11 @@ void S_PrecacheLevel ()
 		for (i = 0; i < level.info->PrecacheSounds.Size(); ++i)
 		{
 			level.info->PrecacheSounds[i].MarkUsed();
+		}
+		// Don't unload sounds that are playing right now.
+		for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+		{
+			chan->SoundID.MarkUsed();
 		}
 
 		for (i = 1; i < S_sfx.Size(); ++i)
@@ -661,64 +667,67 @@ static void CalcPosVel(int type, const AActor *actor, const sector_t *sector,
 
 		if (players[consoleplayer].camera != NULL)
 		{
-			x = players[consoleplayer].camera->x;
-			y = players[consoleplayer].camera->z;
-			z = players[consoleplayer].camera->y;
+			x = players[consoleplayer].camera->SoundX();
+			y = players[consoleplayer].camera->SoundZ();
+			z = players[consoleplayer].camera->SoundY();
 		}
 		else
 		{
 			z = y = x = 0;
 		}
 
-		switch (type)
+		// [BL] Moved this case out of the switch statement to make code easier
+		//      on static analysis.
+		if(type == SOURCE_Unattached)
 		{
-		case SOURCE_None:
-		default:
-			break;
-
-		case SOURCE_Actor:
-//			assert(actor != NULL);
-			if (actor != NULL)
-			{
-				x = actor->x;
-				y = actor->z;
-				z = actor->y;
-			}
-			break;
-
-		case SOURCE_Sector:
-			assert(sector != NULL);
-			if (sector != NULL)
-			{
-				if (chanflags & CHAN_AREA)
-				{
-					CalcSectorSoundOrg(sector, channum, &x, &z, &y);
-				}
-				else
-				{
-					x = sector->soundorg[0];
-					z = sector->soundorg[1];
-					chanflags |= CHAN_LISTENERZ;
-				}
-			}
-			break;
-
-		case SOURCE_Polyobj:
-			assert(poly != NULL);
-			CalcPolyobjSoundOrg(poly, &x, &z, &y);
-			break;
-
-		case SOURCE_Unattached:
 			pos->X = pt[0];
 			pos->Y = !(chanflags & CHAN_LISTENERZ) ? pt[1] : FIXED2FLOAT(y);
 			pos->Z = pt[2];
-			break;
 		}
-		if (type != SOURCE_Unattached)
+		else
 		{
+			switch (type)
+			{
+			case SOURCE_None:
+			default:
+				break;
+
+			case SOURCE_Actor:
+				//assert(actor != NULL);
+				if (actor != NULL)
+				{
+					x = actor->SoundX();
+					y = actor->SoundZ();
+					z = actor->SoundY();
+				}
+				break;
+
+			case SOURCE_Sector:
+				assert(sector != NULL);
+				if (sector != NULL)
+				{
+					if (chanflags & CHAN_AREA)
+					{
+						CalcSectorSoundOrg(sector, channum, &x, &z, &y);
+					}
+					else
+					{
+						x = sector->soundorg[0];
+						z = sector->soundorg[1];
+						chanflags |= CHAN_LISTENERZ;
+					}
+				}
+				break;
+
+			case SOURCE_Polyobj:
+				assert(poly != NULL);
+				CalcPolyobjSoundOrg(poly, &x, &z, &y);
+				break;
+			}
+
 			if ((chanflags & CHAN_LISTENERZ) && players[consoleplayer].camera != NULL)
 			{
-				y = players[consoleplayer].camera != NULL ? players[consoleplayer].camera->z : 0;
+				y = players[consoleplayer].camera != NULL ? players[consoleplayer].camera->SoundZ() : 0;
 			}
 			pos->X = FIXED2FLOAT(x);
 			pos->Y = FIXED2FLOAT(y);
@@ -731,8 +740,8 @@ static void CalcPosVel(int type, const AActor *actor, const sector_t *sector,
 		if (type == SOURCE_Actor && actor != NULL)
 		{
 			vel->X = FIXED2FLOAT(actor->velx) * TICRATE;
-			vel->Y = FIXED2FLOAT(actor->velz) * TICRATE;
-			vel->Z = FIXED2FLOAT(actor->vely) * TICRATE;
+			vel->Y = FIXED2FLOAT(actor->vely) * TICRATE;
+			vel->Z = FIXED2FLOAT(actor->velz) * TICRATE;
 		}
 		else
 		{
@@ -758,8 +767,8 @@ static void CalcSectorSoundOrg(const sector_t *sec, int channum, fixed_t *x, fix
 		// Are we inside the sector? If yes, the closest point is the one we're on.
 		if (P_PointInSector(*x, *y) == sec)
 		{
-			*x = players[consoleplayer].camera->x;
-			*y = players[consoleplayer].camera->y;
+			*x = players[consoleplayer].camera->SoundX();
+			*y = players[consoleplayer].camera->SoundY();
 		}
 		else
 		{
@@ -1311,52 +1320,35 @@ sfxinfo_t *S_LoadSound(sfxinfo_t *sfx)
 		int size = Wads.LumpLength(sfx->lumpnum);
 		if (size > 0)
 		{
-			BYTE *sfxdata;
-			BYTE *sfxstart;
 			FWadLump wlump = Wads.OpenLumpNum(sfx->lumpnum);
-			sfxstart = sfxdata = new BYTE[size];
+			BYTE *sfxdata = new BYTE[size];
 			wlump.Read(sfxdata, size);
-			SDWORD len = LittleLong(((SDWORD *)sfxdata)[1]);
+			SDWORD dmxlen = LittleLong(((SDWORD *)sfxdata)[1]);
 
 			// If the sound is voc, use the custom loader.
-			if (strncmp ((const char *)sfxstart, "Creative Voice File", 19) == 0)
+			if (strncmp ((const char *)sfxdata, "Creative Voice File", 19) == 0)
 			{
-				sfx->data = GSnd->LoadSoundVoc(sfxstart, len);
+				sfx->data = GSnd->LoadSoundVoc(sfxdata, size);
 			}
 			// If the sound is raw, just load it as such.
-			// Otherwise, try the sound as DMX format.
-			// If that fails, let FMOD try and figure it out.
-			else if (sfx->bLoadRAW ||
-				(((BYTE *)sfxdata)[0] == 3 && ((BYTE *)sfxdata)[1] == 0 && len <= size - 8))
+			else if (sfx->bLoadRAW)
 			{
-				int frequency;
-
-				if (sfx->bLoadRAW)
-				{
-					len = Wads.LumpLength (sfx->lumpnum);
-					frequency = (sfx->bForce22050 ? 22050 : 11025);
-				}
-				else
-				{
-					frequency = LittleShort(((WORD *)sfxdata)[1]);
-					if (frequency == 0)
-					{
-						frequency = 11025;
-					}
-					sfxstart = sfxdata + 8;
-				}
-				sfx->data = GSnd->LoadSoundRaw(sfxstart, len, frequency, 1, 8, sfx->LoopStart);
+				sfx->data = GSnd->LoadSoundRaw(sfxdata, size, sfx->RawRate, 1, 8, sfx->LoopStart);
 			}
+			// Otherwise, try the sound as DMX format.
+			else if (((BYTE *)sfxdata)[0] == 3 && ((BYTE *)sfxdata)[1] == 0 && dmxlen <= size - 8)
+			{
+				int frequency = LittleShort(((WORD *)sfxdata)[1]);
+				if (frequency == 0) frequency = 11025;
+				sfx->data = GSnd->LoadSoundRaw(sfxdata+8, dmxlen, frequency, 1, 8, sfx->LoopStart);
+			}
+			// If that fails, let the sound system try and figure it out.
 			else
 			{
-				len = Wads.LumpLength (sfx->lumpnum);
-				sfx->data = GSnd->LoadSound(sfxstart, len);
+				sfx->data = GSnd->LoadSound(sfxdata, size);
 			}
-			
-			if (sfxdata != NULL)
-			{
-				delete[] sfxdata;
-			}
+
+			delete[] sfxdata;
 		}
 
 		if (!sfx->data.isValid())
@@ -1575,13 +1567,13 @@ void S_RelinkSound (AActor *from, AActor *to)
 			{
 				chan->Actor = to;
 			}
-			else if (!(chan->ChanFlags & CHAN_LOOP))
+			else if (!(chan->ChanFlags & CHAN_LOOP) && !(compatflags2 & COMPATF2_SOUNDCUTOFF))
 			{
 				chan->Actor = NULL;
 				chan->SourceType = SOURCE_Unattached;
-				chan->Point[0] = FIXED2FLOAT(from->x);
-				chan->Point[1] = FIXED2FLOAT(from->z);
-				chan->Point[2] = FIXED2FLOAT(from->y);
+				chan->Point[0] = FIXED2FLOAT(from->SoundX());
+				chan->Point[1] = FIXED2FLOAT(from->SoundZ());
+				chan->Point[2] = FIXED2FLOAT(from->SoundY());
 			}
 			else
 			{
@@ -1783,20 +1775,12 @@ void S_SetSoundPaused (int state)
 {
 	if (state)
 	{
-		if (paused <= 0)
+		if (paused == 0)
 		{
 			S_ResumeSound(true);
 			if (GSnd != NULL)
 			{
 				GSnd->SetInactive(SoundRenderer::INACTIVE_Active);
-			}
-			if (!netgame
-#ifdef _DEBUG
-				&& !demoplayback
-#endif
-				)
-			{
-				paused = 0;
 			}
 		}
 	}
@@ -1811,15 +1795,15 @@ void S_SetSoundPaused (int state)
 					SoundRenderer::INACTIVE_Complete :
 					SoundRenderer::INACTIVE_Mute);
 			}
-			if (!netgame
-#ifdef _DEBUG
-				&& !demoplayback
-#endif
-				)
-			{
-				paused = -1;
-			}
 		}
+	}
+	if (!netgame
+#ifdef _DEBUG
+		&& !demoplayback
+#endif
+		)
+	{
+		pauseext = !state;
 	}
 }
 
@@ -1976,9 +1960,9 @@ static void S_SetListener(SoundListener &listener, AActor *listenactor)
 		listener.velocity.Z = listenactor->vely * (TICRATE/65536.f);
 		*/
 		listener.velocity.Zero();
-		listener.position.X = FIXED2FLOAT(listenactor->x);
-		listener.position.Y = FIXED2FLOAT(listenactor->z);
-		listener.position.Z = FIXED2FLOAT(listenactor->y);
+		listener.position.X = FIXED2FLOAT(listenactor->SoundX());
+		listener.position.Y = FIXED2FLOAT(listenactor->SoundZ());
+		listener.position.Z = FIXED2FLOAT(listenactor->SoundY());
 		listener.underwater = listenactor->waterlevel == 3;
 		assert(zones != NULL);
 		listener.Environment = zones[listenactor->Sector->ZoneNumber].Environment;
@@ -2091,12 +2075,6 @@ void S_ChannelEnded(FISoundChannel *ichan)
 				evicted = (pos < len);
 			}
 		}
-		/*
-		else
-		{
-			evicted = false;
-		}
-		*/
 		if (!evicted)
 		{
 			S_ReturnChannel(schan);
@@ -2354,8 +2332,6 @@ bool S_StartMusic (const char *m_id)
 // specified, it will only be played if the specified CD is in a drive.
 //==========================================================================
 
-TArray<BYTE> musiccache;
-
 bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 {
 	if (!force && PlayList)
@@ -2400,6 +2376,16 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 		}
 	}
 
+	FName *aliasp = MusicAliases.CheckKey(musicname);
+	if (aliasp != NULL) 
+	{
+		if (*aliasp == NAME_None)
+		{
+			return true;	// flagged to be ignored
+		}
+		musicname = aliasp->GetChars();
+	}
+
 	if (!mus_playing.name.IsEmpty() &&
 		mus_playing.handle != NULL &&
 		stricmp (mus_playing.name, musicname) == 0 &&
@@ -2435,20 +2421,9 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 	else
 	{
 		int lumpnum = -1;
-		int offset = 0, length = 0;
-		int device = MDEV_DEFAULT;
+		int length = 0;
 		MusInfo *handle = NULL;
-		FName musicasname = musicname;
-
-		FName *aliasp = MusicAliases.CheckKey(musicasname);
-		if (aliasp != NULL) 
-		{
-			musicname = (musicasname = *aliasp).GetChars();
-			if (musicasname == NAME_None) return true;
-		}
-
-		int *devp = MidiDevices.CheckKey(musicasname);
-		if (devp != NULL) device = *devp;
+		MidiDeviceSetting *devp = MidiDevices.CheckKey(musicname);
 
 		// Strip off any leading file:// component.
 		if (strncmp(musicname, "file://", 7) == 0)
@@ -2456,6 +2431,7 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 			musicname += 7;
 		}
 
+		FileReader *reader = NULL;
 		if (!FileExists (musicname))
 		{
 			if ((lumpnum = Wads.CheckNumForFullName (musicname, true, ns_music)) == -1)
@@ -2478,33 +2454,21 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 			}
 			if (handle == NULL)
 			{
-				if (!Wads.IsUncompressedFile(lumpnum))
+				if (Wads.LumpLength (lumpnum) == 0)
 				{
-					// We must cache the music data and use it from memory.
-
-					// shut down old music before reallocating and overwriting the cache!
-					S_StopMusic (true);
-
-					offset = -1;							// this tells the low level code that the music 
-															// is being used from memory
-					length = Wads.LumpLength (lumpnum);
-					if (length == 0)
-					{
-						return false;
-					}
-					musiccache.Resize(length);
-					Wads.ReadLump(lumpnum, &musiccache[0]);
+					return false;
 				}
-				else
+				reader = Wads.ReopenLumpNumNewFile(lumpnum);
+				if (reader == NULL)
 				{
-					offset = Wads.GetLumpOffset (lumpnum);
-					length = Wads.LumpLength (lumpnum);
-					if (length == 0)
-					{
-						return false;
-					}
+					return false;
 				}
 			}
+		}
+		else
+		{
+			// Load an external file.
+			reader = new FileReader(musicname);
 		}
 
 		// shutdown old music
@@ -2517,6 +2481,7 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 			mus_playing.name = musicname;
 			mus_playing.baseorder = order;
 			LastSong = musicname;
+			delete reader;
 			return true;
 		}
 
@@ -2524,16 +2489,11 @@ bool S_ChangeMusic (const char *musicname, int order, bool looping, bool force)
 		if (handle != NULL)
 		{
 			mus_playing.handle = handle;
-		}
-		else if (offset != -1)
-		{
-			mus_playing.handle = I_RegisterSong (lumpnum != -1 ?
-				Wads.GetWadFullName (Wads.GetLumpFile (lumpnum)) :
-				musicname, NULL, offset, length, device);
+			delete reader;
 		}
 		else
 		{
-			mus_playing.handle = I_RegisterSong (NULL, &musiccache[0], -1, length, device);
+			mus_playing.handle = I_RegisterSong (reader, devp);
 		}
 	}
 
@@ -2633,6 +2593,17 @@ void S_StopMusic (bool force)
 
 //==========================================================================
 //
+//
+//
+//==========================================================================
+
+void S_UpdateMusic()
+{
+	GSnd->UpdateMusic();
+}
+
+//==========================================================================
+//
 // CCMD playsound
 //
 //==========================================================================
@@ -2670,10 +2641,7 @@ CCMD (loopsound)
 		}
 		else
 		{
-			AActor *icon = Spawn("SpeakerIcon", players[consoleplayer].mo->x,
-				players[consoleplayer].mo->y,
-				players[consoleplayer].mo->z + 32*FRACUNIT,
-				ALLOW_REPLACE);
+			AActor *icon = Spawn("SpeakerIcon", players[consoleplayer].mo->PosPlusZ(32*FRACUNIT), ALLOW_REPLACE);
 			if (icon != NULL)
 			{
 				S_Sound(icon, CHAN_BODY | CHAN_LOOP, id, 1.f, ATTN_IDLE);
@@ -3000,4 +2968,24 @@ CCMD (cachesound)
 			S_CacheSound (&S_sfx[sfxnum]);
 		}
 	}
+}
+
+
+CCMD(listsoundchannels)
+{	
+	FSoundChan *chan;
+	int count = 0;
+	for (chan = Channels; chan != NULL; chan = chan->NextChan)
+	{
+		if (!(chan->ChanFlags & CHAN_EVICTED))
+		{
+			FVector3 chanorigin;
+
+			CalcPosVel(chan, &chanorigin, NULL);
+
+			Printf("%s at (%1.5f, %1.5f, %1.5f)\n", (const char*)chan->SoundID, chanorigin.X, chanorigin.Y, chanorigin.Z);
+			count++;
+		}
+	}
+	Printf("%d sounds playing\n", count);
 }

@@ -37,14 +37,18 @@
 #ifndef DIRECTDRAW_VERSION
 #define DIRECTDRAW_VERSION 0x0300
 #endif
+#ifdef USE_D3D9
 #ifndef DIRECT3D_VERSION
 #define DIRECT3D_VERSION 0x0900
+#endif
 #endif
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <ddraw.h>
+#ifdef USE_D3D9
 #include <d3d9.h>
+#endif
 
 #include "hardware.h"
 
@@ -54,8 +58,10 @@ EXTERN_CVAR (Bool, vid_vsync)
 
 extern HANDLE FPSLimitEvent;
 
+#ifdef USE_D3D9
 class D3DTex;
 class D3DPal;
+#endif
 struct FSoftwareRenderer;
 
 class Win32Video : public IVideo
@@ -64,7 +70,9 @@ class Win32Video : public IVideo
 	Win32Video (int parm);
 	~Win32Video ();
 
+#ifdef USE_D3D9
 	bool InitD3D9();
+#endif	
 	void InitDDraw();
 
 	EDisplayType GetDisplayType () { return DISPLAY_Both; }
@@ -108,13 +116,17 @@ class Win32Video : public IVideo
 	void FreeModes ();
 
 	static HRESULT WINAPI EnumDDModesCB (LPDDSURFACEDESC desc, void *modes);
+#ifdef USE_D3D9
 	void AddD3DModes (UINT adapter, D3DFORMAT format);
+#endif
 	void AddLowResModes ();
 	void AddLetterboxModes ();
 	void ScaleModes (int doubling);
 
 	friend class DDrawFB;
+#ifdef USE_D3D9
 	friend class D3DFB;
+#endif
 };
 
 class BaseWinFB : public DFrameBuffer
@@ -127,10 +139,12 @@ public:
 	virtual void Blank () = 0;
 	virtual bool PaintToWindow () = 0;
 	virtual HRESULT GetHR () = 0;
+	virtual void ScaleCoordsFromWindow(SWORD &x, SWORD &y);
 
 protected:
 	virtual bool CreateResources () = 0;
 	virtual void ReleaseResources () = 0;
+    virtual int GetTrueHeight() { return GetHeight(); }
 
 	bool Windowed;
 
@@ -148,7 +162,6 @@ public:
 	~DDrawFB ();
 
 	bool IsValid ();
-	bool Lock ();
 	bool Lock (bool buffer);
 	void Unlock ();
 	void ForceBuffering (bool force);
@@ -165,8 +178,8 @@ public:
 	void SetVSync (bool vsync);
 	void NewRefreshRate();
 	HRESULT GetHR ();
-	virtual int GetTrueHeight() { return TrueHeight; }
 	bool Is8BitMode();
+    virtual int GetTrueHeight() { return TrueHeight; }
 
 	void Blank ();
 	bool PaintToWindow ();
@@ -223,6 +236,7 @@ private:
 	DDrawFB() {}
 };
 
+#ifdef USE_D3D9
 class D3DFB : public BaseWinFB
 {
 	DECLARE_CLASS(D3DFB, BaseWinFB)
@@ -231,7 +245,6 @@ public:
 	~D3DFB ();
 
 	bool IsValid ();
-	bool Lock ();
 	bool Lock (bool buffered);
 	void Unlock ();
 	void Update ();
@@ -271,15 +284,15 @@ public:
 	bool WipeDo(int ticks);
 	void WipeCleanup();
 	HRESULT GetHR ();
-	virtual int GetTrueHeight() { return TrueHeight; }
 	bool Is8BitMode() { return false; }
+    virtual int GetTrueHeight() { return TrueHeight; }
 
 private:
 	friend class D3DTex;
 	friend class D3DPal;
 
 	struct PackedTexture;
-	struct PackingTexture;
+	struct Atlas;
 
 	struct FBVERTEX
 	{
@@ -375,6 +388,7 @@ private:
 	static void SetColorOverlay(DWORD color, float alpha, D3DCOLOR &color0, D3DCOLOR &color1);
 	void DoWindowedGamma();
 	void AddColorOnlyQuad(int left, int top, int width, int height, D3DCOLOR color);
+	void AddColorOnlyRect(int left, int top, int width, int height, D3DCOLOR color);
 	void CheckQuadBatch(int numtris=2, int numverts=4);
 	void BeginQuadBatch();
 	void EndQuadBatch();
@@ -382,7 +396,6 @@ private:
 	void EndLineBatch();
 	void EndBatch();
 	void CopyNextFrontBuffer();
-	int GetPixelDoubling() const { return PixelDoubling; }
 
 	D3DCAPS9 DeviceCaps;
 
@@ -393,7 +406,7 @@ private:
 	void SetPixelShader(IDirect3DPixelShader9 *shader);
 	void SetTexture(int tnum, IDirect3DTexture9 *texture);
 	void SetPaletteTexture(IDirect3DTexture9 *texture, int count, D3DCOLOR border_color);
-	void SetPalTexBilinearConstants(PackingTexture *texture);
+	void SetPalTexBilinearConstants(Atlas *texture);
 
 	BOOL AlphaTestEnabled;
 	BOOL AlphaBlendEnabled;
@@ -432,7 +445,7 @@ private:
 	BYTE BlockNum;
 	D3DPal *Palettes;
 	D3DTex *Textures;
-	PackingTexture *Packs;
+	Atlas *Atlases;
 	HRESULT LastHR;
 
 	UINT Adapter;
@@ -504,6 +517,7 @@ enum
 	BQS_SpecialColormap,
 	BQS_InGameColormap,
 };
+#endif
 
 #if 0
 #define STARTLOG		do { if (!dbg) dbg = fopen ("e:/vid.log", "w"); } while(0)

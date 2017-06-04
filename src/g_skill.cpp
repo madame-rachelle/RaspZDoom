@@ -64,6 +64,7 @@ void FMapInfoParser::ParseSkill ()
 	skill.DropAmmoFactor = -1;
 	skill.DamageFactor = FRACUNIT;
 	skill.FastMonsters = false;
+	skill.SlowMonsters = false;
 	skill.DisableCheats = false;
 	skill.EasyBossBrain = false;
 	skill.EasyKey = false;
@@ -82,6 +83,8 @@ void FMapInfoParser::ParseSkill ()
 	skill.FriendlyHealth = FRACUNIT;
 	skill.NoPain = false;
 	skill.ArmorFactor = FRACUNIT;
+	skill.Infighting = 0;
+	skill.HealthFactor = FRACUNIT;
 
 	sc.MustGetString();
 	skill.Name = sc.String;
@@ -117,6 +120,10 @@ void FMapInfoParser::ParseSkill ()
 		else if (sc.Compare ("fastmonsters"))
 		{
 			skill.FastMonsters = true;
+		}
+		else if (sc.Compare ("slowmonsters"))
+		{
+			skill.SlowMonsters = true;
 		}
 		else if (sc.Compare ("disablecheats"))
 		{
@@ -261,6 +268,20 @@ void FMapInfoParser::ParseSkill ()
 			sc.MustGetFloat();
 			skill.ArmorFactor = FLOAT2FIXED(sc.Float);
 		}
+		else if (sc.Compare("HealthFactor"))
+		{
+			ParseAssign();
+			sc.MustGetFloat();
+			skill.HealthFactor = FLOAT2FIXED(sc.Float);
+		}
+		else if (sc.Compare("NoInfighting"))
+		{
+			skill.Infighting = LEVEL2_NOINFIGHTING;
+		}
+		else if (sc.Compare("TotalInfighting"))
+		{
+			skill.Infighting = LEVEL2_TOTALINFIGHTING;
+		}
 		else if (sc.Compare("DefaultSkill"))
 		{
 			if (DefaultSkill >= 0)
@@ -336,6 +357,9 @@ int G_SkillProperty(ESkillProperty prop)
 		case SKILLP_FastMonsters:
 			return AllSkills[gameskill].FastMonsters  || (dmflags & DF_FAST_MONSTERS);
 
+		case SKILLP_SlowMonsters:
+			return AllSkills[gameskill].SlowMonsters;
+
 		case SKILLP_Respawn:
 			if (dmflags & DF_MONSTERS_RESPAWN && AllSkills[gameskill].RespawnCounter==0) 
 				return TICRATE * gameinfo.defaultrespawntime;
@@ -376,6 +400,17 @@ int G_SkillProperty(ESkillProperty prop)
 
 		case SKILLP_ArmorFactor:
 			return AllSkills[gameskill].ArmorFactor;
+
+		case SKILLP_HealthFactor:
+			return AllSkills[gameskill].HealthFactor;
+
+		case SKILLP_Infight:
+			// This property also needs to consider the level flags for the same info.
+			if (level.flags2 & LEVEL2_TOTALINFIGHTING) return 1;
+			if (level.flags2 & LEVEL2_NOINFIGHTING) return -1;	
+			if (AllSkills[gameskill].Infighting == LEVEL2_TOTALINFIGHTING) return 1;
+			if (AllSkills[gameskill].Infighting == LEVEL2_NOINFIGHTING) return -1;
+			return infighting;
 		}
 	}
 	return 0;
@@ -433,6 +468,7 @@ FSkillInfo &FSkillInfo::operator=(const FSkillInfo &other)
 	DropAmmoFactor = other.DropAmmoFactor;
 	DamageFactor = other.DamageFactor;
 	FastMonsters = other.FastMonsters;
+	SlowMonsters = other.SlowMonsters;
 	DisableCheats = other.DisableCheats;
 	AutoUseHealth = other.AutoUseHealth;
 	EasyBossBrain = other.EasyBossBrain;
@@ -454,7 +490,9 @@ FSkillInfo &FSkillInfo::operator=(const FSkillInfo &other)
 	MonsterHealth = other.MonsterHealth;
 	FriendlyHealth = other.FriendlyHealth;
 	NoPain = other.NoPain;
+	Infighting = other.Infighting;
 	ArmorFactor = other.ArmorFactor;
+	HealthFactor = other.HealthFactor;
 	return *this;
 }
 

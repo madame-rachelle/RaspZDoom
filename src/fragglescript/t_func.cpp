@@ -67,13 +67,13 @@
 #include "v_font.h"
 #include "r_data/colormaps.h"
 #include "farchive.h"
+#include "p_setup.h"
 
 static FRandom pr_script("FScript");
 
 
 #define AngleToFixed(x)  ((((double) x) / ((double) ANG45/45)) * FRACUNIT)
 #define FixedToAngle(x)  ((((double) x) / FRACUNIT) * ANG45/45)
-#define FIXED_TO_FLOAT(f) ((f)/(float)FRACUNIT)
 
 // functions. FParser::SF_ means Script Function not, well.. heh, me
 
@@ -155,7 +155,7 @@ static const char * const ActorNames_init[]=
 	"RocketAmmo",
 	"RocketBox",
 	"Cell",
-	"CellBox",
+	"CellPack",
 	"Shell",
 	"ShellBox",
 	"Backpack",
@@ -313,18 +313,24 @@ static int T_GetPlayerNum(const svalue_t &arg)
 // sectors directly by passing a negative value
 //
 //==========================================================================
-int T_FindSectorFromTag(int tagnum,int startsector)
+class FSSectorTagIterator : public FSectorTagIterator
 {
-	if (tagnum<=0)
+public:
+	FSSectorTagIterator(int tag)
+		: FSectorTagIterator(tag)
 	{
-		if (startsector<0)
+		if (tag < 0)
 		{
-			if (tagnum==-32768) return 0;
-			if (-tagnum<numsectors) return -tagnum;
+			searchtag = INT_MIN;
+			start = tag == -32768? 0 : -tag < numsectors? -tag : -1;
 		}
-		return -1;
 	}
-	return P_FindSectorFromTag(tagnum,startsector);
+};
+
+inline int T_FindFirstSectorFromTag(int tagnum)
+{
+	FSSectorTagIterator it(tagnum);
+	return it.Next();
 }
 
 
@@ -976,7 +982,7 @@ void FParser::SF_ObjX(void)
 	}
 
 	t_return.type = svt_fixed;           // haleyjd: SoM's fixed-point fix
-	t_return.value.f = mo ? mo->x : 0;   // null ptr check
+	t_return.value.f = mo ? mo->X() : 0;   // null ptr check
 }
 
 //==========================================================================
@@ -999,7 +1005,7 @@ void FParser::SF_ObjY(void)
 	}
 
 	t_return.type = svt_fixed;         // haleyjd
-	t_return.value.f = mo ? mo->y : 0; // null ptr check
+	t_return.value.f = mo ? mo->Y() : 0; // null ptr check
 }
 
 //==========================================================================
@@ -1022,7 +1028,7 @@ void FParser::SF_ObjZ(void)
 	}
 
 	t_return.type = svt_fixed;         // haleyjd
-	t_return.value.f = mo ? mo->z : 0; // null ptr check
+	t_return.value.f = mo ? mo->Z() : 0; // null ptr check
 }
 
 
@@ -1076,7 +1082,7 @@ void FParser::SF_Teleport(void)
 		}
 		
 		if(mo)
-			EV_Teleport(0, tag, NULL, 0, mo, true, true, false);
+			EV_Teleport(0, tag, NULL, 0, mo, TELF_DESTFOG | TELF_SOURCEFOG);
 	}
 }
 
@@ -1105,7 +1111,7 @@ void FParser::SF_SilentTeleport(void)
 		}
 		
 		if(mo)
-			EV_Teleport(0, tag, NULL, 0, mo, false, false, true);
+			EV_Teleport(0, tag, NULL, 0, mo, TELF_KEEPORIENTATION);
 	}
 }
 
@@ -1159,7 +1165,7 @@ void FParser::SF_ObjSector(void)
 	}
 
 	t_return.type = svt_int;
-	t_return.value.i = mo ? mo->Sector->tag : 0; // nullptr check
+	t_return.value.i = mo ? tagManager.GetFirstSectorTag(mo->Sector) : 0; // nullptr check
 }
 
 //==========================================================================
@@ -1217,17 +1223,20 @@ void FParser::SF_ObjFlag(void)
 			
 			if(mo && flagnum<26)          // nullptr check
 			{
+				DWORD tempflags = mo->flags;
+
 				// remove old bit
-				mo->flags &= ~(1 << flagnum);
+				tempflags &= ~(1 << flagnum);
 				
 				// make the new flag
-				mo->flags |= (!!intvalue(t_argv[2])) << flagnum;
+				tempflags |= (!!intvalue(t_argv[2])) << flagnum;
+				mo->flags = ActorFlags::FromInt (tempflags);
 			}  
 		}
 		t_return.type = svt_int;  
 		if (mo && flagnum<26)
 		{
-			t_return.value.i = !!(mo->flags & (1 << flagnum));
+			t_return.value.i = !!(mo->flags & ActorFlags::FromInt(1 << flagnum));
 		}
 		else t_return.value.i = 0;
 	}
@@ -1417,11 +1426,11 @@ void FParser::SF_PointToDist(void)
 	if (CheckArgs(4))
 	{
 		// Doing this in floating point is actually faster with modern computers!
-		float x = floatvalue(t_argv[2]) - floatvalue(t_argv[0]);
-		float y = floatvalue(t_argv[3]) - floatvalue(t_argv[1]);
+		double x = floatvalue(t_argv[2]) - floatvalue(t_argv[0]);
+		double y = floatvalue(t_argv[3]) - floatvalue(t_argv[1]);
    
 		t_return.type = svt_fixed;
-		t_return.value.f = (fixed_t)(sqrtf(x*x+y*y)*65536.f);
+		t_return.value.f = FLOAT2FIXED(sqrt(x*x+y*y));
 	}
 }
 
@@ -1457,8 +1466,8 @@ void FParser::SF_SetCamera(void)
 		angle = t_argc < 2 ? newcamera->angle : (fixed_t)FixedToAngle(fixedvalue(t_argv[1]));
 
 		newcamera->special1=newcamera->angle;
-		newcamera->special2=newcamera->z;
-		newcamera->z = t_argc < 3 ? (newcamera->z + (41 << FRACBITS)) : (intvalue(t_argv[2]) << FRACBITS);
+		newcamera->special2=newcamera->Z();
+		newcamera->SetZ(t_argc < 3 ? (newcamera->Z() + (41 << FRACBITS)) : (intvalue(t_argv[2]) << FRACBITS));
 		newcamera->angle = angle;
 		if(t_argc < 4) newcamera->pitch = 0;
 		else
@@ -1489,7 +1498,7 @@ void FParser::SF_ClearCamera(void)
 	{
 		player->camera=player->mo;
 		cam->angle=cam->special1;
-		cam->z=cam->special2;
+		cam->SetZ(cam->special2);
 	}
 
 }
@@ -1537,7 +1546,8 @@ void FParser::SF_StartSectorSound(void)
 		tagnum = intvalue(t_argv[0]);
 		
 		int i=-1;
-		while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+		FSSectorTagIterator itr(tagnum);
+		while ((i = itr.Next()) >= 0)
 		{
 			sector = &sectors[i];
 			S_Sound(sector, CHAN_BODY, T_FindSound(stringvalue(t_argv[1])), 1.0f, ATTN_NORM);
@@ -1561,7 +1571,7 @@ public:
 		bool res = DMover::crushed != MoveFloor(speed, dest, crush, direction, false);
 		Destroy();
 		m_Sector->floordata=NULL;
-		StopInterpolation();
+		StopInterpolation(true);
 		m_Sector=NULL;
 		return res;
 	}
@@ -1596,7 +1606,8 @@ void FParser::SF_FloorHeight(void)
 			
 			// set all sectors with tag
 			
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+			FSSectorTagIterator itr(tagnum);
+			while ((i = itr.Next()) >= 0)
 			{
 				if (sectors[i].floordata) continue;	// don't move floors that are active!
 
@@ -1613,7 +1624,7 @@ void FParser::SF_FloorHeight(void)
 		}
 		else
 		{
-			secnum = T_FindSectorFromTag(tagnum, -1);
+			secnum = T_FindFirstSectorFromTag(tagnum);
 			if(secnum < 0)
 			{ 
 				script_error("sector not found with tagnum %i\n", tagnum); 
@@ -1645,6 +1656,14 @@ public:
 		m_Speed=movespeed;
 		m_Direction = _m_Direction;
 		m_FloorDestDist = moveheight;
+
+		// Do not interpolate instant movement floors.
+		fixed_t movedist = abs(-sec->floorplane.d - moveheight);
+		if (m_Speed >= movedist)
+		{
+			StopInterpolation(true);
+		}
+
 		StartFloorSound();
 	}
 };
@@ -1672,7 +1691,8 @@ void FParser::SF_MoveFloor(void)
 		
 		// move all sectors with tag
 		
-		while ((secnum = T_FindSectorFromTag(tagnum, secnum)) >= 0)
+		FSSectorTagIterator itr(tagnum);
+		while ((secnum = itr.Next()) >= 0)
 		{
 			sec = &sectors[secnum];
 			// Don't start a second thinker on the same floor
@@ -1701,7 +1721,7 @@ public:
 		bool res = DMover::crushed != MoveCeiling(speed, dest, crush, direction, false);
 		Destroy();
 		m_Sector->ceilingdata=NULL;
-		StopInterpolation ();
+		StopInterpolation (true);
 		m_Sector=NULL;
 		return res;
 	}
@@ -1734,7 +1754,8 @@ void FParser::SF_CeilingHeight(void)
 			dest = fixedvalue(t_argv[1]);
 			
 			// set all sectors with tag
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+			FSSectorTagIterator itr(tagnum);
+			while ((i = itr.Next()) >= 0)
 			{
 				if (sectors[i].ceilingdata) continue;	// don't move ceilings that are active!
 
@@ -1751,7 +1772,7 @@ void FParser::SF_CeilingHeight(void)
 		}
 		else
 		{
-			secnum = T_FindSectorFromTag(tagnum, -1);
+			secnum = T_FindFirstSectorFromTag(tagnum);
 			if(secnum < 0)
 			{ 
 				script_error("sector not found with tagnum %i\n", tagnum); 
@@ -1793,7 +1814,7 @@ public:
 		fixed_t movedist = abs(sec->ceilingplane.d - m_BottomHeight);
 		if (m_Speed >= movedist)
 		{
-			StopInterpolation ();
+			StopInterpolation (true);
 			m_Silent=2;
 		}
 		PlayCeilingSound();
@@ -1824,7 +1845,8 @@ void FParser::SF_MoveCeiling(void)
 		silent=t_argc>4 ? intvalue(t_argv[4]):1;
 		
 		// move all sectors with tag
-		while ((secnum = T_FindSectorFromTag(tagnum, secnum)) >= 0)
+		FSSectorTagIterator itr(tagnum);
+		while ((secnum = itr.Next()) >= 0)
 		{
 			sec = &sectors[secnum];
 			
@@ -1852,7 +1874,7 @@ void FParser::SF_LightLevel(void)
 		tagnum = intvalue(t_argv[0]);
 		
 		// argv is sector tag
-		secnum = T_FindSectorFromTag(tagnum, -1);
+		secnum = T_FindFirstSectorFromTag(tagnum);
 		
 		if(secnum < 0)
 		{ 
@@ -1866,7 +1888,8 @@ void FParser::SF_LightLevel(void)
 			int i = -1;
 			
 			// set all sectors with tag
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+			FSSectorTagIterator itr(tagnum);
+			while ((i = itr.Next()) >= 0)
 			{
 				sectors[i].SetLightLevel(intvalue(t_argv[1]));
 			}
@@ -1985,7 +2008,8 @@ void FParser::SF_FadeLight(void)
 		destlevel = intvalue(t_argv[1]);
 		speed = t_argc>2 ? intvalue(t_argv[2]) : 1;
 		
-		for (i = -1; (i = P_FindSectorFromTag(sectag,i)) >= 0;) 
+		FSectorTagIterator it(sectag);
+		while ((i = it.Next()) >= 0)
 		{
 			if (!sectors[i].lightingdata) new DLightLevel(&sectors[i],destlevel,speed);
 		}
@@ -2007,7 +2031,7 @@ void FParser::SF_FloorTexture(void)
 		tagnum = intvalue(t_argv[0]);
 		
 		// argv is sector tag
-		secnum = T_FindSectorFromTag(tagnum, -1);
+		secnum = T_FindFirstSectorFromTag(tagnum);
 		
 		if(secnum < 0)
 		{ script_error("sector not found with tagnum %i\n", tagnum); return;}
@@ -2020,7 +2044,8 @@ void FParser::SF_FloorTexture(void)
 			FTextureID picnum = TexMan.GetTexture(t_argv[1].string, FTexture::TEX_Flat, FTextureManager::TEXMAN_Overridable);
 			
 			// set all sectors with tag
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+			FSSectorTagIterator itr(tagnum);
+			while ((i = itr.Next()) >= 0)
 			{
 				sectors[i].SetTexture(sector_t::floor, picnum);
 			}
@@ -2058,7 +2083,7 @@ void FParser::SF_SectorColormap(void)
 	tagnum = intvalue(t_argv[0]);
 	
 	// argv is sector tag
-	secnum = T_FindSectorFromTag(tagnum, -1);
+	secnum = T_FindFirstSectorFromTag(tagnum);
 	
 	if(secnum < 0)
 	{ script_error("sector not found with tagnum %i\n", tagnum); return;}
@@ -2069,7 +2094,8 @@ void FParser::SF_SectorColormap(void)
 	{
 		DWORD cm = R_ColormapNumForName(t_argv[1].value.s);
 
-		while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+		FSSectorTagIterator itr(tagnum);
+		while ((i = itr.Next()) >= 0)
 		{
 			sectors[i].midmap=cm;
 			sectors[i].heightsec=&sectors[i];
@@ -2095,7 +2121,7 @@ void FParser::SF_CeilingTexture(void)
 		tagnum = intvalue(t_argv[0]);
 		
 		// argv is sector tag
-		secnum = T_FindSectorFromTag(tagnum, -1);
+		secnum = T_FindFirstSectorFromTag(tagnum);
 		
 		if(secnum < 0)
 		{ script_error("sector not found with tagnum %i\n", tagnum); return;}
@@ -2108,7 +2134,8 @@ void FParser::SF_CeilingTexture(void)
 			FTextureID picnum = TexMan.GetTexture(t_argv[1].string, FTexture::TEX_Flat, FTextureManager::TEXMAN_Overridable);
 			
 			// set all sectors with tag
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+			FSSectorTagIterator itr(tagnum);
+			while ((i = itr.Next()) >= 0)
 			{
 				sectors[i].SetTexture(sector_t::ceiling, picnum);
 			}
@@ -2211,9 +2238,6 @@ void FParser::SF_RunCommand(void)
 //
 //==========================================================================
 
-// any linedef type
-extern void P_TranslateLineDef (line_t *ld, maplinedef_t *mld);
-
 void FParser::SF_LineTrigger()
 {
 	if (CheckArgs(1))
@@ -2282,9 +2306,11 @@ void FParser::SF_SetLineBlocking(void)
 		{
 			blocking=blocks[blocking];
 			int tag=intvalue(t_argv[0]);
-			for (int i = -1; (i = P_FindLineFromID(tag, i)) >= 0;) 
+			FLineIdIterator itr(tag);
+			int i;
+			while ((i = itr.Next()) >= 0)
 			{
-				lines[i].flags = (lines[i].flags & ~(ML_BLOCKING|ML_BLOCKEVERYTHING)) | blocking;
+				lines[i].flags = (lines[i].flags & ~(ML_BLOCKING | ML_BLOCKEVERYTHING)) | blocking;
 			}
 		}
 	}
@@ -2303,7 +2329,9 @@ void FParser::SF_SetLineMonsterBlocking(void)
 		int blocking = intvalue(t_argv[1]) ? ML_BLOCKMONSTERS : 0;
 		int tag=intvalue(t_argv[0]);
 
-		for (int i = -1; (i = P_FindLineFromID(tag, i)) >= 0;) 
+		FLineIdIterator itr(tag);
+		int i;
+		while ((i = itr.Next()) >= 0)
 		{
 			lines[i].flags = (lines[i].flags & ~ML_BLOCKMONSTERS) | blocking;
 		}
@@ -2358,12 +2386,13 @@ void FParser::SF_SetLineTexture(void)
 			texture = stringvalue(t_argv[3]);
 			texturenum = TexMan.GetTexture(texture, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
 			
-			for (i = -1; (i = P_FindLineFromID(tag, i)) >= 0;) 
+			FLineIdIterator itr(tag);
+			while ((i = itr.Next()) >= 0)
 			{
 				// bad sidedef, Hexen just SEGV'd here!
-				if(lines[i].sidedef[side] != NULL)
+				if (lines[i].sidedef[side] != NULL)
 				{
-					if (position >=0 && position <=2)
+					if (position >= 0 && position <= 2)
 					{
 						lines[i].sidedef[side]->SetTexture(position, texturenum);
 					}
@@ -2377,7 +2406,8 @@ void FParser::SF_SetLineTexture(void)
 			int sections = intvalue(t_argv[3]); 
 			
 			// set all sectors with tag 
-			for (i = -1; (i = P_FindLineFromID(tag, i)) >= 0;) 
+			FLineIdIterator itr(tag);
+			while ((i = itr.Next()) >= 0)
 			{ 
 				side_t *sided = lines[i].sidedef[side];
 				if(sided != NULL)
@@ -3043,7 +3073,7 @@ void FParser::SF_SetWeapon()
 void FParser::SF_MoveCamera(void)
 {
 	fixed_t    x, y, z;  
-	fixed_t    xdist, ydist, zdist, xydist, movespeed;
+	fixed_t    zdist, xydist, movespeed;
 	fixed_t    xstep, ystep, zstep, targetheight;
 	angle_t    anglespeed, anglestep, angledist, targetangle, 
 		mobjangle, bigangle, smallangle;
@@ -3075,9 +3105,8 @@ void FParser::SF_MoveCamera(void)
 		anglespeed   = (angle_t)FixedToAngle(fixedvalue(t_argv[5]));
 		
 		// figure out how big one step will be
-		xdist = target->x - cam->x;
-		ydist = target->y - cam->y;
-		zdist = targetheight - cam->z;
+		fixedvec2 dist = cam->Vec2To(target);
+		zdist = targetheight - cam->Z();
 		
 		// Angle checking...  
 		//    90  
@@ -3123,8 +3152,8 @@ void FParser::SF_MoveCamera(void)
 		}
 		
 		// set step variables based on distance and speed
-		mobjangle = R_PointToAngle2(cam->x, cam->y, target->x, target->y);
-		xydist = R_PointToDist2(target->x - cam->x, target->y - cam->y);
+		mobjangle = cam->AngleTo(target);
+		xydist = cam->Distance2D(target);
 		
 		xstep = FixedMul(finecosine[mobjangle >> ANGLETOFINESHIFT], movespeed);
 		ystep = FixedMul(finesine[mobjangle >> ANGLETOFINESHIFT], movespeed);
@@ -3148,19 +3177,19 @@ void FParser::SF_MoveCamera(void)
 		else
 			anglestep = anglespeed;
 		
-		if(abs(xstep) >= (abs(xdist) - 1))
-			x = target->x;
+		if(abs(xstep) >= (abs(dist.x) - 1))
+			x = cam->X() + dist.x;
 		else
 		{
-			x = cam->x + xstep;
+			x = cam->X() + xstep;
 			moved = 1;
 		}
 		
-		if(abs(ystep) >= (abs(ydist) - 1))
-			y = target->y;
+		if(abs(ystep) >= (abs(dist.y) - 1))
+			y = cam->Y() + dist.y;
 		else
 		{
-			y = cam->y + ystep;
+			y = cam->Y() + ystep;
 			moved = 1;
 		}
 		
@@ -3168,7 +3197,7 @@ void FParser::SF_MoveCamera(void)
 			z = targetheight;
 		else
 		{
-			z = cam->z + zstep;
+			z = cam->Z() + zstep;
 			moved = 1;
 		}
 		
@@ -3190,12 +3219,12 @@ void FParser::SF_MoveCamera(void)
 
 		cam->radius=8;
 		cam->height=8;
-		if ((x != cam->x || y != cam->y) && !P_TryMove(cam, x, y, true))
+		if ((x != cam->X() || y != cam->Y()) && !P_TryMove(cam, x, y, true))
 		{
 			Printf("Illegal camera move to (%f, %f)\n", x/65536.f, y/65536.f);
 			return;
 		}
-		cam->z = z;
+		cam->SetZ(z);
 
 		t_return.type = svt_int;
 		t_return.value.i = moved;
@@ -3388,13 +3417,10 @@ void FParser::SF_SetObjPosition()
 
 		if (!mobj) return;
 
-		mobj->UnlinkFromWorld();
-
-		mobj->x = intvalue(t_argv[1]) << FRACBITS;
-		if(t_argc >= 3) mobj->y = intvalue(t_argv[2]) << FRACBITS;
-		if(t_argc == 4)	mobj->z = intvalue(t_argv[3]) << FRACBITS;
-
-		mobj->LinkToWorld();
+		mobj->SetOrigin(
+			fixedvalue(t_argv[1]),
+			(t_argc >= 3)? fixedvalue(t_argv[2]) : mobj->Y(),
+			(t_argc >= 4)? fixedvalue(t_argv[3]) : mobj->Z(), false);
 	}
 }
 
@@ -3531,8 +3557,17 @@ void FParser::SF_MapThingNumExist()
 		}
 		else
 		{
+			// Inventory items in the player's inventory have to be considered non-present.
+			if (SpawnedThings[intval]->IsKindOf(RUNTIME_CLASS(AInventory)) && 
+				barrier_cast<AInventory*>(SpawnedThings[intval])->Owner != NULL)
+			{
+				t_return.value.i = 0;
+			}
+			else
+			{
+				t_return.value.i = 1;
+			}
 			t_return.type = svt_int;
-			t_return.value.i = 1;
 		}
 	}
 }
@@ -3771,11 +3806,14 @@ void FParser::SF_ObjType()
 		mo = Script->trigger;
 	}
 
-	for(unsigned int i=0;i<countof(ActorTypes);i++) if (mo->GetClass() == ActorTypes[i])
+	if (mo != NULL)
 	{
-		t_return.type = svt_int;
-		t_return.value.i = i;
-		return;
+		for (unsigned int i = 0; i < countof(ActorTypes); i++) if (mo->GetClass() == ActorTypes[i])
+		{
+			t_return.type = svt_int;
+			t_return.value.i = i;
+			return;
+		}
 	}
 	t_return.type = svt_int;
 	t_return.value.i = -1;
@@ -4190,7 +4228,7 @@ void FParser::SF_SetColor(void)
 	{
 		tagnum = intvalue(t_argv[0]);
 		
-		secnum = T_FindSectorFromTag(tagnum, -1);
+		secnum = T_FindFirstSectorFromTag(tagnum);
 		
 		if(secnum < 0)
 		{ 
@@ -4211,7 +4249,8 @@ void FParser::SF_SetColor(void)
 		else return;
 
 		// set all sectors with tag
-		while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
+		FSSectorTagIterator itr(tagnum);
+		while ((i = itr.Next()) >= 0)
 		{
 			sectors[i].ColorMap = GetSpecialLights (color, sectors[i].ColorMap->Fade, 0);
 		}
@@ -4250,7 +4289,7 @@ void FParser::SF_SpawnShot2(void)
 		
 		t_return.type = svt_mobj;
 
-		AActor *mo = Spawn (PClass, source->x, source->y, source->z+z, ALLOW_REPLACE);
+		AActor *mo = Spawn (PClass, source->PosPlusZ(z), ALLOW_REPLACE);
 		if (mo) 
 		{
 			S_Sound (mo, CHAN_VOICE, mo->SeeSound, 1, ATTN_NORM);
@@ -4280,7 +4319,7 @@ void  FParser::SF_KillInSector()
 
 		while ((mo=it.Next()))
 		{
-			if (mo->flags3&MF3_ISMONSTER && mo->Sector->tag==tag) P_DamageMobj(mo, NULL, NULL, 1000000, NAME_Massacre);
+			if (mo->flags3&MF3_ISMONSTER && tagManager.SectorHasTag(mo->Sector, tag)) P_DamageMobj(mo, NULL, NULL, 1000000, NAME_Massacre);
 		}
 	}
 }
@@ -4288,43 +4327,12 @@ void  FParser::SF_KillInSector()
 //==========================================================================
 //
 // new for GZDoom: Sets a sector's type
-// (Sure, this is not particularly useful. But having it made it possible
-//  to fix a few annoying bugs in some old maps ;) )
 //
 //==========================================================================
 
 void FParser::SF_SectorType(void)
 {
-	int tagnum, secnum;
-	sector_t *sector;
-	
-	if (CheckArgs(1))
-	{
-		tagnum = intvalue(t_argv[0]);
-		
-		// argv is sector tag
-		secnum = T_FindSectorFromTag(tagnum, -1);
-		
-		if(secnum < 0)
-		{ script_error("sector not found with tagnum %i\n", tagnum); return;}
-		
-		sector = &sectors[secnum];
-		
-		if(t_argc > 1)
-		{
-			int i = -1;
-			int spec = intvalue(t_argv[1]);
-			
-			// set all sectors with tag
-			while ((i = T_FindSectorFromTag(tagnum, i)) >= 0)
-			{
-				sectors[i].special = spec;
-			}
-		}
-		
-		t_return.type = svt_int;
-		t_return.value.i = sector->special;
-	}
+	// I don't think this was ever used publicly so I'm not going to bother fixing it.
 }
 
 //==========================================================================
@@ -4344,18 +4352,17 @@ void FParser::SF_SetLineTrigger()
 		id=intvalue(t_argv[0]);
 		spec=intvalue(t_argv[1]);
 		if (t_argc>2) tag=intvalue(t_argv[2]);
-		for (i = -1; (i = P_FindLineFromID (id, i)) >= 0; )
+		FLineIdIterator itr(id);
+		while ((i = itr.Next()) >= 0)
 		{
-			if (t_argc==2) tag=lines[i].id;
 			maplinedef_t mld;
-			mld.special=spec;
-			mld.tag=tag;
-			mld.flags=0;
+			mld.special = spec;
+			mld.tag = tag;
+			mld.flags = 0;
 			int f = lines[i].flags;
-			P_TranslateLineDef(&lines[i], &mld);	
-			lines[i].id=tag;
-			lines[i].flags = (lines[i].flags & (ML_MONSTERSCANACTIVATE|ML_REPEAT_SPECIAL|ML_SPAC_MASK|ML_FIRSTSIDEONLY)) |
-										(f & ~(ML_MONSTERSCANACTIVATE|ML_REPEAT_SPECIAL|ML_SPAC_MASK|ML_FIRSTSIDEONLY));
+			P_TranslateLineDef(&lines[i], &mld);
+			lines[i].flags = (lines[i].flags & (ML_MONSTERSCANACTIVATE | ML_REPEAT_SPECIAL | ML_SPAC_MASK | ML_FIRSTSIDEONLY)) |
+				(f & ~(ML_MONSTERSCANACTIVATE | ML_REPEAT_SPECIAL | ML_SPAC_MASK | ML_FIRSTSIDEONLY));
 
 		}
 	}
@@ -4364,33 +4371,13 @@ void FParser::SF_SetLineTrigger()
 
 //==========================================================================
 //
-// new for GZDoom: Changes a sector's tag
-// (I only need this because MAP02 in RTC-3057 has some issues with the GL 
-// renderer that I can't fix without the scripts. But loading a FS on top on
-// ACS still works so I can hack around it with this.)
+//
 //
 //==========================================================================
 
 void FParser::SF_ChangeTag()
 {
-	if (CheckArgs(2))
-	{
-		for (int secnum = -1; (secnum = P_FindSectorFromTag (t_argv[0].value.i, secnum)) >= 0; ) 
-		{
-			sectors[secnum].tag=t_argv[1].value.i;
-		}
-
-		// Recreate the hash tables
-		int i;
-
-		for (i=numsectors; --i>=0; ) sectors[i].firsttag = -1;
-		for (i=numsectors; --i>=0; )
-		{
-			int j = (unsigned) sectors[i].tag % (unsigned) numsectors;
-			sectors[i].nexttag = sectors[j].firsttag;
-			sectors[j].firsttag = i;
-		}
-	}
+	// Development garbage!
 }
 
 

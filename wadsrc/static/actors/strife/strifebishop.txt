@@ -1,10 +1,8 @@
 
 // Bishop -------------------------------------------------------------------
 
-ACTOR StrifeBishop 187
+ACTOR StrifeBishop
 {
-	Game Strife
-	ConversationID 64,-1,-1
 	Health 500
 	Painchance 128
 	Speed 8
@@ -85,7 +83,7 @@ ACTOR BishopMissile
 		Loop
 	Death:
 		SMIS A 0 Bright A_SetTranslucent(1,1)
-		SMIS A 0 Bright A_StopSoundEx("Voice")
+		SMIS A 0 Bright // State left for savegame compatibility
 		SMIS A 5 Bright A_Explode(64,64,1,1)
 		SMIS B 5 Bright
 		SMIS C 4 Bright

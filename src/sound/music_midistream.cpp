@@ -38,6 +38,7 @@
 #include "templates.h"
 #include "doomdef.h"
 #include "m_swap.h"
+#include "doomerrors.h"
 
 // MACROS ------------------------------------------------------------------
 
@@ -88,12 +89,12 @@ static const BYTE StaticMIDIhead[] =
 //
 //==========================================================================
 
-MIDIStreamer::MIDIStreamer(EMidiDevice type)
+MIDIStreamer::MIDIStreamer(EMidiDevice type, const char *args)
 :
 #ifdef _WIN32
   PlayerThread(0), ExitEvent(0), BufferDoneEvent(0),
 #endif
-  MIDI(0), Division(0), InitialTempo(500000), DeviceType(type)
+  MIDI(0), Division(0), InitialTempo(500000), DeviceType(type), Args(args)
 {
 #ifdef _WIN32
 	BufferDoneEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -214,13 +215,13 @@ EMidiDevice MIDIStreamer::SelectMIDIDevice(EMidiDevice device)
 			- if explicitly selected by $mididevice 
 			- when snd_mididevice  is -2 and no midi device is set for the song
 
-		- FMod:
+		- Sound System:
 			- if explicitly selected by $mididevice 
 			- when snd_mididevice  is -1 and no midi device is set for the song
 			- as fallback when both OPL and Timidity failed unless snd_mididevice is >= 0
 
 		- MMAPI (Win32 only):
-			- if explicitly selected by $mididevice (non-Win32 redirects this to FMOD)
+			- if explicitly selected by $mididevice (non-Win32 redirects this to Sound System)
 			- when snd_mididevice  is >= 0 and no midi device is set for the song
 			- as fallback when both OPL and Timidity failed and snd_mididevice is >= 0
 	*/
@@ -232,18 +233,19 @@ EMidiDevice MIDIStreamer::SelectMIDIDevice(EMidiDevice device)
 	}
 	switch (snd_mididevice)
 	{
-	case -1:		return MDEV_FMOD;
+	case -1:		return MDEV_SNDSYS;
 	case -2:		return MDEV_TIMIDITY;
 	case -3:		return MDEV_OPL;
 	case -4:		return MDEV_GUS;
 #ifdef HAVE_FLUIDSYNTH
 	case -5:		return MDEV_FLUIDSYNTH;
 #endif
+	case -6:		return MDEV_WILDMIDI;
 	default:
 		#ifdef _WIN32
 					return MDEV_MMAPI;
 		#else
-					return MDEV_FMOD;
+					return MDEV_SNDSYS;
 		#endif
 	}
 }
@@ -267,20 +269,32 @@ MIDIDevice *MIDIStreamer::CreateMIDIDevice(EMidiDevice devtype) const
 
 #ifdef HAVE_FLUIDSYNTH
 	case MDEV_FLUIDSYNTH:
-		return new FluidSynthMIDIDevice;
+		return new FluidSynthMIDIDevice(Args);
 #endif
 
-	case MDEV_FMOD:
-		return new FMODMIDIDevice;
+	case MDEV_SNDSYS:
+		return new SndSysMIDIDevice;
 
 	case MDEV_GUS:
-		return new TimidityMIDIDevice;
+		return new TimidityMIDIDevice(Args);
 
 	case MDEV_OPL:
-		return new OPLMIDIDevice;
+		try
+		{
+			return new OPLMIDIDevice(Args);
+		}
+		catch (CRecoverableError &err)
+		{
+			// The creation of an OPL MIDI device can abort with an error if no GENMIDI lump can be found.
+			Printf("Unable to create OPL MIDI device: %s\nFalling back to Sound System playback", err.GetMessage());
+			return new SndSysMIDIDevice;
+		}
 
 	case MDEV_TIMIDITY:
-		return new TimidityPPMIDIDevice;
+		return new TimidityPPMIDIDevice(Args);
+
+	case MDEV_WILDMIDI:
+		return new WildMIDIDevice(Args);
 
 	default:
 		return NULL;
@@ -330,6 +344,11 @@ void MIDIStreamer::Play(bool looping, int subsong)
 	if (MIDI == NULL || 0 != MIDI->Open(Callback, this))
 	{
 		Printf(PRINT_BOLD, "Could not open MIDI out device\n");
+		if (MIDI != NULL)
+		{
+			delete MIDI;
+			MIDI = NULL;
+		}
 		return;
 	}
 
@@ -540,7 +559,7 @@ bool MIDIStreamer::IsPlaying()
 
 void MIDIStreamer::MusicVolumeChanged()
 {
-	if (MIDI->FakeVolume())
+	if (MIDI != NULL && MIDI->FakeVolume())
 	{
 		float realvolume = clamp<float>(snd_musicvolume * relative_volume, 0.f, 1.f);
 		Volume = clamp<DWORD>((DWORD)(realvolume * 65535.f), 0, 65535);
@@ -614,6 +633,21 @@ void MIDIStreamer::FluidSettingStr(const char *setting, const char *value)
 
 //==========================================================================
 //
+// MIDIDeviceStreamer :: WildMidiSetOption
+//
+//==========================================================================
+
+void MIDIStreamer::WildMidiSetOption(int opt, int set)
+{
+	if (MIDI != NULL)
+	{
+		MIDI->WildMidiSetOption(opt, set);
+	}
+}
+
+
+//==========================================================================
+//
 // MIDIStreamer :: OutputVolume
 //
 // Signals the buffer filler to send volume change events on all channels.
@@ -622,7 +656,7 @@ void MIDIStreamer::FluidSettingStr(const char *setting, const char *value)
 
 void MIDIStreamer::OutputVolume (DWORD volume)
 {
-	if (MIDI->FakeVolume())
+	if (MIDI != NULL && MIDI->FakeVolume())
 	{
 		NewVolume = volume;
 		VolumeChanged = true;
@@ -1182,9 +1216,15 @@ void MIDIStreamer::CreateSMF(TArray<BYTE> &file, int looplimit)
 					len--;
 					file.Push(MIDI_SYSEX);
 					WriteVarLen(file, len);
-					memcpy(&file[file.Reserve(len - 1)], bytes, len);
-					running_status = 255;
+					memcpy(&file[file.Reserve(len)], bytes + 1, len);
 				}
+				else
+				{
+					file.Push(MIDI_SYSEXEND);
+					WriteVarLen(file, len);
+					memcpy(&file[file.Reserve(len)], bytes, len);
+				}
+				running_status = 255;
 			}
 			else if (MEVT_EVENTTYPE(event[2]) == 0)
 			{
@@ -1499,6 +1539,16 @@ void MIDIDevice::FluidSettingNum(const char *setting, double value)
 //==========================================================================
 
 void MIDIDevice::FluidSettingStr(const char *setting, const char *value)
+{
+}
+
+//==========================================================================
+//
+// MIDIDevice :: WildMidiSetOption
+//
+//==========================================================================
+
+void MIDIDevice::WildMidiSetOption(int opt, int set)
 {
 }
 

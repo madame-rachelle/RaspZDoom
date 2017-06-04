@@ -60,7 +60,8 @@ bool APowerupGiver::Use (bool pickup)
 	}
 	if (BlendColor != 0)
 	{
-		power->BlendColor = BlendColor;
+		if (BlendColor != MakeSpecialColormap(65535)) power->BlendColor = BlendColor;
+		else power->BlendColor = 0;
 	}
 	if (Mode != NAME_None)
 	{
@@ -71,7 +72,7 @@ bool APowerupGiver::Use (bool pickup)
 		power->Strength = Strength;
 	}
 
-	power->ItemFlags |= ItemFlags & (IF_ALWAYSPICKUP|IF_ADDITIVETIME);
+	power->ItemFlags |= ItemFlags & (IF_ALWAYSPICKUP|IF_ADDITIVETIME|IF_NOTELEPORTFREEZE);
 	if (power->CallTryPickup (Owner))
 	{
 		return true;
@@ -341,6 +342,18 @@ void APowerup::OwnerDied ()
 	Destroy ();
 }
 
+//===========================================================================
+//
+// AInventory :: GetNoTeleportFreeze
+//
+//===========================================================================
+
+bool APowerup::GetNoTeleportFreeze ()
+{
+	if (ItemFlags & IF_NOTELEPORTFREEZE) return true;
+	return Super::GetNoTeleportFreeze();
+}
+
 // Invulnerability Powerup ---------------------------------------------------
 
 IMPLEMENT_CLASS (APowerInvulnerable)
@@ -605,7 +618,13 @@ void APowerInvisibility::DoEffect ()
 	case (NAME_Stencil):
 		Owner->RenderStyle = STYLE_Stencil;
 		break;
-	case (NAME_None):
+	case (NAME_AddStencil) :
+		Owner->RenderStyle = STYLE_AddStencil;
+		break;
+	case (NAME_TranslucentStencil) :
+		Owner->RenderStyle = STYLE_TranslucentStencil;
+		break;
+	case (NAME_None) :
 	case (NAME_Cumulative):
 	case (NAME_Translucent):
 		Owner->RenderStyle = STYLE_Translucent;
@@ -685,7 +704,13 @@ int APowerInvisibility::AlterWeaponSprite (visstyle_t *vis)
 		case (NAME_Stencil):
 			vis->RenderStyle = STYLE_Stencil;
 			break;
-		case (NAME_None):
+		case (NAME_TranslucentStencil) :
+			vis->RenderStyle = STYLE_TranslucentStencil;
+			break;
+		case (NAME_AddStencil) :
+			vis->RenderStyle = STYLE_AddStencil;
+			break;
+		case (NAME_None) :
 		case (NAME_Cumulative):
 		case (NAME_Translucent):
 		default:
@@ -940,7 +965,7 @@ void APowerFlight::InitEffect ()
 	Super::InitEffect();
 	Owner->flags2 |= MF2_FLY;
 	Owner->flags |= MF_NOGRAVITY;
-	if (Owner->z <= Owner->floorz)
+	if (Owner->Z() <= Owner->floorz)
 	{
 		Owner->velz = 4*FRACUNIT;	// thrust the player in the air a bit
 	}
@@ -984,9 +1009,10 @@ void APowerFlight::EndEffect ()
 	{
 		return;
 	}
-	if (!(Owner->player->cheats & CF_FLY))
+
+	if (!(Owner->flags7 & MF7_FLYCHEAT))
 	{
-		if (Owner->z != Owner->floorz)
+		if (Owner->Z() != Owner->floorz)
 		{
 			Owner->player->centering = true;
 		}
@@ -1224,7 +1250,7 @@ void APowerSpeed::DoEffect ()
 	if (P_AproxDistance (Owner->velx, Owner->vely) <= 12*FRACUNIT)
 		return;
 
-	AActor *speedMo = Spawn<APlayerSpeedTrail> (Owner->x, Owner->y, Owner->z, NO_REPLACE);
+	AActor *speedMo = Spawn<APlayerSpeedTrail> (Owner->Pos(), NO_REPLACE);
 	if (speedMo)
 	{
 		speedMo->angle = Owner->angle;
@@ -1283,6 +1309,18 @@ void APowerTargeter::InitEffect ()
 		player->psprites[ps_targetright].sy = (100-3)*FRACUNIT;
 	PositionAccuracy ();
 }
+
+bool APowerTargeter::HandlePickup(AInventory *item)
+{
+	if (Super::HandlePickup(item))
+	{
+		InitEffect();	// reset the HUD sprites
+		return true;
+	}
+	return false;
+}
+
+
 
 void APowerTargeter::DoEffect ()
 {
@@ -1372,6 +1410,42 @@ void APowerFrightener::EndEffect ()
 	Owner->player->cheats &= ~CF_FRIGHTENING;
 }
 
+// Buddha Powerup --------------------------------
+
+IMPLEMENT_CLASS (APowerBuddha)
+
+//===========================================================================
+//
+// APowerBuddha :: InitEffect
+//
+//===========================================================================
+
+void APowerBuddha::InitEffect ()
+{
+	Super::InitEffect();
+
+	if (Owner== NULL || Owner->player == NULL)
+		return;
+
+	Owner->player->cheats |= CF_BUDDHA;
+}
+
+//===========================================================================
+//
+// APowerBuddha :: EndEffect
+//
+//===========================================================================
+
+void APowerBuddha::EndEffect ()
+{
+	Super::EndEffect();
+
+	if (Owner== NULL || Owner->player == NULL)
+		return;
+
+	Owner->player->cheats &= ~CF_BUDDHA;
+}
+
 // Scanner powerup ----------------------------------------------------------
 
 IMPLEMENT_CLASS (APowerScanner)
@@ -1426,7 +1500,9 @@ void APowerTimeFreezer::InitEffect()
 	}
 	else
 	{
-		EffectTics++;
+		// Compensate for skipped tic, but beware of overflow.
+		if(EffectTics < INT_MAX)
+			EffectTics++;
 	}
 }
 
@@ -1695,6 +1771,7 @@ IMPLEMENT_CLASS(APowerRegeneration)
 
 void APowerRegeneration::DoEffect()
 {
+	Super::DoEffect();
 	if (Owner != NULL && Owner->health > 0 && (level.time & 31) == 0)
 	{
 		if (P_GiveBody(Owner, Strength/FRACUNIT))
@@ -1860,7 +1937,7 @@ void APowerMorph::EndEffect( )
 	if (!bNoCallUndoMorph)
 	{
 		int savedMorphTics = Player->morphTics;
-		P_UndoPlayerMorph (Player, Player);
+		P_UndoPlayerMorph (Player, Player, 0, !!(Player->MorphStyle & MORPH_UNDOALWAYS));
 
 		// Abort if unmorph failed; in that case,
 		// set the usual retry timer and return.

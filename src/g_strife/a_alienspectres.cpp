@@ -22,7 +22,7 @@ AActor *P_SpawnSubMissile (AActor *source, const PClass *type, AActor *target);
 
 DEFINE_ACTION_FUNCTION(AActor, A_SpectreChunkSmall)
 {
-	AActor *foo = Spawn("AlienChunkSmall", self->x, self->y, self->z + 10*FRACUNIT, ALLOW_REPLACE);
+	AActor *foo = Spawn("AlienChunkSmall", self->PosPlusZ(10*FRACUNIT), ALLOW_REPLACE);
 
 	if (foo != NULL)
 	{
@@ -40,7 +40,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_SpectreChunkSmall)
 
 DEFINE_ACTION_FUNCTION(AActor, A_SpectreChunkLarge)
 {
-	AActor *foo = Spawn("AlienChunkLarge", self->x, self->y, self->z + 10*FRACUNIT, ALLOW_REPLACE);
+	AActor *foo = Spawn("AlienChunkLarge", self->PosPlusZ(10*FRACUNIT), ALLOW_REPLACE);
 
 	if (foo != NULL)
 	{
@@ -62,7 +62,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_Spectre3Attack)
 	if (self->target == NULL)
 		return;
 
-	AActor *foo = Spawn("SpectralLightningV2", self->x, self->y, self->z + 32*FRACUNIT, ALLOW_REPLACE);
+	AActor *foo = Spawn("SpectralLightningV2", self->PosPlusZ(32*FRACUNIT), ALLOW_REPLACE);
 
 	foo->velz = -12*FRACUNIT;
 	foo->target = self;
@@ -106,7 +106,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_AlienSpectreDeath)
 	switch (self->GetClass()->TypeName)
 	{
 	case NAME_AlienSpectre1:
-		EV_DoFloor (DFloor::floorLowerToLowest, NULL, 999, FRACUNIT, 0, 0, 0, false);
+		EV_DoFloor (DFloor::floorLowerToLowest, NULL, 999, FRACUNIT, 0, -1, 0, false);
 		log = 95;
 		break;
 
@@ -180,7 +180,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_AlienSpectreDeath)
 		{	// Another Sigil piece. Woohoo!
 			log = 83;
 		}
-		EV_DoFloor (DFloor::floorLowerToLowest, NULL, 666, FRACUNIT, 0, 0, 0, false);
+		EV_DoFloor (DFloor::floorLowerToLowest, NULL, 666, FRACUNIT, 0, -1, 0, false);
 		break;
 
 	default:

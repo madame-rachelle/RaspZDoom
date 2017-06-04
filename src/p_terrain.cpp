@@ -46,6 +46,7 @@
 #include "s_sound.h"
 #include "p_local.h"
 #include "templates.h"
+#include "farchive.h"
 
 // MACROS ------------------------------------------------------------------
 
@@ -121,7 +122,6 @@ static void ParseSplash (FScanner &sc);
 static void ParseTerrain (FScanner &sc);
 static void ParseFloor (FScanner &sc);
 static int FindSplash (FName name);
-static int FindTerrain (FName name);
 static void GenericParse (FScanner &sc, FGenericParse *parser, const char **keywords,
 	void *fields, const char *type, FName name);
 static void ParseDamage (FScanner &sc, int keyword, void *fields);
@@ -189,41 +189,38 @@ static const char *TerrainKeywords[] =
 	NULL
 };
 
-// Alternate offsetof macro to shut GCC up
-#define theoffsetof(type,field) ((size_t)&((type*)1)->field - 1)
-
 static FGenericParse SplashParser[] =
 {
 	{ GEN_End,	  {0} },
-	{ GEN_Sound,  {theoffsetof(FSplashDef, SmallSplashSound)} },
-	{ GEN_Fixed,  {theoffsetof(FSplashDef, SmallSplashClip)} },
-	{ GEN_Sound,  {theoffsetof(FSplashDef, NormalSplashSound)} },
-	{ GEN_Class,  {theoffsetof(FSplashDef, SmallSplash)} },
-	{ GEN_Class,  {theoffsetof(FSplashDef, SplashBase)} },
-	{ GEN_Class,  {theoffsetof(FSplashDef, SplashChunk)} },
-	{ GEN_Byte,   {theoffsetof(FSplashDef, ChunkXVelShift)} },
-	{ GEN_Byte,   {theoffsetof(FSplashDef, ChunkYVelShift)} },
-	{ GEN_Byte,   {theoffsetof(FSplashDef, ChunkZVelShift)} },
-	{ GEN_Fixed,  {theoffsetof(FSplashDef, ChunkBaseZVel)} },
-	{ GEN_Bool,	  {theoffsetof(FSplashDef, NoAlert)} }
+	{ GEN_Sound,  {myoffsetof(FSplashDef, SmallSplashSound)} },
+	{ GEN_Fixed,  {myoffsetof(FSplashDef, SmallSplashClip)} },
+	{ GEN_Sound,  {myoffsetof(FSplashDef, NormalSplashSound)} },
+	{ GEN_Class,  {myoffsetof(FSplashDef, SmallSplash)} },
+	{ GEN_Class,  {myoffsetof(FSplashDef, SplashBase)} },
+	{ GEN_Class,  {myoffsetof(FSplashDef, SplashChunk)} },
+	{ GEN_Byte,   {myoffsetof(FSplashDef, ChunkXVelShift)} },
+	{ GEN_Byte,   {myoffsetof(FSplashDef, ChunkYVelShift)} },
+	{ GEN_Byte,   {myoffsetof(FSplashDef, ChunkZVelShift)} },
+	{ GEN_Fixed,  {myoffsetof(FSplashDef, ChunkBaseZVel)} },
+	{ GEN_Bool,	  {myoffsetof(FSplashDef, NoAlert)} }
 };
 
 static FGenericParse TerrainParser[] =
 {
 	{ GEN_End,	  {0} },
-	{ GEN_Splash, {theoffsetof(FTerrainDef, Splash)} },
-	{ GEN_Int,    {theoffsetof(FTerrainDef, DamageAmount)} },
+	{ GEN_Splash, {myoffsetof(FTerrainDef, Splash)} },
+	{ GEN_Int,    {myoffsetof(FTerrainDef, DamageAmount)} },
 	{ GEN_Custom, {(size_t)ParseDamage} },
-	{ GEN_Int,    {theoffsetof(FTerrainDef, DamageTimeMask)} },
-	{ GEN_Fixed,  {theoffsetof(FTerrainDef, FootClip)} },
-	{ GEN_Float,  {theoffsetof(FTerrainDef, StepVolume)} },
-	{ GEN_Time,   {theoffsetof(FTerrainDef, WalkStepTics)} },
-	{ GEN_Time,   {theoffsetof(FTerrainDef, RunStepTics)} },
-	{ GEN_Sound,  {theoffsetof(FTerrainDef, LeftStepSound)} },
-	{ GEN_Sound,  {theoffsetof(FTerrainDef, RightStepSound)} },
-	{ GEN_Bool,   {theoffsetof(FTerrainDef, IsLiquid)} },
+	{ GEN_Int,    {myoffsetof(FTerrainDef, DamageTimeMask)} },
+	{ GEN_Fixed,  {myoffsetof(FTerrainDef, FootClip)} },
+	{ GEN_Float,  {myoffsetof(FTerrainDef, StepVolume)} },
+	{ GEN_Time,   {myoffsetof(FTerrainDef, WalkStepTics)} },
+	{ GEN_Time,   {myoffsetof(FTerrainDef, RunStepTics)} },
+	{ GEN_Sound,  {myoffsetof(FTerrainDef, LeftStepSound)} },
+	{ GEN_Sound,  {myoffsetof(FTerrainDef, RightStepSound)} },
+	{ GEN_Bool,   {myoffsetof(FTerrainDef, IsLiquid)} },
 	{ GEN_Custom, {(size_t)ParseFriction} },
-	{ GEN_Bool,   {theoffsetof(FTerrainDef, AllowProtection)} },
+	{ GEN_Bool,   {myoffsetof(FTerrainDef, AllowProtection)} },
 };
 
 
@@ -430,7 +427,7 @@ void ParseTerrain (FScanner &sc)
 
 	sc.MustGetString ();
 	name = sc.String;
-	terrainnum = (int)FindTerrain (name);
+	terrainnum = (int)P_FindTerrain (name);
 	if (terrainnum < 0)
 	{
 		FTerrainDef def;
@@ -630,17 +627,23 @@ static void ParseFloor (FScanner &sc)
 	FTextureID picnum;
 	int terrain;
 
+	bool opt = sc.CheckString("optional");
 	sc.MustGetString ();
+
 	picnum = TexMan.CheckForTexture (sc.String, FTexture::TEX_Flat,
 		FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny);
+
 	if (!picnum.Exists())
 	{
-		Printf ("Unknown flat %s\n", sc.String);
-		sc.MustGetString ();
+		if (!opt)
+		{
+			Printf("Unknown flat %s\n", sc.String);
+		}
+		sc.MustGetString();
 		return;
 	}
 	sc.MustGetString ();
-	terrain = FindTerrain (sc.String);
+	terrain = P_FindTerrain (sc.String);
 	if (terrain == -1)
 	{
 		Printf ("Unknown terrain %s\n", sc.String);
@@ -660,7 +663,7 @@ static void ParseDefault (FScanner &sc)
 	int terrain;
 
 	sc.MustGetString ();
-	terrain = FindTerrain (sc.String);
+	terrain = P_FindTerrain (sc.String);
 	if (terrain == -1)
 	{
 		Printf ("Unknown terrain %s\n", sc.String);
@@ -695,10 +698,11 @@ int FindSplash (FName name)
 //
 //==========================================================================
 
-int FindTerrain (FName name)
+int P_FindTerrain (FName name)
 {
 	unsigned int i;
 
+	if (name == NAME_Null) return -1;
 	for (i = 0; i < Terrains.Size (); i++)
 	{
 		if (Terrains[i].Name == name)
@@ -707,4 +711,27 @@ int FindTerrain (FName name)
 		}
 	}
 	return -1;
+}
+
+void P_SerializeTerrain(FArchive &arc, int &terrainnum)
+{
+	FName val;
+	if (arc.IsStoring())
+	{
+		if (terrainnum < 0 || terrainnum >= (int)Terrains.Size())
+		{
+			val = NAME_Null;
+		}
+		else
+		{
+			val = Terrains[terrainnum].Name;
+		}
+		arc << val;
+	}
+	else
+	{
+		arc << val;
+		terrainnum = P_FindTerrain(val);
+
+	}
 }

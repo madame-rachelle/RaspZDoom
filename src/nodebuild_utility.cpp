@@ -69,8 +69,15 @@ static const int PO_LINE_EXPLICIT = 5;
 angle_t FNodeBuilder::PointToAngle (fixed_t x, fixed_t y)
 {
 	const double rad2bam = double(1<<30) / M_PI;
+#if defined __APPLE__ && !defined __llvm__
+	// Work-around for vectorization issue in Apple's GCC 4.x
+	// See https://gcc.gnu.org/wiki/Math_Optimization_Flags for details
+	long double ang = atan2l (double(y), double(x));
+#else // !__APPLE__ || __llvm__
 	double ang = atan2 (double(y), double(x));
-	return angle_t(ang * rad2bam) << 1;
+#endif // __APPLE__ && !__llvm__
+	// Convert to signed first since negative double to unsigned is undefined.
+	return angle_t(int(ang * rad2bam)) << 1;
 }
 
 void FNodeBuilder::FindUsedVertices (vertex_t *oldverts, int max)

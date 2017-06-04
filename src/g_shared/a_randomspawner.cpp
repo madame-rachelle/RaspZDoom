@@ -15,9 +15,22 @@
 #include "gstrings.h"
 #include "a_action.h"
 #include "thingdef/thingdef.h"
+#include "v_text.h"
 
 #define MAX_RANDOMSPAWNERS_RECURSION 32 // Should be largely more than enough, honestly.
 static FRandom pr_randomspawn("RandomSpawn");
+
+static bool IsMonster(const FDropItem *di)
+{
+	const PClass *pclass = PClass::FindClass(di->Name);
+
+	if (NULL == pclass)
+	{
+		return false;
+	}
+
+	return 0 != (GetDefaultByType(pclass)->flags3 & MF3_ISMONSTER);
+}
 
 class ARandomSpawner : public AActor
 {
@@ -41,7 +54,7 @@ class ARandomSpawner : public AActor
 			{
 				if (di->Name != NAME_None)
 				{
-					if (!nomonsters || !(GetDefaultByType(PClass::FindClass(di->Name))->flags3 & MF3_ISMONSTER))
+					if (!nomonsters || !IsMonster(di))
 					{
 						if (di->amount < 0) di->amount = 1; // default value is -1, we need a positive value.
 						n += di->amount; // this is how we can weight the list.
@@ -62,7 +75,7 @@ class ARandomSpawner : public AActor
 			while (n > -1 && di != NULL)
 			{
 				if (di->Name != NAME_None &&
-					(!nomonsters || !(GetDefaultByType(PClass::FindClass(di->Name))->flags3 & MF3_ISMONSTER)))
+					(!nomonsters || !IsMonster(di)))
 				{
 					n -= di->amount;
 					if ((di->Next != NULL) && (n > -1))
@@ -78,7 +91,7 @@ class ARandomSpawner : public AActor
 			// So now we can spawn the dropped item.
 			if (di == NULL || bouncecount >= MAX_RANDOMSPAWNERS_RECURSION)	// Prevents infinite recursions
 			{
-				Spawn("Unknown", x, y, z, NO_REPLACE);		// Show that there's a problem.
+				Spawn("Unknown", Pos(), NO_REPLACE);		// Show that there's a problem.
 				Destroy();
 				return;
 			}
@@ -106,6 +119,7 @@ class ARandomSpawner : public AActor
 				}
 				else
 				{
+					Printf(TEXTCOLOR_RED "Unknown item class %s to drop from a random spawner\n", di->Name.GetChars());
 					Species = NAME_None;
 				}
 			}
@@ -121,14 +135,18 @@ class ARandomSpawner : public AActor
 		AActor * newmobj = NULL;
 		bool boss = false;
 		Super::PostBeginPlay();
-		if (Species == NAME_None) { Destroy(); return; }
+		if (Species == NAME_None) 
+		{ 
+			Destroy(); 
+			return; 
+		}
 		const PClass * cls = PClass::FindClass(Species);
 		if (this->flags & MF_MISSILE && target && target->target) // Attempting to spawn a missile.
 		{
 			if ((tracer == NULL) && (flags2 & MF2_SEEKERMISSILE)) tracer = target->target;
-			newmobj = P_SpawnMissileXYZ(x, y, z, target, target->target, cls, false);
+			newmobj = P_SpawnMissileXYZ(Pos(), target, target->target, cls, false);
 		}
-		else newmobj = Spawn(cls, x, y, z, NO_REPLACE);
+		else newmobj = Spawn(cls, Pos(), NO_REPLACE);
 		if (newmobj != NULL)
 		{
 			// copy everything relevant
@@ -142,8 +160,9 @@ class ARandomSpawner : public AActor
 			newmobj->args[4]    = args[4];
 			newmobj->special1   = special1;
 			newmobj->special2   = special2;
-			newmobj->SpawnFlags = SpawnFlags;
+			newmobj->SpawnFlags = SpawnFlags & ~MTF_SECRET;	// MTF_SECRET needs special treatment to avoid incrementing the secret counter twice. It had already been processed for the spawner itself.
 			newmobj->HandleSpawnFlags();
+			newmobj->SpawnFlags = SpawnFlags;
 			newmobj->tid        = tid;
 			newmobj->AddToHash();
 			newmobj->velx = velx;
@@ -160,7 +179,7 @@ class ARandomSpawner : public AActor
 			// Handle special altitude flags
 			if (newmobj->flags & MF_SPAWNCEILING)
 			{
-				newmobj->z = newmobj->ceilingz - newmobj->height - SpawnPoint[2];
+				newmobj->SetZ(newmobj->ceilingz - newmobj->height - SpawnPoint[2]);
 			}
 			else if (newmobj->flags2 & MF2_SPAWNFLOAT) 
 			{
@@ -168,9 +187,9 @@ class ARandomSpawner : public AActor
 				if (space > 48*FRACUNIT)
 				{
 					space -= 40*FRACUNIT;
-					newmobj->z = MulScale8 (space, pr_randomspawn()) + newmobj->floorz + 40*FRACUNIT;
+					newmobj->SetZ(MulScale8 (space, pr_randomspawn()) + newmobj->floorz + 40*FRACUNIT);
 				}
-				newmobj->z += SpawnPoint[2];
+				newmobj->AddZ(SpawnPoint[2]);
 			}
 			if (newmobj->flags & MF_MISSILE)
 				P_CheckMissileSpawn(newmobj, 0);

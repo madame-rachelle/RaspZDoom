@@ -59,6 +59,8 @@ extern	FString			startmap;			// [RH] Actual map name now
 
 extern	bool 			autostart;
 
+extern	FString			StoredWarp;			// [RH] +warp at the command line
+
 // Selected by user. 
 EXTERN_CVAR (Int, gameskill);
 extern	int				NextSkill;			// [RH] Skill to use at next level load
@@ -107,6 +109,7 @@ enum EMenuState
 extern	bool			automapactive;	// In AutoMap mode?
 extern	EMenuState		menuactive; 	// Menu overlayed?
 extern	int				paused; 		// Game Pause?
+extern	bool			pauseext;
 
 
 extern	bool			viewactive;
@@ -119,7 +122,10 @@ extern	int 			viewwindowy;
 extern	"C" int 		viewheight;
 extern	"C" int 		viewwidth;
 extern	"C"	int			halfviewwidth;		// [RH] Half view width, for plane drawing
-
+extern	"C" int			realviewwidth;		// [RH] Physical width of view window
+extern	"C" int			realviewheight;		// [RH] Physical height of view window
+extern	"C" int			detailxshift;		// [RH] X shift for horizontal detail level
+extern	"C" int			detailyshift;		// [RH] Y shift for vertical detail level
 
 
 
@@ -134,6 +140,8 @@ extern	int				consoleplayer;
 // Disable save/end game?
 extern	bool			usergame;
 
+extern	FString			newdemoname;
+extern	FString			newdemomap;
 extern	bool			demoplayback;
 extern	bool			demorecording;
 extern	int				demover;
@@ -167,6 +175,7 @@ extern	bool	 		playeringame[/*MAXPLAYERS*/];
 
 // File handling stuff.
 extern	FILE*			debugfile;
+extern	FILE*			hashfile;
 
 // if true, load all graphics at level load
 extern	bool	 		precache;
@@ -243,5 +252,8 @@ EXTERN_CVAR (Int, dmflags2);	// [BC]
 EXTERN_CVAR (Int, compatflags);
 EXTERN_CVAR (Int, compatflags2);
 extern int i_compatflags, i_compatflags2, ii_compatflags, ii_compatflags2, ib_compatflags;
+
+// Filters from AddAutoloadFiles(). Used to filter files from archives.
+extern FString LumpFilterIWAD;
 
 #endif

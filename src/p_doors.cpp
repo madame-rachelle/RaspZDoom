@@ -250,6 +250,8 @@ void DDoor::DoorSound(bool raise, DSeqNode *curseq) const
 
 	choice = !raise;
 
+	if (m_Sector->Flags & SECF_SILENTMOVE) return;
+
 	if (m_Speed >= FRACUNIT*8)
 	{
 		choice += 2;
@@ -297,7 +299,7 @@ void DDoor::DoorSound(bool raise, DSeqNode *curseq) const
 					continue;
 
 				FTexture *tex = TexMan[line->sidedef[0]->GetTexture(side_t::top)];
-				texname = tex? tex->Name : NULL;
+				texname = tex ? tex->Name.GetChars() : NULL;
 				if (texname != NULL && texname[0] == 'D' && texname[1] == 'O' && texname[2] == 'R')
 				{
 					switch (texname[3])
@@ -460,7 +462,7 @@ bool EV_DoDoor (DDoor::EVlDoor type, line_t *line, AActor *thing,
 						//		run into them (otherwise opening them would be
 						//		a real pain).
 					{
-						if (!thing->player || thing->player->isbot)
+						if (!thing->player || thing->player->Bot != NULL)
 							return false;	// JDC: bad guys never close doors
 											//Added by MC: Neither do bots.
 
@@ -484,8 +486,8 @@ bool EV_DoDoor (DDoor::EVlDoor type, line_t *line, AActor *thing,
 	else
 	{	// [RH] Remote door
 
-		secnum = -1;
-		while ((secnum = P_FindSectorFromTag (tag,secnum)) >= 0)
+		FSectorTagIterator it(tag);
+		while ((secnum = it.Next()) >= 0)
 		{
 			sec = &sectors[secnum];
 			// if the ceiling is already moving, don't start the door action
@@ -511,8 +513,6 @@ void P_SpawnDoorCloseIn30 (sector_t *sec)
 	fixed_t height;
 	DDoor *door = new DDoor (sec);
 
-	sec->special = 0;
-
 	door->m_Sector = sec;
 	door->m_Direction = 0;
 	door->m_Type = DDoor::doorRaise;
@@ -533,7 +533,6 @@ void P_SpawnDoorCloseIn30 (sector_t *sec)
 
 void P_SpawnDoorRaiseIn5Mins (sector_t *sec)
 {
-	sec->special = 0;
 	new DDoor (sec, DDoor::doorRaiseIn5Mins, 2*FRACUNIT, TICRATE*30/7, 0);
 }
 
@@ -812,7 +811,8 @@ bool EV_SlidingDoor (line_t *line, AActor *actor, int tag, int speed, int delay)
 		return false;
 	}
 
-	while ((secnum = P_FindSectorFromTag (tag, secnum)) >= 0)
+	FSectorTagIterator it(tag);
+	while ((secnum = it.Next()) >= 0)
 	{
 		sec = &sectors[secnum];
 		if (sec->ceilingdata != NULL)

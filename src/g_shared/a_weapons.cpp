@@ -683,25 +683,15 @@ FState *AWeapon::GetAltAtkState (bool hold)
 
 //===========================================================================
 //
-// AWeapon :: GetRelState
+// AWeapon :: GetStateForButtonName
 //
 //===========================================================================
 
-FState *AWeapon::GetRelState ()
+FState *AWeapon::GetStateForButtonName (FName button)
 {
-	return FindState(NAME_Reload);
+	return FindState(button);
 }
 
-//===========================================================================
-//
-// AWeapon :: GetZoomState
-//
-//===========================================================================
-
-FState *AWeapon::GetZoomState ()
-{
-	return FindState(NAME_Zoom);
-}
 
 /* Weapon giver ***********************************************************/
 
@@ -1143,7 +1133,7 @@ AWeapon *FWeaponSlots::PickNextWeapon(player_t *player)
 				return weap;
 			}
 		}
-		while ((slot != startslot || index != startindex) && slotschecked < NUM_WEAPON_SLOTS);
+		while ((slot != startslot || index != startindex) && slotschecked <= NUM_WEAPON_SLOTS);
 	}
 	return player->ReadyWeapon;
 }
@@ -1198,7 +1188,7 @@ AWeapon *FWeaponSlots::PickPrevWeapon (player_t *player)
 				return weap;
 			}
 		}
-		while ((slot != startslot || index != startindex) && slotschecked < NUM_WEAPON_SLOTS);
+		while ((slot != startslot || index != startindex) && slotschecked <= NUM_WEAPON_SLOTS);
 	}
 	return player->ReadyWeapon;
 }
@@ -1274,7 +1264,7 @@ void FWeaponSlots::SetFromGameInfo()
 	// Append extra weapons to the slots.
 	for (i = 0; i < NUM_WEAPON_SLOTS; ++i)
 	{
-		for (unsigned j = 0; j < gameinfo.DefaultWeaponSlots[i].Size(); i++)
+		for (unsigned j = 0; j < gameinfo.DefaultWeaponSlots[i].Size(); j++)
 		{
 			const PClass *cls = PClass::FindClass(gameinfo.DefaultWeaponSlots[i][j]);
 			if (cls == NULL)

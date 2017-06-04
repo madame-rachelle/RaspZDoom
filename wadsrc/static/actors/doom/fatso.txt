@@ -3,10 +3,8 @@
 // Mancubus
 //
 //===========================================================================
-ACTOR Fatso 67
+ACTOR Fatso
 {
-	Game Doom
-	SpawnID 112
 	Health 600
 	Radius 48
 	Height 64
@@ -32,11 +30,11 @@ ACTOR Fatso 67
 	Missile:
 		FATT G 20 A_FatRaise
 		FATT H 10 BRIGHT A_FatAttack1
-		FATT IG 5
+		FATT IG 5 A_FaceTarget
 		FATT H 10 BRIGHT A_FatAttack2
-		FATT IG 5
+		FATT IG 5 A_FaceTarget
 		FATT H 10 BRIGHT A_FatAttack3
-		FATT IG 5
+		FATT IG 5 A_FaceTarget
 		Goto See
 	Pain:
 		FATT J 3
@@ -65,8 +63,6 @@ ACTOR Fatso 67
 //===========================================================================
 ACTOR FatShot
 {
-	Game Doom
-	SpawnID 153
 	Radius 6
 	Height 8
 	Speed 20

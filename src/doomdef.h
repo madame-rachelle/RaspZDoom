@@ -130,6 +130,7 @@ enum ESkillLevels
 #define KEY_F10 				0x44	// DIK_F10
 #define KEY_F11 				0x57	// DIK_F11
 #define KEY_F12 				0x58	// DIK_F12
+#define KEY_GRAVE				0x29	// DIK_GRAVE
 
 #define KEY_BACKSPACE			0x0e	// DIK_BACK
 
@@ -253,7 +254,7 @@ enum
 	DF_NO_JUMP				= 1 << 16,	// Don't allow jumping
 	DF_YES_JUMP				= 2 << 16,
 	DF_NO_FREELOOK			= 1 << 18,	// Don't allow freelook
-	DF_RESPAWN_SUPER		= 1 << 19,	// Respawn invulnerability and invisibility
+	DF_YES_FREELOOK			= 2 << 18,
 	DF_NO_FOV				= 1 << 20,	// Only let the arbitrator set FOV (for all players)
 	DF_NO_COOP_WEAPON_SPAWN	= 1 << 21,	// Don't spawn multiplayer weapons in coop games
 	DF_NO_CROUCH			= 1 << 22,	// Don't allow crouching
@@ -297,6 +298,7 @@ enum
 	DF2_DONTCHECKAMMO		= 1 << 24,	// Don't Check ammo when switching weapons.
 	DF2_KILLBOSSMONST		= 1 << 25,	// Kills all monsters spawned by a boss cube when the boss dies
 	DF2_NOCOUNTENDMONST		= 1 << 26,	// Do not count monsters in 'end level when dying' sectors towards kill count
+	DF2_RESPAWN_SUPER		= 1 << 27,	// Respawn invulnerability and invisibility
 };
 
 // [RH] Compatibility flags.
@@ -337,6 +339,11 @@ enum
 
 	COMPATF2_BADANGLES		= 1 << 0,	// It is impossible to face directly NSEW.
 	COMPATF2_FLOORMOVE		= 1 << 1,	// Use the same floor motion behavior as Doom.
+	COMPATF2_SOUNDCUTOFF	= 1 << 2,	// Cut off sounds when an actor vanishes instead of making it owner-less
+	COMPATF2_POINTONLINE	= 1 << 3,	// Use original but buggy P_PointOnLineSide() and P_PointOnDivlineSide()
+	COMPATF2_MULTIEXIT		= 1 << 4,	// Level exit can be triggered multiple times (required by Daedalus's travel tubes, thanks to a faulty script)
+	COMPATF2_TELEPORT		= 1 << 5,	// Don't let indirect teleports trigger sector actions
+	COMPATF2_PUSHWINDOW		= 1 << 6,	// Disable the window check in CheckForPushSpecial()
 };
 
 // Emulate old bugs for select maps. These are not exposed by a cvar
@@ -350,6 +357,8 @@ enum
 	BCOMPATF_BADPORTALS			= 1 << 4,	// Restores the old unstable portal behavior
 	BCOMPATF_REBUILDNODES		= 1 << 5,	// Force node rebuild
 	BCOMPATF_LINKFROZENPROPS	= 1 << 6,	// Clearing PROP_TOTALLYFROZEN or PROP_FROZEN also clears the other
+	BCOMPATF_FLOATBOB			= 1 << 8,	// Use Hexen's original method of preventing floatbobbing items from falling down
+	BCOMPATF_NOSLOPEID			= 1 << 9,	// disable line IDs on slopes.
 };
 
 // phares 3/20/98:

@@ -74,12 +74,12 @@ public:
 	{
 	}
 
-	double GetValue()
+	double GetSliderValue()
 	{
 		return SELECTED_JOYSTICK->GetSensitivity();
 	}
 
-	void SetValue(double val)
+	void SetSliderValue(double val)
 	{
 		SELECTED_JOYSTICK->SetSensitivity(float(val));
 	}
@@ -104,14 +104,14 @@ public:
 		mNeg = 1;
 	}
 
-	double GetValue()
+	double GetSliderValue()
 	{
 		double d = SELECTED_JOYSTICK->GetAxisScale(mAxis);
 		mNeg = d < 0? -1:1;
 		return d;
 	}
 
-	void SetValue(double val)
+	void SetSliderValue(double val)
 	{
 		SELECTED_JOYSTICK->SetAxisScale(mAxis, float(val * mNeg));
 	}
@@ -136,14 +136,14 @@ public:
 		mNeg = 1;
 	}
 
-	double GetValue()
+	double GetSliderValue()
 	{
 		double d = SELECTED_JOYSTICK->GetAxisDeadZone(mAxis);
 		mNeg = d < 0? -1:1;
 		return d;
 	}
 
-	void SetValue(double val)
+	void SetSliderValue(double val)
 	{
 		SELECTED_JOYSTICK->SetAxisDeadZone(mAxis, float(val * mNeg));
 	}
@@ -345,8 +345,8 @@ void UpdateJoystickMenu(IJoystickConfig *selected)
 		for(unsigned i=0;i<opt->mItems.Size();i++)
 		{
 			delete opt->mItems[i];
-			opt->mItems.Clear();
 		}
+		opt->mItems.Clear();
 
 		int i;
 		int itemnum = -1;
@@ -373,8 +373,6 @@ void UpdateJoystickMenu(IJoystickConfig *selected)
 		opt->mItems.Push(it);
 		#ifdef _WIN32
 			it = new FOptionMenuItemOption("Enable DirectInput controllers", "joy_dinput", "YesNo", NULL, false);
-			opt->mItems.Push(it);
-			it = new FOptionMenuItemOption("Enable XInput controllers", "joy_xinput", "YesNo", NULL, false);
 			opt->mItems.Push(it);
 			it = new FOptionMenuItemOption("Enable raw PlayStation 2 adapters", "joy_ps2raw", "YesNo", NULL, false);
 			opt->mItems.Push(it);

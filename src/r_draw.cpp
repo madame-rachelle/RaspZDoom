@@ -52,7 +52,7 @@ extern	int		ST_Y;
 
 //
 // All drawing to the view buffer is accomplished in this file.
-// The other refresh files only know about ccordinates,
+// The other refresh files only know about coordinates,
 //	not the architecture of the frame buffer.
 // Conveniently, the frame buffer is a linear one,
 //	and we need only the base address,
@@ -66,6 +66,19 @@ int				ylookup[MAXHEIGHT];
 BYTE			*dc_destorg;
 }
 int 			scaledviewwidth;
+
+extern "C" {
+int				realviewwidth;		// [RH] Physical width of view window
+int				realviewheight;		// [RH] Physical height of view window
+int				detailxshift;		// [RH] X shift for horizontal detail level
+int				detailyshift;		// [RH] Y shift for vertical detail level
+}
+
+#ifdef X86_ASM
+extern "C" void STACK_ARGS DoubleHoriz_MMX (int height, int width, BYTE *dest, int pitch);
+extern "C" void STACK_ARGS DoubleHorizVert_MMX (int height, int width, BYTE *dest, int pitch);
+extern "C" void STACK_ARGS DoubleVert_ASM (int height, int width, BYTE *dest, int pitch);
+#endif
 
 // [RH] Pointers to the different column drawers.
 //		These get changed depending on the current
@@ -117,6 +130,8 @@ const BYTE*		bufplce[4];
 int 			dccount;
 }
 
+cycle_t			DetailDoubleCycles;
+
 int dc_fillcolor;
 BYTE *dc_translation;
 BYTE shadetables[NUMCOLORMAPS*16*256];
@@ -124,6 +139,7 @@ FDynamicColormap ShadeFakeColormap[16];
 BYTE identitymap[256];
 
 EXTERN_CVAR (Int, r_columnmethod)
+EXTERN_CVAR (Int, r_detail)
 
 
 void R_InitShadeMaps()
@@ -270,7 +286,7 @@ void R_FillAddColumn (void)
 	{
 		DWORD bg;
 		bg = (fg + bg2rgb[*dest]) | 0x1f07c1f;
-		*dest = RGB32k[0][0][bg & (bg>>15)];
+		*dest = RGB32k.All[bg & (bg>>15)];
 		dest += pitch; 
 	} while (--count);
 
@@ -303,7 +319,7 @@ void R_FillAddClampColumn (void)
 		a &= 0x3fffffff;
 		b = b - (b >> 5);
 		a |= b;
-		*dest = RGB32k[0][0][a & (a>>15)];
+		*dest = RGB32k.All[a & (a>>15)];
 		dest += pitch; 
 	} while (--count);
 
@@ -335,7 +351,7 @@ void R_FillSubClampColumn (void)
 		b = b - (b >> 5);
 		a &= b;
 		a |= 0x01f07c1f;
-		*dest = RGB32k[0][0][a & (a>>15)];
+		*dest = RGB32k.All[a & (a>>15)];
 		dest += pitch; 
 	} while (--count);
 
@@ -367,7 +383,7 @@ void R_FillRevSubClampColumn (void)
 		b = b - (b >> 5);
 		a &= b;
 		a |= 0x01f07c1f;
-		*dest = RGB32k[0][0][a & (a>>15)];
+		*dest = RGB32k.All[a & (a>>15)];
 		dest += pitch; 
 	} while (--count);
 
@@ -569,7 +585,7 @@ void R_DrawAddColumnP_C (void)
 			fg = fg2rgb[fg];
 			bg = bg2rgb[bg];
 			fg = (fg+bg) | 0x1f07c1f;
-			*dest = RGB32k[0][0][fg & (fg>>15)];
+			*dest = RGB32k.All[fg & (fg>>15)];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -650,7 +666,7 @@ void R_DrawTlatedAddColumnP_C (void)
 			fg = fg2rgb[fg];
 			bg = bg2rgb[bg];
 			fg = (fg+bg) | 0x1f07c1f;
-			*dest = RGB32k[0][0][fg & (fg>>15)];
+			*dest = RGB32k.All[fg & (fg>>15)];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -686,7 +702,7 @@ void R_DrawShadedColumnP_C (void)
 			DWORD val = colormap[source[frac>>FRACBITS]];
 			DWORD fg = fgstart[val<<8];
 			val = (Col2RGB8[64-val][*dest] + fg) | 0x1f07c1f;
-			*dest = RGB32k[0][0][val & (val>>15)];
+			*dest = RGB32k.All[val & (val>>15)];
 
 			dest += pitch;
 			frac += fracstep;
@@ -728,7 +744,7 @@ void R_DrawAddClampColumnP_C ()
 			a &= 0x3fffffff;
 			b = b - (b >> 5);
 			a |= b;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -770,7 +786,7 @@ void R_DrawAddClampTranslatedColumnP_C ()
 			a &= 0x3fffffff;
 			b = b - (b >> 5);
 			a |= b;
-			*dest = RGB32k[0][0][(a>>15) & a];
+			*dest = RGB32k.All[(a>>15) & a];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -810,7 +826,7 @@ void R_DrawSubClampColumnP_C ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -851,7 +867,7 @@ void R_DrawSubClampTranslatedColumnP_C ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][(a>>15) & a];
+			*dest = RGB32k.All[(a>>15) & a];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -891,7 +907,7 @@ void R_DrawRevSubClampColumnP_C ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -932,7 +948,7 @@ void R_DrawRevSubClampTranslatedColumnP_C ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][(a>>15) & a];
+			*dest = RGB32k.All[(a>>15) & a];
 			dest += pitch;
 			frac += fracstep;
 		} while (--count);
@@ -1227,7 +1243,7 @@ void R_DrawSpanTranslucentP_C (void)
 			fg = fg2rgb[fg];
 			bg = bg2rgb[bg];
 			fg = (fg+bg) | 0x1f07c1f;
-			*dest++ = RGB32k[0][0][fg & (fg>>15)];
+			*dest++ = RGB32k.All[fg & (fg>>15)];
 			xfrac += xstep;
 			yfrac += ystep;
 		} while (--count);
@@ -1245,7 +1261,7 @@ void R_DrawSpanTranslucentP_C (void)
 			fg = fg2rgb[fg];
 			bg = bg2rgb[bg];
 			fg = (fg+bg) | 0x1f07c1f;
-			*dest++ = RGB32k[0][0][fg & (fg>>15)];
+			*dest++ = RGB32k.All[fg & (fg>>15)];
 			xfrac += xstep;
 			yfrac += ystep;
 		} while (--count);
@@ -1292,7 +1308,7 @@ void R_DrawSpanMaskedTranslucentP_C (void)
 				fg = fg2rgb[fg];
 				bg = bg2rgb[bg];
 				fg = (fg+bg) | 0x1f07c1f;
-				*dest = RGB32k[0][0][fg & (fg>>15)];
+				*dest = RGB32k.All[fg & (fg>>15)];
 			}
 			dest++;
 			xfrac += xstep;
@@ -1317,7 +1333,7 @@ void R_DrawSpanMaskedTranslucentP_C (void)
 				fg = fg2rgb[fg];
 				bg = bg2rgb[bg];
 				fg = (fg+bg) | 0x1f07c1f;
-				*dest = RGB32k[0][0][fg & (fg>>15)];
+				*dest = RGB32k.All[fg & (fg>>15)];
 			}
 			dest++;
 			xfrac += xstep;
@@ -1364,7 +1380,7 @@ void R_DrawSpanAddClampP_C (void)
 			a &= 0x3fffffff;
 			b = b - (b >> 5);
 			a |= b;
-			*dest++ = RGB32k[0][0][a & (a>>15)];
+			*dest++ = RGB32k.All[a & (a>>15)];
 			xfrac += xstep;
 			yfrac += ystep;
 		} while (--count);
@@ -1385,7 +1401,7 @@ void R_DrawSpanAddClampP_C (void)
 			a &= 0x3fffffff;
 			b = b - (b >> 5);
 			a |= b;
-			*dest++ = RGB32k[0][0][a & (a>>15)];
+			*dest++ = RGB32k.All[a & (a>>15)];
 			xfrac += xstep;
 			yfrac += ystep;
 		} while (--count);
@@ -1435,7 +1451,7 @@ void R_DrawSpanMaskedAddClampP_C (void)
 				a &= 0x3fffffff;
 				b = b - (b >> 5);
 				a |= b;
-				*dest = RGB32k[0][0][a & (a>>15)];
+				*dest = RGB32k.All[a & (a>>15)];
 			}
 			dest++;
 			xfrac += xstep;
@@ -1463,7 +1479,7 @@ void R_DrawSpanMaskedAddClampP_C (void)
 				a &= 0x3fffffff;
 				b = b - (b >> 5);
 				a |= b;
-				*dest = RGB32k[0][0][a & (a>>15)];
+				*dest = RGB32k.All[a & (a>>15)];
 			}
 			dest++;
 			xfrac += xstep;
@@ -1797,8 +1813,8 @@ void R_DrawFogBoundary (int x1, int x2, short *uclip, short *dclip)
 	// we need to use a new colormap.
 
 	fixed_t lightstep = rw_lightstep;
-	fixed_t light = rw_light+lightstep*(x2-x1);
-	int x = x2;
+	fixed_t light = rw_light+lightstep*(x2-x1-1);
+	int x = x2-1;
 	int t2 = uclip[x];
 	int b2 = dclip[x];
 	int rcolormap = GETPALOOKUP (light, wallshade);
@@ -1908,7 +1924,7 @@ fixed_t tmvline1_add ()
 			DWORD fg = fg2rgb[colormap[pix]];
 			DWORD bg = bg2rgb[*dest];
 			fg = (fg+bg) | 0x1f07c1f;
-			*dest = RGB32k[0][0][fg & (fg>>15)];
+			*dest = RGB32k.All[fg & (fg>>15)];
 		}
 		frac += fracstep;
 		dest += pitch;
@@ -1936,7 +1952,7 @@ void tmvline4_add ()
 				DWORD fg = fg2rgb[palookupoffse[i][pix]];
 				DWORD bg = bg2rgb[dest[i]];
 				fg = (fg+bg) | 0x1f07c1f;
-				dest[i] = RGB32k[0][0][fg & (fg>>15)];
+				dest[i] = RGB32k.All[fg & (fg>>15)];
 			}
 			vplce[i] += vince[i];
 		}
@@ -1971,7 +1987,7 @@ fixed_t tmvline1_addclamp ()
 			a &= 0x3fffffff;
 			b = b - (b >> 5);
 			a |= b;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 		}
 		frac += fracstep;
 		dest += pitch;
@@ -2004,7 +2020,7 @@ void tmvline4_addclamp ()
 				a &= 0x3fffffff;
 				b = b - (b >> 5);
 				a |= b;
-				dest[i] = RGB32k[0][0][a & (a>>15)];
+				dest[i] = RGB32k.All[a & (a>>15)];
 			}
 			vplce[i] += vince[i];
 		}
@@ -2038,7 +2054,7 @@ fixed_t tmvline1_subclamp ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 		}
 		frac += fracstep;
 		dest += pitch;
@@ -2070,7 +2086,7 @@ void tmvline4_subclamp ()
 				b = b - (b >> 5);
 				a &= b;
 				a |= 0x01f07c1f;
-				dest[i] = RGB32k[0][0][a & (a>>15)];
+				dest[i] = RGB32k.All[a & (a>>15)];
 			}
 			vplce[i] += vince[i];
 		}
@@ -2104,7 +2120,7 @@ fixed_t tmvline1_revsubclamp ()
 			b = b - (b >> 5);
 			a &= b;
 			a |= 0x01f07c1f;
-			*dest = RGB32k[0][0][a & (a>>15)];
+			*dest = RGB32k.All[a & (a>>15)];
 		}
 		frac += fracstep;
 		dest += pitch;
@@ -2136,7 +2152,7 @@ void tmvline4_revsubclamp ()
 				b = b - (b >> 5);
 				a &= b;
 				a |= 0x01f07c1f;
-				dest[i] = RGB32k[0][0][a & (a>>15)];
+				dest[i] = RGB32k.All[a & (a>>15)];
 			}
 			vplce[i] += vince[i];
 		}
@@ -2164,6 +2180,132 @@ const BYTE *R_GetColumn (FTexture *tex, int col)
 	return tex->GetColumn (col, NULL);
 }
 
+
+// [RH] Double pixels in the view window horizontally
+//		and/or vertically (or not at all).
+void R_DetailDouble ()
+{
+	if (!viewactive) return;
+	DetailDoubleCycles.Reset();
+	DetailDoubleCycles.Clock();
+
+	switch (r_detail) // (detailxshift << 1) | detailyshift
+	{
+	case 2:		// y-double
+#ifdef X86_ASM
+		DoubleVert_ASM (viewheight, viewwidth, dc_destorg, RenderTarget->GetPitch());
+#else
+		{
+			int rowsize = realviewwidth;
+			int pitch = RenderTarget->GetPitch();
+			int y;
+			BYTE *line;
+
+			line = dc_destorg;
+			for (y = viewheight; y != 0; --y, line += pitch<<1)
+			{
+				memcpy (line+pitch, line, rowsize);
+			}
+		}
+#endif
+		break;
+
+	case 1:		// x-double
+#ifdef X86_ASM
+		if (CPU.bMMX && (viewwidth&15)==0)
+		{
+			DoubleHoriz_MMX (viewheight, viewwidth, dc_destorg+viewwidth, RenderTarget->GetPitch());
+		}
+		else
+#endif
+		{
+			int rowsize = viewwidth;
+			int pitch = RenderTarget->GetPitch();
+			int y,x;
+			BYTE *linefrom, *lineto;
+
+			linefrom = dc_destorg;
+			for (y = viewheight; y != 0; --y, linefrom += pitch)
+			{
+				lineto = linefrom - viewwidth;
+				for (x = 0; x < rowsize; ++x)
+				{
+					BYTE c = linefrom[x];
+					lineto[x*2] = c;
+					lineto[x*2+1] = c;
+				}
+			}
+		}
+		break;
+
+	case 3:		// x- and y-double
+#ifdef X86_ASM
+		if (CPU.bMMX && (viewwidth&15)==0 && 0)
+		{
+			DoubleHorizVert_MMX (viewheight, viewwidth, dc_destorg+viewwidth, RenderTarget->GetPitch());
+		}
+		else
+#endif
+		{
+			int rowsize = viewwidth;
+			int realpitch = RenderTarget->GetPitch();
+			int pitch = realpitch << 1;
+			int y,x;
+			BYTE *linefrom, *lineto;
+
+			linefrom = dc_destorg;
+			for (y = viewheight; y != 0; --y, linefrom += pitch)
+			{
+				lineto = linefrom - viewwidth;
+				for (x = 0; x < rowsize; ++x)
+				{
+					BYTE c = linefrom[x];
+					lineto[x*2] = c;
+					lineto[x*2+1] = c;
+					lineto[x*2+realpitch] = c;
+					lineto[x*2+realpitch+1] = c;
+				}
+			}
+		}
+		break;
+
+	case 4:		// x-quad and y-double
+		{
+			int rowsize = viewwidth;
+			int realpitch = RenderTarget->GetPitch();
+			int pitch = realpitch << 1;
+			int y,x;
+			BYTE *linefrom, *lineto;
+
+			linefrom = dc_destorg;
+			for (y = viewheight; y != 0; --y, linefrom += pitch)
+			{
+				lineto = linefrom - viewwidth;
+				for (x = 0; x < rowsize; x = x+2)
+				{
+					BYTE c = linefrom[x];
+					lineto[x*2] = c;
+					lineto[x*2+1] = c;
+					lineto[x*2+2] = c;
+					lineto[x*2+3] = c;
+					lineto[x*2+realpitch] = c;
+					lineto[x*2+realpitch+1] = c;
+					lineto[x*2+realpitch+2] = c;
+					lineto[x*2+realpitch+3] = c;
+				}
+			}
+		}
+		break;
+	}	
+	DetailDoubleCycles.Unclock();
+}
+
+ADD_STAT(detail)
+{
+	FString out;
+	out.Format ("doubling = %04.1f ms", DetailDoubleCycles.TimeMS());
+	return out;
+}
 
 // [RH] Initialize the column drawer pointers
 void R_InitColumnDrawers ()
@@ -2421,7 +2563,7 @@ ESPSResult R_SetPatchStyle (FRenderStyle style, fixed_t alpha, int translation, 
 		int g = GPART(color);
 		int b = BPART(color);
 		// dc_color is used by the rt_* routines. It is indexed into dc_srcblend.
-		dc_color = RGB32k[r>>3][g>>3][b>>3];
+		dc_color = RGB32k.RGB[r>>3][g>>3][b>>3];
 		if (style.Flags & STYLEF_InvertSource)
 		{
 			r = 255 - r;

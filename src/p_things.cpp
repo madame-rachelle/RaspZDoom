@@ -45,9 +45,11 @@
 #include "gi.h"
 #include "templates.h"
 #include "g_level.h"
+#include "v_text.h"
+#include "i_system.h"
 
 // Set of spawnable things for the Thing_Spawn and Thing_Projectile specials.
-TMap<int, const PClass *> SpawnableThings;
+FClassMap SpawnableThings;
 
 static FRandom pr_leadtarget ("LeadTarget");
 
@@ -80,11 +82,11 @@ bool P_Thing_Spawn (int tid, AActor *source, int type, angle_t angle, bool fog, 
 	}
 	while (spot != NULL)
 	{
-		mobj = Spawn (kind, spot->x, spot->y, spot->z, ALLOW_REPLACE);
+		mobj = Spawn (kind, spot->Pos(), ALLOW_REPLACE);
 
 		if (mobj != NULL)
 		{
-			DWORD oldFlags2 = mobj->flags2;
+			ActorFlags2 oldFlags2 = mobj->flags2;
 			mobj->flags2 |= MF2_PASSMOBJ;
 			if (P_TestMobjLocation (mobj))
 			{
@@ -92,7 +94,7 @@ bool P_Thing_Spawn (int tid, AActor *source, int type, angle_t angle, bool fog, 
 				mobj->angle = (angle != ANGLE_MAX ? angle : spot->angle);
 				if (fog)
 				{
-					Spawn<ATeleportFog> (spot->x, spot->y, spot->z + TELEFOGHEIGHT, ALLOW_REPLACE);
+					P_SpawnTeleportFog(mobj, spot->X(), spot->Y(), spot->Z() + TELEFOGHEIGHT, false, true);
 				}
 				if (mobj->flags & MF_SPECIAL)
 					mobj->flags |= MF_DROPPED;	// Don't respawn
@@ -121,17 +123,17 @@ bool P_MoveThing(AActor *source, fixed_t x, fixed_t y, fixed_t z, bool fog)
 {
 	fixed_t oldx, oldy, oldz;
 
-	oldx = source->x;
-	oldy = source->y;
-	oldz = source->z;
+	oldx = source->X();
+	oldy = source->Y();
+	oldz = source->Z();
 
-	source->SetOrigin (x, y, z);
+	source->SetOrigin (x, y, z, false);
 	if (P_TestMobjLocation (source))
 	{
 		if (fog)
 		{
-			Spawn<ATeleportFog> (x, y, z + TELEFOGHEIGHT, ALLOW_REPLACE);
-			Spawn<ATeleportFog> (oldx, oldy, oldz + TELEFOGHEIGHT, ALLOW_REPLACE);
+			P_SpawnTeleportFog(source, x, y, z, false, true);
+			P_SpawnTeleportFog(source, oldx, oldy, oldz, true, true);
 		}
 		source->PrevX = x;
 		source->PrevY = y;
@@ -144,7 +146,7 @@ bool P_MoveThing(AActor *source, fixed_t x, fixed_t y, fixed_t z, bool fog)
 	}
 	else
 	{
-		source->SetOrigin (oldx, oldy, oldz);
+		source->SetOrigin (oldx, oldy, oldz, false);
 		return false;
 	}
 }
@@ -163,7 +165,7 @@ bool P_Thing_Move (int tid, AActor *source, int mapspot, bool fog)
 
 	if (source != NULL && target != NULL)
 	{
-		return P_MoveThing(source, target->x, target->y, target->z, fog);
+		return P_MoveThing(source, target->X(), target->Y(), target->Z(), fog);
 	}
 	return false;
 }
@@ -216,7 +218,7 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 		{
 			do
 			{
-				fixed_t z = spot->z;
+				fixed_t z = spot->Z();
 				if (defflags3 & MF3_FLOORHUGGER)
 				{
 					z = ONFLOORZ;
@@ -229,7 +231,7 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 				{
 					z -= spot->floorclip;
 				}
-				mobj = Spawn (kind, spot->x, spot->y, z, ALLOW_REPLACE);
+				mobj = Spawn (kind, spot->X(), spot->Y(), z, ALLOW_REPLACE);
 
 				if (mobj)
 				{
@@ -252,8 +254,9 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 
 					if (targ != NULL)
 					{
-						fixed_t spot[3] = { targ->x, targ->y, targ->z+targ->height/2 };
-						FVector3 aim(float(spot[0] - mobj->x), float(spot[1] - mobj->y), float(spot[2] - mobj->z));
+						fixedvec3 vect = mobj->Vec3To(targ);
+						vect.z += targ->height / 2;
+						TVector3<double> aim(vect.x, vect.y, vect.z);
 
 						if (leadTarget && speed > 0 && (targ->velx | targ->vely | targ->velz))
 						{
@@ -264,7 +267,7 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 							// with the math. I don't think I would have thought of using
 							// trig alone had I been left to solve it by myself.
 
-							FVector3 tvel(targ->velx, targ->vely, targ->velz);
+							TVector3<double> tvel(targ->velx, targ->vely, targ->velz);
 							if (!(targ->flags & MF_NOGRAVITY) && targ->waterlevel < 3)
 							{ // If the target is subject to gravity and not underwater,
 							  // assume that it isn't moving vertically. Thanks to gravity,
@@ -285,14 +288,14 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 
 							// Use the cross product of two of the triangle's sides to get a
 							// rotation vector.
-							FVector3 rv(tvel ^ aim);
+							TVector3<double> rv(tvel ^ aim);
 							// The vector must be normalized.
 							rv.MakeUnit();
 							// Now combine the rotation vector with angle b to get a rotation matrix.
-							FMatrix3x3 rm(rv, cos(asin(sinb)), sinb);
+							TMatrix3x3<double> rm(rv, cos(asin(sinb)), sinb);
 							// And multiply the original aim vector with the matrix to get a
 							// new aim vector that leads the target.
-							FVector3 aimvec = rm * aim;
+							TVector3<double> aimvec = rm * aim;
 							// And make the projectile follow that vector at the desired speed.
 							double aimscale = fspeed / dist;
 							mobj->velx = fixed_t (aimvec[0] * aimscale);
@@ -302,7 +305,8 @@ bool P_Thing_Projectile (int tid, AActor *source, int type, const char *type_nam
 						}
 						else
 						{
-nolead:						mobj->angle = R_PointToAngle2 (mobj->x, mobj->y, targ->x, targ->y);
+nolead:
+							mobj->angle = mobj->AngleTo(targ);
 							aim.Resize (fspeed);
 							mobj->velx = fixed_t(aim[0]);
 							mobj->vely = fixed_t(aim[1]);
@@ -402,26 +406,23 @@ void P_RemoveThing(AActor * actor)
 	// Don't remove live players.
 	if (actor->player == NULL || actor != actor->player->mo)
 	{
+		// Don't also remove owned inventory items
+		if (actor->IsKindOf(RUNTIME_CLASS(AInventory)) && static_cast<AInventory*>(actor)->Owner != NULL) return;
+
 		// be friendly to the level statistics. ;)
 		actor->ClearCounters();
 		actor->Destroy ();
 	}
+
 }
 
-bool P_Thing_Raise(AActor *thing)
+bool P_Thing_Raise(AActor *thing, AActor *raiser)
 {
-	if (thing == NULL)
-		return false;	// not valid
-
-	if (!(thing->flags & MF_CORPSE) )
-		return true;	// not a corpse
-	
-	if (thing->tics != -1)
-		return true;	// not lying still yet
-	
-	FState * RaiseState = thing->FindState(NAME_Raise);
+	FState * RaiseState = thing->GetRaiseState();
 	if (RaiseState == NULL)
+	{
 		return true;	// monster doesn't have a raise state
+	}
 	
 	AActor *info = thing->GetDefault ();
 
@@ -430,12 +431,12 @@ bool P_Thing_Raise(AActor *thing)
 	// [RH] Check against real height and radius
 	fixed_t oldheight = thing->height;
 	fixed_t oldradius = thing->radius;
-	int oldflags = thing->flags;
+	ActorFlags oldflags = thing->flags;
 
 	thing->flags |= MF_SOLID;
 	thing->height = info->height;	// [RH] Use real height
 	thing->radius = info->radius;	// [RH] Use real radius
-	if (!P_CheckPosition (thing, thing->x, thing->y))
+	if (!P_CheckPosition (thing, thing->Pos()))
 	{
 		thing->flags = oldflags;
 		thing->radius = oldradius;
@@ -443,25 +444,52 @@ bool P_Thing_Raise(AActor *thing)
 		return false;
 	}
 
-	S_Sound (thing, CHAN_BODY, "vile/raise", 1, ATTN_IDLE);
-	
-	thing->SetState (RaiseState);
-	thing->flags = info->flags;
-	thing->flags2 = info->flags2;
-	thing->flags3 = info->flags3;
-	thing->flags4 = info->flags4;
-	thing->flags5 = info->flags5;
-	thing->flags6 = info->flags6;
-	thing->flags7 = info->flags7;
-	thing->health = info->health;
-	thing->target = NULL;
-	thing->lastenemy = NULL;
 
-	// [RH] If it's a monster, it gets to count as another kill
-	if (thing->CountsAsKill())
+	S_Sound (thing, CHAN_BODY, "vile/raise", 1, ATTN_IDLE);
+
+	thing->Revive();
+
+	if (raiser != NULL)
 	{
-		level.total_monsters++;
+		// Let's copy the friendliness of the one who raised it.
+		thing->CopyFriendliness(raiser, false);
 	}
+
+	thing->SetState (RaiseState);
+	return true;
+}
+
+bool P_Thing_CanRaise(AActor *thing)
+{
+	FState * RaiseState = thing->GetRaiseState();
+	if (RaiseState == NULL)
+	{
+		return false;
+	}
+	
+	AActor *info = thing->GetDefault();
+
+	// Check against real height and radius
+	ActorFlags oldflags = thing->flags;
+	fixed_t oldheight = thing->height;
+	fixed_t oldradius = thing->radius;
+
+	thing->flags |= MF_SOLID;
+	thing->height = info->height;
+	thing->radius = info->radius;
+
+	bool check = P_CheckPosition (thing, thing->Pos());
+
+	// Restore checked properties
+	thing->flags = oldflags;
+	thing->radius = oldradius;
+	thing->height = oldheight;
+
+	if (!check)
+	{
+		return false;
+	}
+
 	return true;
 }
 
@@ -506,22 +534,32 @@ const PClass *P_GetSpawnableType(int spawnnum)
 	return NULL;
 }
 
-typedef TMap<int, const PClass *>::Pair SpawnablePair;
+struct MapinfoSpawnItem
+{
+	FName classname;	// DECORATE is read after MAPINFO so we do not have the actual classes available here yet.
+	// These are for error reporting. We must store the file information because it's no longer available when these items get resolved.
+	FString filename;
+	int linenum;
+};
+
+typedef TMap<int, MapinfoSpawnItem> SpawnMap;
+static SpawnMap SpawnablesFromMapinfo;
+static SpawnMap ConversationIDsFromMapinfo;
 
 static int STACK_ARGS SpawnableSort(const void *a, const void *b)
 {
-	return (*((SpawnablePair **)a))->Key - (*((SpawnablePair **)b))->Key;
+	return (*((FClassMap::Pair **)a))->Key - (*((FClassMap::Pair **)b))->Key;
 }
 
-CCMD (dumpspawnables)
+static void DumpClassMap(FClassMap &themap)
 {
-	TMapIterator<int, const PClass *> it(SpawnableThings);
-	SpawnablePair *pair, **allpairs;
+	FClassMap::Iterator it(themap);
+	FClassMap::Pair *pair, **allpairs;
 	int i = 0;
 
 	// Sort into numerical order, since their arrangement in the map can
 	// be in an unspecified order.
-	allpairs = new TMap<int, const PClass *>::Pair *[SpawnableThings.CountUsed()];
+	allpairs = new FClassMap::Pair *[themap.CountUsed()];
 	while (it.NextPair(pair))
 	{
 		allpairs[i++] = pair;
@@ -535,3 +573,237 @@ CCMD (dumpspawnables)
 	delete[] allpairs;
 }
 
+CCMD(dumpspawnables)
+{
+	DumpClassMap(SpawnableThings);
+}
+
+CCMD (dumpconversationids)
+{
+	DumpClassMap(StrifeTypes);
+}
+
+
+static void ParseSpawnMap(FScanner &sc, SpawnMap & themap, const char *descript)
+{
+	TMap<int, bool> defined;
+	int error = 0;
+
+	MapinfoSpawnItem editem;
+
+	editem.filename = sc.ScriptName;
+
+	while (true)
+	{
+		if (sc.CheckString("}")) return;
+		else if (sc.CheckNumber())
+		{
+			int ednum = sc.Number;
+			sc.MustGetStringName("=");
+			sc.MustGetString();
+
+			bool *def = defined.CheckKey(ednum);
+			if (def != NULL)
+			{
+				sc.ScriptMessage("%s %d defined more than once", descript, ednum);
+				error++;
+			}
+			else if (ednum < 0)
+			{
+				sc.ScriptMessage("%s must be positive, got %d", descript, ednum);
+				error++;
+			}
+			defined[ednum] = true;
+			editem.classname = sc.String;
+
+			themap.Insert(ednum, editem);
+		}
+		else
+		{
+			sc.ScriptError("Number expected");
+		}
+	}
+	if (error > 0)
+	{
+		sc.ScriptError("%d errors encountered in %s definition", error, descript);
+	}
+}
+
+void FMapInfoParser::ParseSpawnNums()
+{
+	ParseOpenBrace();
+	ParseSpawnMap(sc, SpawnablesFromMapinfo, "Spawn number");
+}
+
+void FMapInfoParser::ParseConversationIDs()
+{
+	ParseOpenBrace();
+	ParseSpawnMap(sc, ConversationIDsFromMapinfo, "Conversation ID");
+}
+
+
+void InitClassMap(FClassMap &themap, SpawnMap &thedata)
+{
+	themap.Clear();
+	SpawnMap::Iterator it(thedata);
+	SpawnMap::Pair *pair;
+	int error = 0;
+
+	while (it.NextPair(pair))
+	{
+		const PClass *cls = NULL;
+		if (pair->Value.classname != NAME_None)
+		{
+			cls = PClass::FindClass(pair->Value.classname);
+			if (cls == NULL)
+			{
+				Printf(TEXTCOLOR_RED "Script error, \"%s\" line %d:\nUnknown actor class %s\n",
+					pair->Value.filename.GetChars(), pair->Value.linenum, pair->Value.classname.GetChars());
+				error++;
+			}
+			themap.Insert(pair->Key, cls);
+		}
+		else
+		{
+			themap.Remove(pair->Key);
+		}
+	}
+	if (error > 0)
+	{
+		I_Error("%d unknown actor classes found", error);
+	}
+	thedata.Clear();	// we do not need this any longer
+}
+
+void InitSpawnablesFromMapinfo()
+{
+	InitClassMap(SpawnableThings, SpawnablesFromMapinfo);
+	InitClassMap(StrifeTypes, ConversationIDsFromMapinfo);
+}
+
+
+int P_Thing_Warp(AActor *caller, AActor *reference, fixed_t xofs, fixed_t yofs, fixed_t zofs, angle_t angle, int flags, fixed_t heightoffset, fixed_t radiusoffset, angle_t pitch)
+{
+	if (flags & WARPF_MOVEPTR)
+	{
+		AActor *temp = reference;
+		reference = caller;
+		caller = temp;
+	}
+
+	fixedvec3 old = caller->Pos();
+	zofs += FixedMul(reference->height, heightoffset);
+	
+
+	if (!(flags & WARPF_ABSOLUTEANGLE))
+	{
+		angle += (flags & WARPF_USECALLERANGLE) ? caller->angle : reference->angle;
+	}
+
+	const fixed_t rad = FixedMul(radiusoffset, reference->radius);
+	const angle_t fineangle = angle >> ANGLETOFINESHIFT;
+
+	if (!(flags & WARPF_ABSOLUTEPOSITION))
+	{
+		if (!(flags & WARPF_ABSOLUTEOFFSET))
+		{
+			fixed_t xofs1 = xofs;
+
+			// (borrowed from A_SpawnItemEx, assumed workable)
+			// in relative mode negative y values mean 'left' and positive ones mean 'right'
+			// This is the inverse orientation of the absolute mode!
+			
+			xofs = FixedMul(xofs1, finecosine[fineangle]) + FixedMul(yofs, finesine[fineangle]);
+			yofs = FixedMul(xofs1, finesine[fineangle]) - FixedMul(yofs, finecosine[fineangle]);
+		}
+
+		if (flags & WARPF_TOFLOOR)
+		{
+			// set correct xy
+			// now the caller's floorz should be appropriate for the assigned xy-position
+			// assigning position again with.
+			// extra unlink, link and environment calculation
+			caller->SetOrigin(reference->Vec3Offset(
+				xofs + FixedMul(rad, finecosine[fineangle]),
+				yofs + FixedMul(rad, finesine[fineangle]),
+				0), true);
+			caller->SetZ(caller->floorz + zofs);
+		}
+		else
+		{
+			caller->SetOrigin(reference->Vec3Offset(
+				 xofs + FixedMul(rad, finecosine[fineangle]),
+				 yofs + FixedMul(rad, finesine[fineangle]),
+				 zofs), true);
+		}
+	}
+	else // [MC] The idea behind "absolute" is meant to be "absolute". Override everything, just like A_SpawnItemEx's.
+	{
+		if (flags & WARPF_TOFLOOR)
+		{
+			caller->SetOrigin(xofs + FixedMul(rad, finecosine[fineangle]), yofs + FixedMul(rad, finesine[fineangle]), zofs);
+			caller->SetZ(caller->floorz + zofs);
+		}
+		else
+		{
+			caller->SetOrigin(xofs + FixedMul(rad, finecosine[fineangle]), yofs + FixedMul(rad, finesine[fineangle]), zofs);
+		}
+	}
+
+	if ((flags & WARPF_NOCHECKPOSITION) || P_TestMobjLocation(caller))
+	{
+		if (flags & WARPF_TESTONLY)
+		{
+			caller->SetOrigin(old, true);
+		}
+		else
+		{
+			caller->angle = angle;
+
+			if (flags & WARPF_COPYPITCH)
+				caller->SetPitch(reference->pitch, false);
+			
+			if (pitch)
+				caller->SetPitch(caller->pitch + pitch, false);
+			
+			if (flags & WARPF_COPYVELOCITY)
+			{
+				caller->velx = reference->velx;
+				caller->vely = reference->vely;
+				caller->velz = reference->velz;
+			}
+			if (flags & WARPF_STOP)
+			{
+				caller->velx = 0;
+				caller->vely = 0;
+				caller->velz = 0;
+			}
+
+			if (flags & WARPF_WARPINTERPOLATION)
+			{
+				caller->PrevX += caller->X() - old.x;
+				caller->PrevY += caller->Y() - old.y;
+				caller->PrevZ += caller->Z() - old.z;
+			}
+			else if (flags & WARPF_COPYINTERPOLATION)
+			{
+				caller->PrevX = caller->X() + reference->PrevX - reference->X();
+				caller->PrevY = caller->Y() + reference->PrevY - reference->Y();
+				caller->PrevZ = caller->Z() + reference->PrevZ - reference->Z();
+			}
+			else if (!(flags & WARPF_INTERPOLATE))
+			{
+				caller->PrevX = caller->X();
+				caller->PrevY = caller->Y();
+				caller->PrevZ = caller->Z();
+			}
+			if ((flags & WARPF_BOB) && (reference->flags2 & MF2_FLOATBOB))
+			{
+				caller->AddZ(reference->GetBobOffset());
+			}
+		}
+		return true;
+	}
+	caller->SetOrigin(old, true);
+	return false;
+}

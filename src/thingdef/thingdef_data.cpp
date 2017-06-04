@@ -60,7 +60,7 @@ static TArray<FVariableInfo*> variables;
 #define DEFINE_DEPRECATED_FLAG(name) { DEPF_##name, #name, -1, 0 }
 #define DEFINE_DUMMY_FLAG(name) { DEPF_UNUSED, #name, -1, 0 }
 
-static FFlagDef ActorFlags[]=
+static FFlagDef ActorFlagDefs[]=
 {
 	DEFINE_FLAG(MF, PICKUP, APlayerPawn, flags),
 	DEFINE_FLAG(MF, SPECIAL, APlayerPawn, flags),
@@ -240,6 +240,23 @@ static FFlagDef ActorFlags[]=
 	DEFINE_FLAG(MF7, NEVERTARGET, AActor, flags7),
 	DEFINE_FLAG(MF7, NOTELESTOMP, AActor, flags7),
 	DEFINE_FLAG(MF7, ALWAYSTELEFRAG, AActor, flags7),
+	DEFINE_FLAG(MF7, WEAPONSPAWN, AActor, flags7),
+	DEFINE_FLAG(MF7, HARMFRIENDS, AActor, flags7),
+	DEFINE_FLAG(MF7, BUDDHA, AActor, flags7),
+	DEFINE_FLAG(MF7, FOILBUDDHA, AActor, flags7),
+	DEFINE_FLAG(MF7, DONTTHRUST, AActor, flags7),
+	DEFINE_FLAG(MF7, ALLOWPAIN, AActor, flags7),
+	DEFINE_FLAG(MF7, CAUSEPAIN, AActor, flags7),
+	DEFINE_FLAG(MF7, THRUREFLECT, AActor, flags7),
+	DEFINE_FLAG(MF7, MIRRORREFLECT, AActor, flags7),
+	DEFINE_FLAG(MF7, AIMREFLECT, AActor, flags7),
+	DEFINE_FLAG(MF7, HITTARGET, AActor, flags7),
+	DEFINE_FLAG(MF7, HITMASTER, AActor, flags7),
+	DEFINE_FLAG(MF7, HITTRACER, AActor, flags7),
+	DEFINE_FLAG(MF7, NODECAL, AActor, flags7),		// [ZK] Decal flags
+	DEFINE_FLAG(MF7, FORCEDECAL, AActor, flags7),
+	DEFINE_FLAG(MF7, LAXTELEFRAGDMG, AActor, flags7),
+	DEFINE_FLAG(MF7, ICESHATTER, AActor, flags7),
 
 	// Effect flags
 	DEFINE_FLAG(FX, VISIBILITYPULSE, AActor, effects),
@@ -289,7 +306,7 @@ static FFlagDef ActorFlags[]=
 	DEFINE_DUMMY_FLAG(EXPLODEONDEATH),	    // seems useless
 };
 
-static FFlagDef InventoryFlags[] =
+static FFlagDef InventoryFlagDefs[] =
 {
 	// Inventory flags
 	DEFINE_FLAG(IF, QUIET, AInventory, ItemFlags),
@@ -310,11 +327,15 @@ static FFlagDef InventoryFlags[] =
 	DEFINE_FLAG(IF, NEVERRESPAWN, AInventory, ItemFlags),
 	DEFINE_FLAG(IF, NOSCREENFLASH, AInventory, ItemFlags),
 	DEFINE_FLAG(IF, TOSSED, AInventory, ItemFlags),
+	DEFINE_FLAG(IF, ALWAYSRESPAWN, AInventory, ItemFlags),
+	DEFINE_FLAG(IF, TRANSFER, AInventory, ItemFlags),
+	DEFINE_FLAG(IF, NOTELEPORTFREEZE, AInventory, ItemFlags),
 
 	DEFINE_DEPRECATED_FLAG(PICKUPFLASH),
-	DEFINE_DEPRECATED_FLAG(INTERHUBSTRIP),};
+	DEFINE_DEPRECATED_FLAG(INTERHUBSTRIP),
+};
 
-static FFlagDef WeaponFlags[] =
+static FFlagDef WeaponFlagDefs[] =
 {
 	// Weapon flags
 	DEFINE_FLAG(WIF, NOAUTOFIRE, AWeapon, WeaponFlags),
@@ -341,7 +362,7 @@ static FFlagDef WeaponFlags[] =
 	DEFINE_DUMMY_FLAG(ALLOW_WITH_RESPAWN_INVUL),
 };
 
-static FFlagDef PlayerPawnFlags[] =
+static FFlagDef PlayerPawnFlagDefs[] =
 {
 	// PlayerPawn flags
 	DEFINE_FLAG(PPF, NOTHRUSTWHENINVUL, APlayerPawn, PlayerFlags),
@@ -349,7 +370,7 @@ static FFlagDef PlayerPawnFlags[] =
 	DEFINE_FLAG(PPF, CROUCHABLEMORPH, APlayerPawn, PlayerFlags),
 };
 
-static FFlagDef PowerSpeedFlags[] =
+static FFlagDef PowerSpeedFlagDefs[] =
 {
 	// PowerSpeed flags
 	DEFINE_FLAG(PSF, NOTRAIL, APowerSpeed, SpeedFlags),
@@ -357,11 +378,11 @@ static FFlagDef PowerSpeedFlags[] =
 
 static const struct FFlagList { const PClass *Type; FFlagDef *Defs; int NumDefs; } FlagLists[] =
 {
-	{ RUNTIME_CLASS(AActor), 		ActorFlags,		countof(ActorFlags) },
-	{ RUNTIME_CLASS(AInventory), 	InventoryFlags,	countof(InventoryFlags) },
-	{ RUNTIME_CLASS(AWeapon), 		WeaponFlags,	countof(WeaponFlags) },
-	{ RUNTIME_CLASS(APlayerPawn),	PlayerPawnFlags,countof(PlayerPawnFlags) },
-	{ RUNTIME_CLASS(APowerSpeed),	PowerSpeedFlags,countof(PowerSpeedFlags) },
+	{ RUNTIME_CLASS(AActor), 		ActorFlagDefs,		countof(ActorFlagDefs) },
+	{ RUNTIME_CLASS(AInventory), 	InventoryFlagDefs,	countof(InventoryFlagDefs) },
+	{ RUNTIME_CLASS(AWeapon), 		WeaponFlagDefs,		countof(WeaponFlagDefs) },
+	{ RUNTIME_CLASS(APlayerPawn),	PlayerPawnFlagDefs,	countof(PlayerPawnFlagDefs) },
+	{ RUNTIME_CLASS(APowerSpeed),	PowerSpeedFlagDefs,	countof(PowerSpeedFlagDefs) },
 };
 #define NUM_FLAG_LISTS (countof(FlagLists))
 
@@ -448,11 +469,11 @@ FFlagDef *FindFlag (const PClass *type, const char *part1, const char *part2)
 
 const char *GetFlagName(unsigned int flagnum, int flagoffset)
 {
-	for(unsigned i = 0; i < countof(ActorFlags); i++)
+	for(unsigned i = 0; i < countof(ActorFlagDefs); i++)
 	{
-		if (ActorFlags[i].flagbit == flagnum && ActorFlags[i].structoffset == flagoffset)
+		if (ActorFlagDefs[i].flagbit == flagnum && ActorFlagDefs[i].structoffset == flagoffset)
 		{
-			return ActorFlags[i].name;
+			return ActorFlagDefs[i].name;
 		}
 	}
 	return "(unknown)";	// return something printable

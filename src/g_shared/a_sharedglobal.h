@@ -100,6 +100,20 @@ public:
 	TObjPtr<ASkyViewpoint> Mate;
 };
 
+// For an EE compatible linedef based definition.
+class ASkyCamCompat : public ASkyViewpoint
+{
+	DECLARE_CLASS (ASkyCamCompat, ASkyViewpoint)
+
+public:
+	void BeginPlay ()
+	{
+		// Do not call the SkyViewpoint's super method because it would trash our setup
+		AActor::BeginPlay();
+	}
+};
+
+
 class AStackPoint : public ASkyViewpoint
 {
 	DECLARE_CLASS (AStackPoint, ASkyViewpoint)
@@ -131,23 +145,48 @@ protected:
 	DFlashFader ();
 };
 
+enum
+{
+	QF_RELATIVE =		1,
+	QF_SCALEDOWN =		1 << 1,
+	QF_SCALEUP =		1 << 2,
+	QF_MAX =			1 << 3,
+	QF_FULLINTENSITY =	1 << 4,
+	QF_WAVE =			1 << 5,
+};
+
+struct FQuakeJiggers
+{
+	int IntensityX, IntensityY, IntensityZ;
+	int RelIntensityX, RelIntensityY, RelIntensityZ;
+	int OffsetX, OffsetY, OffsetZ;
+	int RelOffsetX, RelOffsetY, RelOffsetZ;
+};
+
 class DEarthquake : public DThinker
 {
 	DECLARE_CLASS (DEarthquake, DThinker)
 	HAS_OBJECT_POINTERS
 public:
-	DEarthquake (AActor *center, int intensity, int duration, int damrad, int tremrad, FSoundID quakesfx);
+	DEarthquake(AActor *center, int intensityX, int intensityY, int intensityZ, int duration,
+		int damrad, int tremrad, FSoundID quakesfx, int flags, 
+		double waveSpeedX, double waveSpeedY, double waveSpeedZ);
 
 	void Serialize (FArchive &arc);
 	void Tick ();
-
 	TObjPtr<AActor> m_Spot;
 	fixed_t m_TremorRadius, m_DamageRadius;
-	int m_Intensity;
 	int m_Countdown;
+	int m_CountdownStart;
 	FSoundID m_QuakeSFX;
+	int m_Flags;
+	fixed_t m_IntensityX, m_IntensityY, m_IntensityZ;
+	float m_WaveSpeedX, m_WaveSpeedY, m_WaveSpeedZ;
 
-	static int StaticGetQuakeIntensity (AActor *viewer);
+	fixed_t GetModIntensity(int intensity) const;
+	fixed_t GetModWave(double waveMultiplier) const;
+
+	static int StaticGetQuakeIntensities(AActor *viewer, FQuakeJiggers &jiggers);
 
 private:
 	DEarthquake ();
@@ -177,7 +216,7 @@ public:
 	TObjPtr<AActor> UnmorphedMe;
 	int UnmorphTime, MorphStyle;
 	const PClass *MorphExitFlash;
-	DWORD FlagsSave;
+	ActorFlags FlagsSave;
 };
 
 class AMapMarker : public AActor

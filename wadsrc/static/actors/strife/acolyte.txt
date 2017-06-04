@@ -39,16 +39,16 @@ ACTOR Acolyte : StrifeHumanoid
 		AGRD ABCDABCD 5 A_Wander
 		Loop
 	See:
-		AGRD A 6 A_AcolyteBits
-		AGRD BCD 6 A_Chase
+		AGRD A 6 Fast Slow A_AcolyteBits
+		AGRD BCD 6 Fast Slow A_Chase
 		Loop
 	Missile:
-		AGRD E 8 A_FaceTarget
-		AGRD FE 4 A_ShootGun
-		AGRD F 6 A_ShootGun
+		AGRD E 8 Fast Slow A_FaceTarget
+		AGRD FE 4 Fast Slow A_ShootGun
+		AGRD F 6 Fast Slow A_ShootGun
 		Goto See
 	Pain:
-		AGRD O 8 A_Pain
+		AGRD O 8 Fast Slow A_Pain
 		Goto See
 	Death:
 		AGRD G 4
@@ -78,90 +78,72 @@ ACTOR Acolyte : StrifeHumanoid
 
 // Acolyte 1 ----------------------------------------------------------------
 
-ACTOR AcolyteTan : Acolyte 3002
+ACTOR AcolyteTan : Acolyte
 {
-	Game Strife
-	ConversationID 53, 52, 53
 	+MISSILEMORE +MISSILEEVENMORE
 	DropItem "ClipOfBullets"
 }
 
 // Acolyte 2 ----------------------------------------------------------------
 
-ACTOR AcolyteRed : Acolyte 142
+ACTOR AcolyteRed : Acolyte
 {
-	Game Strife
-	ConversationID 54, 53, 54
 	+MISSILEMORE +MISSILEEVENMORE
 	Translation 0
 }
 
 // Acolyte 3 ----------------------------------------------------------------
 
-ACTOR AcolyteRust : Acolyte 143
+ACTOR AcolyteRust : Acolyte
 {
-	Game Strife
-	ConversationID 55, 54, 55
 	+MISSILEMORE +MISSILEEVENMORE
 	Translation 1
 }
 
 // Acolyte 4 ----------------------------------------------------------------
 
-ACTOR AcolyteGray : Acolyte 146
+ACTOR AcolyteGray : Acolyte
 {
-	Game Strife
-	ConversationID 56, 55, 56
 	+MISSILEMORE +MISSILEEVENMORE
 	Translation 2
 }
 
 // Acolyte 5 ----------------------------------------------------------------
 
-ACTOR AcolyteDGreen : Acolyte 147
+ACTOR AcolyteDGreen : Acolyte
 {
-	Game Strife
-	ConversationID 57, 56, 57
 	+MISSILEMORE +MISSILEEVENMORE
 	Translation 3
 }
 
 // Acolyte 6 ----------------------------------------------------------------
 
-ACTOR AcolyteGold : Acolyte 148
+ACTOR AcolyteGold : Acolyte
 {
-	Game Strife
-	ConversationID 58, 57, 58
 	+MISSILEMORE +MISSILEEVENMORE
 	Translation 4
 }
 
 // Acolyte 7 ----------------------------------------------------------------
 
-ACTOR AcolyteLGreen : Acolyte 232
+ACTOR AcolyteLGreen : Acolyte
 {
-	Game Strife
 	Health 60
-	ConversationID 59, -1, -1
 	Translation 5
 }
 
 // Acolyte 8 ----------------------------------------------------------------
 
-ACTOR AcolyteBlue : Acolyte 231
+ACTOR AcolyteBlue : Acolyte
 {
-	Game Strife
 	Health 60
-	ConversationID 60, -1, -1
 	Translation 6
 }
 
 // Shadow Acolyte -----------------------------------------------------------
 
-ACTOR AcolyteShadow : Acolyte 58
+ACTOR AcolyteShadow : Acolyte
 {
-	Game Strife
-	ConversationID 61, 58, 59
 	+MISSILEMORE
 	DropItem "ClipOfBullets"
 	States
@@ -170,18 +152,16 @@ ACTOR AcolyteShadow : Acolyte 58
 		AGRD A 6 A_BeShadowyFoe
 		Goto Super::See+1
 	Pain:
-		AGRD O 0 A_SetShadow
-		AGRD O 8 A_Pain
+		AGRD O 0 Fast Slow A_SetShadow
+		AGRD O 8 Fast Slow A_Pain
 		Goto See
 	}
 }
 
 // Some guy turning into an acolyte -----------------------------------------
 
-ACTOR AcolyteToBe : Acolyte 201
+ACTOR AcolyteToBe : Acolyte
 {
-	Game Strife
-	ConversationID 29, -1, -1
 	Health 61
 	Radius 20
 	Height 56

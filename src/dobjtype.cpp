@@ -47,7 +47,7 @@ bool PClass::bShutdown;
 // A harmless non-NULL FlatPointer for classes without pointers.
 static const size_t TheEnd = ~(size_t)0;
 
-static int STACK_ARGS cregcmp (const void *a, const void *b)
+static int STACK_ARGS cregcmp (const void *a, const void *b) NO_SANITIZE
 {
 	// VC++ introduces NULLs in the sequence. GCC seems to work as expected and not do it.
 	const ClassReg *class1 = *(const ClassReg **)a;
@@ -328,6 +328,7 @@ PClass *PClass::CreateDerivedClass (FName name, unsigned int size)
 		info->Class = type;
 		info->GameFilter = GAME_Any;
 		info->SpawnID = 0;
+		info->ConversationID = 0;
 		info->DoomEdNum = -1;
 		info->OwnedStates = NULL;
 		info->NumOwnedStates = 0;
@@ -423,6 +424,7 @@ void PClass::InitializeActorInfo ()
 	info->Class = this;
 	info->GameFilter = GAME_Any;
 	info->SpawnID = 0;
+	info->ConversationID = 0;
 	info->DoomEdNum = -1;
 	info->OwnedStates = NULL;
 	info->NumOwnedStates = 0;

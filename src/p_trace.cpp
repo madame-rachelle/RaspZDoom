@@ -42,7 +42,8 @@ struct FTraceInfo
 {
 	fixed_t StartX, StartY, StartZ;
 	fixed_t Vx, Vy, Vz;
-	DWORD ActorMask, WallMask;
+	ActorFlags ActorMask;
+	DWORD WallMask;
 	AActor *IgnoreThis;
 	FTraceResults *Results;
 	sector_t *CurSector;
@@ -70,7 +71,7 @@ static bool EditTraceResult (DWORD flags, FTraceResults &res);
 
 bool Trace (fixed_t x, fixed_t y, fixed_t z, sector_t *sector,
 			fixed_t vx, fixed_t vy, fixed_t vz, fixed_t maxDist,
-			DWORD actorMask, DWORD wallMask, AActor *ignore,
+			ActorFlags actorMask, DWORD wallMask, AActor *ignore,
 			FTraceResults &res,
 			DWORD flags, ETraceStatus (*callback)(FTraceResults &res, void *), void *callbackdata)
 {
@@ -104,7 +105,6 @@ bool Trace (fixed_t x, fixed_t y, fixed_t z, sector_t *sector,
 	res.Crossed3DWater = NULL;
 	*/
 
-#ifdef _3DFLOORS
 	// Do a 3D floor check in the starting sector
 	TDeletingArray<F3DFloor*> &ff = sector->e->XFloor.ffloors;
 
@@ -174,7 +174,6 @@ bool Trace (fixed_t x, fixed_t y, fixed_t z, sector_t *sector,
 			}
 		}
 	}
-#endif
 
 	// check for overflows and clip if necessary
 	SQWORD xd = (SQWORD)x + ( ( SQWORD(vx) * SQWORD(maxDist) )>>16);
@@ -257,7 +256,6 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 		fixed_t dist;
 
 		// Deal with splashes in 3D floors
-#ifdef _3DFLOORS
 		if (CurSector->e->XFloor.ffloors.Size())
 		{
 			for(unsigned int i=0;i<CurSector->e->XFloor.ffloors.Size();i++)
@@ -274,7 +272,6 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 				}
 			}
 		}
-#endif
 
 		if (in->isaline)
 		{
@@ -366,7 +363,7 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 				Results->HitTexture = CurSector->GetTexture(sector_t::ceiling);
 			}
 			else if (entersector == NULL ||
-				hitz <= bf || hitz >= bc ||
+				hitz < bf || hitz > bc ||
 				in->d.line->flags & WallMask)
 			{ // hit the wall
 				Results->HitType = TRACE_HitWall;
@@ -381,7 +378,6 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 			}
 			else
 			{ 	// made it past the wall
-#ifdef _3DFLOORS
 				// check for 3D floors first
 				if (entersector->e->XFloor.ffloors.Size())
 				{
@@ -435,9 +431,6 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 						}
 					}
 				}
-#endif
-
-
 
 				Results->HitType = TRACE_HitNone;
 				if (TraceFlags & TRACE_PCross)
@@ -450,9 +443,7 @@ bool FTraceInfo::TraceTraverse (int ptflags)
 					P_ActivateLine (in->d.line, IgnoreThis, lineside, SPAC_Impact);
 				}
 			}
-#ifdef _3DFLOORS
 cont:
-#endif
 
 			if (Results->HitType != TRACE_HitNone)
 			{
@@ -533,12 +524,12 @@ cont:
 		hity = StartY + FixedMul (Vy, dist);
 		hitz = StartZ + FixedMul (Vz, dist);
 
-		if (hitz > in->d.thing->z + in->d.thing->height)
+		if (hitz > in->d.thing->Top())
 		{ // trace enters above actor
 			if (Vz >= 0) continue;      // Going up: can't hit
 			
 			// Does it hit the top of the actor?
-			dist = FixedDiv(in->d.thing->z + in->d.thing->height - StartZ, Vz);
+			dist = FixedDiv(in->d.thing->Top() - StartZ, Vz);
 
 			if (dist > MaxDist) continue;
 			in->frac = FixedDiv(dist, MaxDist);
@@ -548,15 +539,15 @@ cont:
 			hitz = StartZ + FixedMul (Vz, dist);
 
 			// calculated coordinate is outside the actor's bounding box
-			if (abs(hitx - in->d.thing->x) > in->d.thing->radius ||
-				abs(hity - in->d.thing->y) > in->d.thing->radius) continue;
+			if (abs(hitx - in->d.thing->X()) > in->d.thing->radius ||
+				abs(hity - in->d.thing->Y()) > in->d.thing->radius) continue;
 		}
-		else if (hitz < in->d.thing->z)
+		else if (hitz < in->d.thing->Z())
 		{ // trace enters below actor
 			if (Vz <= 0) continue;      // Going down: can't hit
 			
 			// Does it hit the bottom of the actor?
-			dist = FixedDiv(in->d.thing->z - StartZ, Vz);
+			dist = FixedDiv(in->d.thing->Z() - StartZ, Vz);
 			if (dist > MaxDist) continue;
 			in->frac = FixedDiv(dist, MaxDist);
 
@@ -565,8 +556,8 @@ cont:
 			hitz = StartZ + FixedMul (Vz, dist);
 
 			// calculated coordinate is outside the actor's bounding box
-			if (abs(hitx - in->d.thing->x) > in->d.thing->radius ||
-				abs(hity - in->d.thing->y) > in->d.thing->radius) continue;
+			if (abs(hitx - in->d.thing->X()) > in->d.thing->radius ||
+				abs(hity - in->d.thing->Y()) > in->d.thing->radius) continue;
 		}
 
 		// check for extrafloors first

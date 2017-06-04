@@ -91,7 +91,7 @@ DBaseDecal::DBaseDecal (int statnum, fixed_t z)
 
 DBaseDecal::DBaseDecal (const AActor *basis)
 : DThinker(STAT_DECAL),
-  WallNext(0), WallPrev(0), LeftDistance(0), Z(basis->z), ScaleX(basis->scaleX), ScaleY(basis->scaleY),
+  WallNext(0), WallPrev(0), LeftDistance(0), Z(basis->Z()), ScaleX(basis->scaleX), ScaleY(basis->scaleY),
   Alpha(basis->alpha), AlphaColor(basis->fillcolor), Translation(basis->Translation), PicNum(basis->picnum),
   RenderFlags(basis->renderflags), RenderStyle(basis->RenderStyle)
 {
@@ -272,7 +272,6 @@ FTextureID DBaseDecal::StickToWall (side_t *wall, fixed_t x, fixed_t y, F3DFloor
 			Z -= back->GetPlaneTexZ(sector_t::ceiling);
 		tex = wall->GetTexture(side_t::top);
 	}
-#ifdef _3DFLOORS
 	else if (ffloor) // this is a 3d-floor segment - do this only if we know which one!
 	{
 		Sector=ffloor->model;
@@ -295,7 +294,6 @@ FTextureID DBaseDecal::StickToWall (side_t *wall, fixed_t x, fixed_t y, F3DFloor
 			tex = ffloor->master->sidedef[0]->GetTexture(side_t::mid);
 		}
 	}
-#endif
 	else return FNullTextureID();
 	CalcFracPos (wall, x, y);
 
@@ -529,7 +527,11 @@ void DBaseDecal::Spread (const FDecalTemplate *tpl, side_t *wall, fixed_t x, fix
 	GetWallStuff (wall, v1, ldx, ldy);
 	rorg = Length (x - v1->x, y - v1->y);
 
-	tex = TexMan[PicNum];
+	if ((tex = TexMan[PicNum]) == NULL)
+	{
+		return;
+	}
+
 	int dwidth = tex->GetWidth ();
 
 	DecalWidth = dwidth * ScaleX;
@@ -570,7 +572,7 @@ DBaseDecal *DBaseDecal::CloneSelf (const FDecalTemplate *tpl, fixed_t ix, fixed_
 	return decal;
 }
 
-CUSTOM_CVAR (Int, cl_maxdecals, 1024, CVAR_ARCHIVE)
+CUSTOM_CVAR (Int, cl_maxdecals, 0, CVAR_ARCHIVE)
 {
 	if (self < 0)
 	{
@@ -819,22 +821,22 @@ void ADecal::BeginPlay ()
 	{
 		if (!tpl->PicNum.Exists())
 		{
-			Printf("Decal actor at (%d,%d) does not have a valid texture\n", x>>FRACBITS, y>>FRACBITS);
+			Printf("Decal actor at (%d,%d) does not have a valid texture\n", X()>>FRACBITS, Y()>>FRACBITS);
 		}
 		else
 		{
 			// Look for a wall within 64 units behind the actor. If none can be
 			// found, then no decal is created, and this actor is destroyed
 			// without effectively doing anything.
-			if (NULL == ShootDecal(tpl, this, Sector, x, y, z, angle + ANGLE_180, 64*FRACUNIT, true))
+			if (NULL == ShootDecal(tpl, this, Sector, X(), Y(), Z(), angle + ANGLE_180, 64*FRACUNIT, true))
 			{
-				DPrintf ("Could not find a wall to stick decal to at (%d,%d)\n", x>>FRACBITS, y>>FRACBITS);
+				DPrintf ("Could not find a wall to stick decal to at (%d,%d)\n", X()>>FRACBITS, Y()>>FRACBITS);
 			}
 		}
 	}
 	else
 	{
-		DPrintf ("Decal actor at (%d,%d) does not have a good template\n", x>>FRACBITS, y>>FRACBITS);
+		DPrintf ("Decal actor at (%d,%d) does not have a good template\n", X()>>FRACBITS, Y()>>FRACBITS);
 	}
 	// This actor doesn't need to stick around anymore.
 	Destroy();

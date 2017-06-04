@@ -333,6 +333,7 @@ bool DCanvas::ParseDrawTextureTags (FTexture *img, double x, double y, DWORD tag
 	int intval;
 	bool translationset = false;
 	bool virtBottom;
+	bool fillcolorset = false;
 
 	if (img == NULL || img->UseType == FTexture::TEX_Null)
 	{
@@ -539,6 +540,7 @@ bool DCanvas::ParseDrawTextureTags (FTexture *img, double x, double y, DWORD tag
 
 		case DTA_FillColor:
 			parms->fillcolor = va_arg(tags, uint32);
+			fillcolorset = true;
 			break;
 
 		case DTA_Translation:
@@ -711,7 +713,7 @@ bool DCanvas::ParseDrawTextureTags (FTexture *img, double x, double y, DWORD tag
 
 	if (parms->style.BlendOp == 255)
 	{
-		if (parms->fillcolor != ~0u)
+		if (fillcolorset)
 		{
 			if (parms->alphaChannel)
 			{
@@ -742,6 +744,13 @@ void DCanvas::VirtualToRealCoords(double &x, double &y, double &w, double &h,
 	double vwidth, double vheight, bool vbottom, bool handleaspect) const
 {
 	int myratio = handleaspect ? CheckRatio (Width, Height) : 0;
+
+    // if 21:9 AR, map to 16:9 for all callers.
+    // this allows for black bars and stops the stretching of fullscreen images
+    if (myratio == 6) {
+        myratio = 2;
+    }
+
 	double right = x + w;
 	double bottom = y + h;
 
@@ -809,12 +818,19 @@ void DCanvas::VirtualToRealCoordsInt(int &x, int &y, int &w, int &h,
 void DCanvas::FillBorder (FTexture *img)
 {
 	int myratio = CheckRatio (Width, Height);
+
+    // if 21:9 AR, fill borders akin to 16:9, since all fullscreen
+    // images are being drawn to that scale.
+    if (myratio == 6) {
+        myratio = 2;
+    }
+
 	if (myratio == 0)
 	{ // This is a 4:3 display, so no border to show
 		return;
 	}
 	int bordtop, bordbottom, bordleft, bordright, bord;
-	if (myratio & 4)
+	if (Is54Aspect(myratio))
 	{ // Screen is taller than it is wide
 		bordleft = bordright = 0;
 		bord = Height - Height * BaseRatioSizes[myratio][3] / 48;
@@ -893,7 +909,7 @@ void DCanvas::PUTTRANSDOT (int xx, int yy, int basecolor, int level)
 	DWORD fg = fg2rgb[basecolor];
 	DWORD bg = bg2rgb[*spot];
 	bg = (fg+bg) | 0x1f07c1f;
-	*spot = RGB32k[0][0][bg&(bg>>15)];
+	*spot = RGB32k.All[bg&(bg>>15)];
 }
 
 void DCanvas::DrawLine(int x0, int y0, int x1, int y1, int palColor, uint32 realcolor)
@@ -1407,7 +1423,7 @@ void V_SetBorderNeedRefresh()
 void V_DrawFrame (int left, int top, int width, int height)
 {
 	FTexture *p;
-	const gameborder_t *border = gameinfo.border;
+	const gameborder_t *border = &gameinfo.Border;
 	// Sanity check for incomplete gameinfo
 	if (border == NULL)
 		return;
@@ -1444,13 +1460,13 @@ void V_DrawBorder (int x1, int y1, int x2, int y2)
 {
 	FTextureID picnum;
 
-	if (level.info != NULL && level.info->bordertexture[0] != 0)
+	if (level.info != NULL && level.info->BorderTexture.Len() != 0)
 	{
-		picnum = TexMan.CheckForTexture (level.info->bordertexture, FTexture::TEX_Flat);
+		picnum = TexMan.CheckForTexture (level.info->BorderTexture, FTexture::TEX_Flat);
 	}
 	else
 	{
-		picnum = TexMan.CheckForTexture (gameinfo.borderFlat, FTexture::TEX_Flat);
+		picnum = TexMan.CheckForTexture (gameinfo.BorderFlat, FTexture::TEX_Flat);
 	}
 
 	if (picnum.isValid())
@@ -1483,17 +1499,17 @@ static void V_DrawViewBorder (void)
 		ST_SetNeedRefresh();
 	}
 
-	if (viewwidth == SCREENWIDTH)
+	if (realviewwidth == SCREENWIDTH)
 	{
 		return;
 	}
 
 	V_DrawBorder (0, 0, SCREENWIDTH, viewwindowy);
-	V_DrawBorder (0, viewwindowy, viewwindowx, viewheight + viewwindowy);
-	V_DrawBorder (viewwindowx + viewwidth, viewwindowy, SCREENWIDTH, viewheight + viewwindowy);
-	V_DrawBorder (0, viewwindowy + viewheight, SCREENWIDTH, ST_Y);
+	V_DrawBorder (0, viewwindowy, viewwindowx, realviewheight + viewwindowy);
+	V_DrawBorder (viewwindowx + realviewwidth, viewwindowy, SCREENWIDTH, realviewheight + viewwindowy);
+	V_DrawBorder (0, viewwindowy + realviewheight, SCREENWIDTH, ST_Y);
 
-	V_DrawFrame (viewwindowx, viewwindowy, viewwidth, viewheight);
+	V_DrawFrame (viewwindowx, viewwindowy, realviewwidth, realviewheight);
 	V_MarkRect (0, 0, SCREENWIDTH, ST_Y);
 }
 
@@ -1510,32 +1526,32 @@ static void V_DrawTopBorder ()
 	FTexture *p;
 	int offset;
 
-	if (viewwidth == SCREENWIDTH)
+	if (realviewwidth == SCREENWIDTH)
 		return;
 
-	offset = gameinfo.border->offset;
+	offset = gameinfo.Border.offset;
 
 	if (viewwindowy < 34)
 	{
 		V_DrawBorder (0, 0, viewwindowx, 34);
-		V_DrawBorder (viewwindowx, 0, viewwindowx + viewwidth, viewwindowy);
-		V_DrawBorder (viewwindowx + viewwidth, 0, SCREENWIDTH, 34);
-		p = TexMan(gameinfo.border->t);
+		V_DrawBorder (viewwindowx, 0, viewwindowx + realviewwidth, viewwindowy);
+		V_DrawBorder (viewwindowx + realviewwidth, 0, SCREENWIDTH, 34);
+		p = TexMan(gameinfo.Border.t);
 		screen->FlatFill(viewwindowx, viewwindowy - p->GetHeight(),
-						 viewwindowx + viewwidth, viewwindowy, p, true);
+						 viewwindowx + realviewwidth, viewwindowy, p, true);
 
-		p = TexMan(gameinfo.border->l);
+		p = TexMan(gameinfo.Border.l);
 		screen->FlatFill(viewwindowx - p->GetWidth(), viewwindowy,
 						 viewwindowx, 35, p, true);
-		p = TexMan(gameinfo.border->r);
-		screen->FlatFill(viewwindowx + viewwidth, viewwindowy,
-						 viewwindowx + viewwidth + p->GetWidth(), 35, p, true);
+		p = TexMan(gameinfo.Border.r);
+		screen->FlatFill(viewwindowx + realviewwidth, viewwindowy,
+						 viewwindowx + realviewwidth + p->GetWidth(), 35, p, true);
 
-		p = TexMan(gameinfo.border->tl);
+		p = TexMan(gameinfo.Border.tl);
 		screen->DrawTexture (p, viewwindowx - offset, viewwindowy - offset, TAG_DONE);
 
-		p = TexMan(gameinfo.border->tr);
-		screen->DrawTexture (p, viewwindowx + viewwidth, viewwindowy - offset, TAG_DONE);
+		p = TexMan(gameinfo.Border.tr);
+		screen->DrawTexture (p, viewwindowx + realviewwidth, viewwindowy - offset, TAG_DONE);
 	}
 	else
 	{

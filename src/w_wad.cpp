@@ -56,6 +56,7 @@
 #include "doomerrors.h"
 #include "resourcefiles/resourcefile.h"
 #include "md5.h"
+#include "doomstat.h"
 
 // MACROS ------------------------------------------------------------------
 
@@ -183,6 +184,7 @@ void FWadCollection::InitMultipleFiles (TArray<FString> &filenames)
 	}
 	RenameNerve();
 	RenameSprites();
+	FixMacHexen();
 
 	// [RH] Set up hash table
 	FirstLumpIndex = new DWORD[NumLumps];
@@ -289,15 +291,62 @@ void FWadCollection::AddFile (const char *filename, FileReader *wadinfo)
 			FResourceLump *lump = resfile->GetLump(i);
 			if (lump->Flags & LUMPF_EMBEDDED)
 			{
-				char path[256];
-
-				mysnprintf(path, countof(path), "%s:", filename);
-				char *wadstr = path + strlen(path);
-
+				FString path;
+				path.Format("%s:%s", filename, lump->FullName.GetChars());
 				FileReader *embedded = lump->NewReader();
-				strcpy(wadstr, lump->FullName);
-
 				AddFile(path, embedded);
+			}
+		}
+
+		if (hashfile)
+		{
+			BYTE cksum[16];
+			char cksumout[33];
+			memset(cksumout, 0, sizeof(cksumout));
+
+			FileReader *reader = wadinfo;
+
+			if (reader != NULL)
+			{
+				MD5Context md5;
+				reader->Seek(0, SEEK_SET);
+				md5.Update(reader, reader->GetLength());
+				md5.Final(cksum);
+
+				for (size_t j = 0; j < sizeof(cksum); ++j)
+				{
+					sprintf(cksumout + (j * 2), "%02X", cksum[j]);
+				}
+
+				fprintf(hashfile, "file: %s, hash: %s, size: %ld\n", filename, cksumout, reader->GetLength());
+			}
+
+			else
+				fprintf(hashfile, "file: %s, Directory structure\n", filename);
+
+			for (DWORD i = 0; i < resfile->LumpCount(); i++)
+			{
+				FResourceLump *lump = resfile->GetLump(i);
+
+				if (!(lump->Flags & LUMPF_EMBEDDED))
+				{
+					reader = lump->NewReader();
+
+					MD5Context md5;
+					md5.Update(reader, lump->LumpSize);
+					md5.Final(cksum);
+
+					for (size_t j = 0; j < sizeof(cksum); ++j)
+					{
+						sprintf(cksumout + (j * 2), "%02X", cksum[j]);
+					}
+
+					fprintf(hashfile, "file: %s, lump: %s, hash: %s, size: %d\n", filename,
+						lump->FullName.IsNotEmpty() ? lump->FullName.GetChars() : lump->Name,
+						cksumout, lump->LumpSize);
+
+					delete reader;
+				}
 			}
 		}
 		return;
@@ -492,7 +541,7 @@ int FWadCollection::CheckNumForFullName (const char *name, bool trynormal, int n
 		return -1;
 	}
 
-	i = FirstLumpIndex_FullName[MakeKey (name) % NumLumps];
+	i = FirstLumpIndex_FullName[MakeKey(name) % NumLumps];
 
 	while (i != NULL_INDEX && stricmp(name, LumpInfo[i].lump->FullName))
 	{
@@ -546,6 +595,37 @@ int FWadCollection::GetNumForFullName (const char *name)
 		I_Error ("GetNumForFullName: %s not found!", name);
 
 	return i;
+}
+
+//==========================================================================
+//
+// link a texture with a given lump
+//
+//==========================================================================
+
+void FWadCollection::SetLinkedTexture(int lump, FTexture *tex)
+{
+	if ((size_t)lump < NumLumps)
+	{
+		FResourceLump *reslump = LumpInfo[lump].lump;
+		reslump->LinkedTexture = tex;
+	}
+}
+
+//==========================================================================
+//
+// retrieve linked texture
+//
+//==========================================================================
+
+FTexture *FWadCollection::GetLinkedTexture(int lump)
+{
+	if ((size_t)lump < NumLumps)
+	{
+		FResourceLump *reslump = LumpInfo[lump].lump;
+		return reslump->LinkedTexture;
+	}
+	return NULL;
 }
 
 //==========================================================================
@@ -655,7 +735,7 @@ void FWadCollection::InitHashChains (void)
 		FirstLumpIndex[j] = i;
 
 		// Do the same for the full paths
-		if (LumpInfo[i].lump->FullName!=NULL)
+		if (LumpInfo[i].lump->FullName.IsNotEmpty())
 		{
 			j = MakeKey(LumpInfo[i].lump->FullName) % NumLumps;
 			NextLumpIndex_FullName[i] = FirstLumpIndex_FullName[j];
@@ -879,6 +959,86 @@ void FWadCollection::RenameNerve ()
 
 //==========================================================================
 //
+// FixMacHexen
+//
+// Discard all extra lumps in Mac version of Hexen IWAD (demo or full)
+// to avoid any issues caused by names of these lumps, including:
+//  * Wrong height of small font
+//  * Broken life bar of mage class
+//
+//==========================================================================
+
+void FWadCollection::FixMacHexen()
+{
+	if (GAME_Hexen != gameinfo.gametype)
+	{
+		return;
+	}
+
+	FileReader* const reader = GetFileReader(IWAD_FILENUM);
+	const long iwadSize = reader->GetLength();
+
+	static const long DEMO_SIZE = 13596228;
+	static const long BETA_SIZE = 13749984;
+	static const long FULL_SIZE = 21078584;
+
+	if (   DEMO_SIZE != iwadSize
+		&& BETA_SIZE != iwadSize
+		&& FULL_SIZE != iwadSize)
+	{
+		return;
+	}
+
+	reader->Seek(0, SEEK_SET);
+
+	BYTE checksum[16];
+	MD5Context md5;
+	md5.Update(reader, iwadSize);
+	md5.Final(checksum);
+
+	static const BYTE HEXEN_DEMO_MD5[16] =
+	{
+		0x92, 0x5f, 0x9f, 0x50, 0x00, 0xe1, 0x7d, 0xc8,
+		0x4b, 0x0a, 0x6a, 0x3b, 0xed, 0x3a, 0x6f, 0x31
+	};
+
+	static const BYTE HEXEN_BETA_MD5[16] =
+	{
+		0x2a, 0xf1, 0xb2, 0x7c, 0xd1, 0x1f, 0xb1, 0x59,
+		0xe6, 0x08, 0x47, 0x2a, 0x1b, 0x53, 0xe4, 0x0e
+	};
+
+	static const BYTE HEXEN_FULL_MD5[16] =
+	{
+		0xb6, 0x81, 0x40, 0xa7, 0x96, 0xf6, 0xfd, 0x7f,
+		0x3a, 0x5d, 0x32, 0x26, 0xa3, 0x2b, 0x93, 0xbe
+	};
+
+	const bool isBeta = 0 == memcmp(HEXEN_BETA_MD5, checksum, sizeof checksum);
+
+	if (   !isBeta
+		&& 0 != memcmp(HEXEN_DEMO_MD5, checksum, sizeof checksum)
+		&& 0 != memcmp(HEXEN_FULL_MD5, checksum, sizeof checksum))
+	{
+		return;
+	}
+
+	static const int EXTRA_LUMPS = 299;
+
+	// Hexen Beta is very similar to Demo but it has MAP41: Maze at the end of the WAD
+	// So keep this map if it's present but discard all extra lumps
+
+	const int lastLump = GetLastLump(IWAD_FILENUM) - (isBeta ? 12 : 0);
+	assert(GetFirstLump(IWAD_FILENUM) + 299 < lastLump);
+
+	for (int i = lastLump - EXTRA_LUMPS + 1; i <= lastLump; ++i)
+	{
+		LumpInfo[i].lump->Name[0] = '\0';
+	}
+}
+
+//==========================================================================
+//
 // W_FindLump
 //
 // Find a named lump. Specifically allows duplicates for merging of e.g.
@@ -984,6 +1144,16 @@ void FWadCollection::GetLumpName (char *to, int lump) const
 		uppercopy (to, LumpInfo[lump].lump->Name);
 }
 
+void FWadCollection::GetLumpName(FString &to, int lump) const
+{
+	if ((size_t)lump >= NumLumps)
+		to = FString();
+	else {
+		to = LumpInfo[lump].lump->Name;
+		to.ToUpper();
+	}
+}
+
 //==========================================================================
 //
 // FWadCollection :: GetLumpFullName
@@ -996,7 +1166,7 @@ const char *FWadCollection::GetLumpFullName (int lump) const
 {
 	if ((size_t)lump >= NumLumps)
 		return NULL;
-	else if (LumpInfo[lump].lump->FullName != NULL)
+	else if (LumpInfo[lump].lump->FullName.IsNotEmpty())
 		return LumpInfo[lump].lump->FullName;
 	else
 		return LumpInfo[lump].lump->Name;
@@ -1138,6 +1308,17 @@ FWadLump *FWadCollection::ReopenLumpNum (int lump)
 
 	return new FWadLump(LumpInfo[lump].lump, true);
 }
+
+FWadLump *FWadCollection::ReopenLumpNumNewFile (int lump)
+{
+	if ((unsigned)lump >= (unsigned)LumpInfo.Size())
+	{
+		return NULL;
+	}
+
+	return new FWadLump(lump, LumpInfo[lump].lump);
+}
+
 
 //==========================================================================
 //
@@ -1328,6 +1509,34 @@ FWadLump::FWadLump(FResourceLump *lump, bool alwayscache)
 	}
 }
 
+FWadLump::FWadLump(int lumpnum, FResourceLump *lump)
+: FileReader()
+{
+	FileReader *f = lump->GetReader();
+
+	if (f != NULL && f->GetFile() != NULL)
+	{
+		// Uncompressed lump in a file. For this we will have to open a new FILE, since we need it for streaming
+		int fileno = Wads.GetLumpFile(lumpnum);
+		const char *filename = Wads.GetWadFullName(fileno);
+		File = fopen(filename, "rb");
+		if (File != NULL)
+		{
+			Length = lump->LumpSize;
+			StartPos = FilePos = lump->GetFileOffset();
+			Lump = NULL;
+			CloseOnDestruct = true;
+			Seek(0, SEEK_SET);
+			return;
+		}
+	}
+	File = NULL;
+	Length = lump->LumpSize;
+	StartPos = FilePos = 0;
+	Lump = lump;
+	Lump->CacheLump();
+}
+
 FWadLump::~FWadLump()
 {
 	if (Lump != NULL)
@@ -1480,5 +1689,35 @@ static void PrintLastError ()
 static void PrintLastError ()
 {
 	Printf (TEXTCOLOR_RED "  %s\n", strerror(errno));
+}
+#endif
+
+#ifdef _DEBUG
+//==========================================================================
+//
+// CCMD LumpNum
+//
+//==========================================================================
+
+CCMD(lumpnum)
+{
+	for (int i = 1; i < argv.argc(); ++i)
+	{
+		Printf("%s: %d\n", argv[i], Wads.CheckNumForName(argv[i]));
+	}
+}
+
+//==========================================================================
+//
+// CCMD LumpNumFull
+//
+//==========================================================================
+
+CCMD(lumpnumfull)
+{
+	for (int i = 1; i < argv.argc(); ++i)
+	{
+		Printf("%s: %d\n", argv[i], Wads.CheckNumForFullName(argv[i]));
+	}
 }
 #endif

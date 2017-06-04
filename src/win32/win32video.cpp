@@ -32,18 +32,22 @@
 **
 */
 
+#ifdef USE_D3D9
 #ifdef _DEBUG
 #define D3D_DEBUG_INFO
 #endif
-#define DIRECTDRAW_VERSION 0x0300
 #define DIRECT3D_VERSION 0x0900
+#endif
+#define DIRECTDRAW_VERSION 0x0300
 
 #define _WIN32_WINNT 0x0501
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <mmsystem.h>
 #include <ddraw.h>
+#ifdef USE_D3D9
 #include <d3d9.h>
+#endif
 
 // HEADER FILES ------------------------------------------------------------
 
@@ -51,7 +55,9 @@
 
 #include <windows.h>
 #include <ddraw.h>
+#ifdef USE_D3D9
 #include <d3d9.h>
+#endif
 #include <stdio.h>
 #include <ctype.h>
 
@@ -70,6 +76,7 @@
 #include "r_defs.h"
 #include "v_text.h"
 #include "r_swrenderer.h"
+#include "version.h"
 
 #include "win32iface.h"
 
@@ -79,7 +86,9 @@
 
 IMPLEMENT_ABSTRACT_CLASS(BaseWinFB)
 
+#ifdef USE_D3D9
 typedef IDirect3D9 *(WINAPI *DIRECT3DCREATE9FUNC)(UINT SDKVersion);
+#endif
 typedef HRESULT (WINAPI *DIRECTDRAWCREATEFUNC)(GUID FAR *lpGUID, LPDIRECTDRAW FAR *lplpDD, IUnknown FAR *pUnkOuter);
 
 // PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
@@ -105,15 +114,19 @@ EXTERN_CVAR (Bool, cl_capfps)
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
 
+#ifdef USE_D3D9
 static HMODULE D3D9_dll;
+#endif
 static HMODULE DDraw_dll;
 static UINT FPSLimitTimer;
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
 IDirectDraw2 *DDraw;
+#ifdef USE_D3D9
 IDirect3D9 *D3D;
 IDirect3DDevice9 *D3Device;
+#endif
 HANDLE FPSLimitEvent;
 
 CVAR (Bool, vid_forceddraw, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -143,13 +156,21 @@ FILE *dbg;
 Win32Video::Win32Video (int parm)
 : m_Modes (NULL),
   m_IsFullscreen (false),
+#ifdef USE_D3D9
   m_Adapter (D3DADAPTER_DEFAULT)
+#else 
+  m_Adapter (0)
+#endif
 {
 	I_SetWndProc();
+#ifdef USE_D3D9
 	if (!InitD3D9())
 	{
 		InitDDraw();
 	}
+#else
+	InitDDraw();
+#endif
 }
 
 Win32Video::~Win32Video ()
@@ -165,15 +186,18 @@ Win32Video::~Win32Video ()
 		DDraw->Release();
 		DDraw = NULL;
 	}
+#ifdef USE_D3D9
 	if (D3D != NULL)
 	{
 		D3D->Release();
 		D3D = NULL;
 	}
+#endif
 
 	STOPLOG;
 }
 
+#ifdef USE_D3D9
 bool Win32Video::InitD3D9 ()
 {
 	DIRECT3DCREATE9FUNC direct3d_create_9;
@@ -249,6 +273,7 @@ closelib:
 	FreeLibrary (D3D9_dll);
 	return false;
 }
+#endif
 
 void Win32Video::InitDDraw ()
 {
@@ -301,7 +326,7 @@ void Win32Video::InitDDraw ()
 		DDraw->Release ();
 		DDraw = NULL;
 		I_FatalError ("DirectDraw returned no display modes.\n\n"
-					"If you started ZDoom from a fullscreen DOS box, run it from "
+					"If you started " GAMENAME " from a fullscreen DOS box, run it from "
 					"a DOS window instead. If that does not work, you may need to reboot.");
 	}
 	if (Args->CheckParm ("-2"))
@@ -333,11 +358,13 @@ bool Win32Video::GoFullscreen (bool yes)
 	HRESULT hr[2];
 	int count;
 
+#ifdef USE_D3D9
 	// FIXME: Do this right for D3D. (This function is only called by the movie player when using D3D.)
 	if (D3D != NULL)
 	{
 		return yes;
 	}
+#endif
 
 	if (m_IsFullscreen == yes)
 		return yes;
@@ -386,7 +413,9 @@ void Win32Video::BlankForGDI ()
 
 void Win32Video::DumpAdapters()
 {
-	if (D3D == NULL)
+
+#ifdef USE_D3D9
+/*	if (D3D == NULL)
 	{
 		Printf("Multi-monitor support requires Direct3D.\n");
 		return;
@@ -425,6 +454,12 @@ void Win32Video::DumpAdapters()
 			i == m_Adapter ? TEXTCOLOR_BOLD : "",
 			i + 1, ai.Description, moreinfo);
 	}
+*/	Printf("Display adapters information not available.\n");
+	return;
+#else
+	Printf("Multi-monitor support requires Direct3D.\n");
+	return;
+#endif
 }
 
 // Mode enumeration --------------------------------------------------------
@@ -435,6 +470,7 @@ HRESULT WINAPI Win32Video::EnumDDModesCB (LPDDSURFACEDESC desc, void *data)
 	return DDENUMRET_OK;
 }
 
+#ifdef USE_D3D9
 void Win32Video::AddD3DModes (UINT adapter, D3DFORMAT format)
 {
 	UINT modecount, i;
@@ -449,6 +485,7 @@ void Win32Video::AddD3DModes (UINT adapter, D3DFORMAT format)
 		}
 	}
 }
+#endif
 
 //==========================================================================
 //
@@ -656,6 +693,7 @@ DFrameBuffer *Win32Video::CreateFrameBuffer (int width, int height, bool fullscr
 		flashAmount = 0;
 	}
 
+#ifdef USE_D3D9
 	if (D3D != NULL)
 	{
 		fb = new D3DFB (m_Adapter, width, height, fullscreen);
@@ -664,6 +702,9 @@ DFrameBuffer *Win32Video::CreateFrameBuffer (int width, int height, bool fullscr
 	{
 		fb = new DDrawFB (width, height, fullscreen);
 	}
+#else
+	fb = new DDrawFB (width, height, fullscreen);
+#endif
 	LOG1 ("New fb created @ %p\n", fb);
 
 	// If we could not create the framebuffer, try again with slightly
@@ -733,6 +774,29 @@ DFrameBuffer *Win32Video::CreateFrameBuffer (int width, int height, bool fullscr
 void Win32Video::SetWindowedScale (float scale)
 {
 	// FIXME
+}
+
+//==========================================================================
+//
+// BaseWinFB :: ScaleCoordsFromWindow
+//
+// Given coordinates in window space, return coordinates in what the game
+// thinks screen space is.
+//
+//==========================================================================
+
+void BaseWinFB::ScaleCoordsFromWindow(SWORD &x, SWORD &y)
+{
+	RECT rect;
+
+	int TrueHeight = GetTrueHeight();
+	if (GetClientRect(Window, &rect))
+	{
+		x = SWORD(x * Width / (rect.right - rect.left));
+		y = SWORD(y * TrueHeight / (rect.bottom - rect.top));
+	}
+	// Subtract letterboxing borders
+	y -= (TrueHeight - Height) / 2;
 }
 
 //==========================================================================

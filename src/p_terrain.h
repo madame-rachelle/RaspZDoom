@@ -49,11 +49,13 @@ public:
 
 	WORD operator [](FTextureID tex) const
 	{
+		if ((unsigned)tex.GetIndex() >= Types.Size()) return DefaultTerrainType;
 		WORD type = Types[tex.GetIndex()];
 		return type == 0xffff? DefaultTerrainType : type;
 	}
 	WORD operator [](int texnum) const
 	{
+		if ((unsigned)texnum >= Types.Size()) return DefaultTerrainType;
 		WORD type = Types[texnum];
 		return type == 0xffff? DefaultTerrainType : type;
 	}
@@ -67,6 +69,12 @@ public:
 	}
 	void Set(int index, int value)
 	{
+		if ((unsigned)index >= Types.Size())
+		{
+			int oldsize = Types.Size();
+			Resize(index + 1);
+			memset(&Types[oldsize], 0xff, (index + 1 - oldsize)*sizeof(WORD));
+		}
 		Types[index] = value;
 	}
 };
@@ -113,5 +121,9 @@ struct FTerrainDef
 
 extern TArray<FSplashDef> Splashes;
 extern TArray<FTerrainDef> Terrains;
+
+class FArchive;
+int P_FindTerrain(FName name);
+void P_SerializeTerrain(FArchive &arc, int &terrainnum);
 
 #endif //__P_TERRAIN_H__

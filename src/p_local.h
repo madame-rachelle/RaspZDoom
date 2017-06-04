@@ -105,6 +105,7 @@ void	P_FallingDamage (AActor *ent);
 void	P_PlayerThink (player_t *player);
 void	P_PredictPlayer (player_t *player);
 void	P_UnPredictPlayer ();
+void	P_PredictionLerpReset();
 
 //
 // P_MOBJ
@@ -132,8 +133,16 @@ enum EPuffFlags
 	PF_NORANDOMZ = 16
 };
 
-AActor *P_SpawnPuff (AActor *source, const PClass *pufftype, fixed_t x, fixed_t y, fixed_t z, angle_t dir, int updown, int flags = 0);
+AActor *P_SpawnPuff (AActor *source, const PClass *pufftype, fixed_t x, fixed_t y, fixed_t z, angle_t dir, int updown, int flags = 0, AActor *vict = NULL);
+inline AActor *P_SpawnPuff(AActor *source, const PClass *pufftype, const fixedvec3 &pos, angle_t dir, int updown, int flags = 0, AActor *vict = NULL)
+{
+	return P_SpawnPuff(source, pufftype, pos.x, pos.y, pos.z, dir, updown, flags, vict);
+}
 void	P_SpawnBlood (fixed_t x, fixed_t y, fixed_t z, angle_t dir, int damage, AActor *originator);
+inline void	P_SpawnBlood(const fixedvec3 &pos, angle_t dir, int damage, AActor *originator)
+{
+	P_SpawnBlood(pos.x, pos.y, pos.z, dir, damage, originator);
+}
 void	P_BloodSplatter (fixed_t x, fixed_t y, fixed_t z, AActor *originator);
 void	P_BloodSplatter2 (fixed_t x, fixed_t y, fixed_t z, AActor *originator);
 void	P_RipperBlood (AActor *mo, AActor *bleeder);
@@ -143,6 +152,10 @@ void	P_ExplodeMissile (AActor *missile, line_t *explodeline, AActor *target);
 AActor *P_SpawnMissile (AActor* source, AActor* dest, const PClass *type, AActor* owner = NULL);
 AActor *P_SpawnMissileZ (AActor* source, fixed_t z, AActor* dest, const PClass *type);
 AActor *P_SpawnMissileXYZ (fixed_t x, fixed_t y, fixed_t z, AActor *source, AActor *dest, const PClass *type, bool checkspawn = true, AActor *owner = NULL);
+inline AActor *P_SpawnMissileXYZ(const fixedvec3 &pos, AActor *source, AActor *dest, const PClass *type, bool checkspawn = true, AActor *owner = NULL)
+{
+	return P_SpawnMissileXYZ(pos.x, pos.y, pos.z, source, dest, type, checkspawn, owner);
+}
 AActor *P_SpawnMissileAngle (AActor *source, const PClass *type, angle_t angle, fixed_t velz);
 AActor *P_SpawnMissileAngleSpeed (AActor *source, const PClass *type, angle_t angle, fixed_t velz, fixed_t speed);
 AActor *P_SpawnMissileAngleZ (AActor *source, fixed_t z, const PClass *type, angle_t angle, fixed_t velz);
@@ -152,14 +165,15 @@ AActor *P_SpawnMissileZAimed (AActor *source, fixed_t z, AActor *dest, const PCl
 AActor *P_SpawnPlayerMissile (AActor* source, const PClass *type);
 AActor *P_SpawnPlayerMissile (AActor *source, const PClass *type, angle_t angle);
 AActor *P_SpawnPlayerMissile (AActor *source, fixed_t x, fixed_t y, fixed_t z, const PClass *type, angle_t angle, 
-							  AActor **pLineTarget = NULL, AActor **MissileActor = NULL, bool nofreeaim = false);
+							  AActor **pLineTarget = NULL, AActor **MissileActor = NULL, bool nofreeaim = false, bool noautoaim = false);
 
 void P_CheckFakeFloorTriggers (AActor *mo, fixed_t oldz, bool oldz_has_viewheight=false);
 
 //
 // [RH] P_THINGS
 //
-extern TMap<int, const PClass *> SpawnableThings;
+extern FClassMap SpawnableThings;
+extern FClassMap StrifeTypes;
 
 bool	P_Thing_Spawn (int tid, AActor *source, int type, angle_t angle, bool fog, int newtid);
 bool	P_Thing_Projectile (int tid, AActor *source, int type, const char * type_name, angle_t angle,
@@ -170,8 +184,37 @@ bool	P_Thing_Move (int tid, AActor *source, int mapspot, bool fog);
 int		P_Thing_Damage (int tid, AActor *whofor0, int amount, FName type);
 void	P_Thing_SetVelocity(AActor *actor, fixed_t vx, fixed_t vy, fixed_t vz, bool add, bool setbob);
 void P_RemoveThing(AActor * actor);
-bool P_Thing_Raise(AActor *thing);
+bool P_Thing_Raise(AActor *thing, AActor *raiser);
+bool P_Thing_CanRaise(AActor *thing);
 const PClass *P_GetSpawnableType(int spawnnum);
+void InitSpawnablesFromMapinfo();
+int P_Thing_Warp(AActor *caller, AActor *reference, fixed_t xofs, fixed_t yofs, fixed_t zofs, angle_t angle, int flags, fixed_t heightoffset, fixed_t radiusoffset, angle_t pitch);
+
+enum WARPF
+{
+	WARPF_ABSOLUTEOFFSET = 0x1,
+	WARPF_ABSOLUTEANGLE  = 0x2,
+	WARPF_USECALLERANGLE = 0x4,
+
+	WARPF_NOCHECKPOSITION = 0x8,
+
+	WARPF_INTERPOLATE       = 0x10,
+	WARPF_WARPINTERPOLATION = 0x20,
+	WARPF_COPYINTERPOLATION = 0x40,
+
+	WARPF_STOP             = 0x80,
+	WARPF_TOFLOOR          = 0x100,
+	WARPF_TESTONLY         = 0x200,
+	WARPF_ABSOLUTEPOSITION = 0x400,
+	WARPF_BOB              = 0x800,
+	WARPF_MOVEPTR          = 0x1000,
+	WARPF_USEPTR           = 0x2000,
+	WARPF_USETID           = 0x2000,
+	WARPF_COPYVELOCITY		= 0x4000,
+	WARPF_COPYPITCH			= 0x8000,
+};
+
+
 
 //
 // P_MAPUTL
@@ -211,8 +254,18 @@ fixed_t P_AproxDistance (fixed_t dx, fixed_t dy);
 
 inline int P_PointOnLineSide (fixed_t x, fixed_t y, const line_t *line)
 {
+	extern int P_VanillaPointOnLineSide(fixed_t x, fixed_t y, const line_t* line);
+
+	return i_compatflags2 & COMPATF2_POINTONLINE
+		? P_VanillaPointOnLineSide(x, y, line)
+		: DMulScale32 (y-line->v1->y, line->dx, line->v1->x-x, line->dy) > 0;
+}
+
+inline int P_PointOnLineSidePrecise (fixed_t x, fixed_t y, const line_t *line)
+{
 	return DMulScale32 (y-line->v1->y, line->dx, line->v1->x-x, line->dy) > 0;
 }
+
 
 //==========================================================================
 //
@@ -225,8 +278,18 @@ inline int P_PointOnLineSide (fixed_t x, fixed_t y, const line_t *line)
 
 inline int P_PointOnDivlineSide (fixed_t x, fixed_t y, const divline_t *line)
 {
+	extern int P_VanillaPointOnDivlineSide(fixed_t x, fixed_t y, const divline_t* line);
+
+	return (i_compatflags2 & COMPATF2_POINTONLINE)
+		? P_VanillaPointOnDivlineSide(x, y, line)
+		: (DMulScale32 (y-line->y, line->dx, line->x-x, line->dy) > 0);
+}
+
+inline int P_PointOnDivlineSidePrecise (fixed_t x, fixed_t y, const divline_t *line)
+{
 	return DMulScale32 (y-line->y, line->dx, line->x-x, line->dy) > 0;
 }
+
 
 //==========================================================================
 //
@@ -254,6 +317,7 @@ struct FLineOpening
 	sector_t		*topsec;
 	FTextureID		ceilingpic;
 	FTextureID		floorpic;
+	int				floorterrain;
 	bool			touchmidtex;
 	bool			abovemidtex;
 };
@@ -328,7 +392,6 @@ class FPathTraverse
 	divline_t trace;
 	unsigned int intercept_index;
 	unsigned int intercept_count;
-	fixed_t maxfrac;
 	unsigned int count;
 
 	void AddLineIntercepts(int bx, int by);
@@ -369,6 +432,7 @@ struct FCheckPosition
 	fixed_t			ceilingz;
 	fixed_t			dropoffz;
 	FTextureID		floorpic;
+	int				floorterrain;
 	sector_t		*floorsector;
 	FTextureID		ceilingpic;
 	sector_t		*ceilingsector;
@@ -381,13 +445,12 @@ struct FCheckPosition
 	// [RH] These are used by PIT_CheckThing and P_XYMovement to apply
 	// ripping damage once per tic instead of once per move.
 	bool			DoRipping;
-	AActor			*LastRipped;
+	TMap<AActor*, bool> LastRipped;
 	int				PushTime;
 
 	FCheckPosition(bool rip=false)
 	{
 		DoRipping = rip;
-		LastRipped = NULL;
 		PushTime = 0;
 		FromPMove = false;
 	}
@@ -406,14 +469,22 @@ bool	P_TestMobjLocation (AActor *mobj);
 bool	P_TestMobjZ (AActor *mobj, bool quick=true, AActor **pOnmobj = NULL);
 bool	P_CheckPosition (AActor *thing, fixed_t x, fixed_t y, FCheckPosition &tm, bool actorsonly=false);
 bool	P_CheckPosition (AActor *thing, fixed_t x, fixed_t y, bool actorsonly=false);
+inline bool P_CheckPosition(AActor *thing, const fixedvec3 &pos, bool actorsonly = false)
+{
+	return P_CheckPosition(thing, pos.x, pos.y, actorsonly);
+}
 AActor	*P_CheckOnmobj (AActor *thing);
 void	P_FakeZMovement (AActor *mo);
 bool	P_TryMove (AActor* thing, fixed_t x, fixed_t y, int dropoff, const secplane_t * onfloor, FCheckPosition &tm, bool missileCheck = false);
 bool	P_TryMove (AActor* thing, fixed_t x, fixed_t y, int dropoff, const secplane_t * onfloor = NULL);
 bool	P_CheckMove(AActor *thing, fixed_t x, fixed_t y);
 void	P_ApplyTorque(AActor *mo);
-bool	P_TeleportMove (AActor* thing, fixed_t x, fixed_t y, fixed_t z, bool telefrag);	// [RH] Added z and telefrag parameters
-void	P_PlayerStartStomp (AActor *actor);		// [RH] Stomp on things for a newly spawned player
+bool	P_TeleportMove (AActor* thing, fixed_t x, fixed_t y, fixed_t z, bool telefrag, bool modifyactor = true);	// [RH] Added z and telefrag parameters
+inline bool	P_TeleportMove(AActor* thing, const fixedvec3 &pos, bool telefrag, bool modifyactor = true)
+{
+	return P_TeleportMove(thing, pos.x, pos.y, pos.z, telefrag, modifyactor);
+}
+void	P_PlayerStartStomp (AActor *actor, bool mononly=false);		// [RH] Stomp on things for a newly spawned player
 void	P_SlideMove (AActor* mo, fixed_t tryx, fixed_t tryy, int numsteps);
 bool	P_BounceWall (AActor *mo);
 bool	P_BounceActor (AActor *mo, AActor *BlockingMobj, bool ontop);
@@ -457,19 +528,21 @@ enum	// P_AimLineAttack flags
 enum	// P_LineAttack flags
 {
 	LAF_ISMELEEATTACK = 1,
-	LAF_NORANDOMPUFFZ = 2
+	LAF_NORANDOMPUFFZ = 2,
+	LAF_NOIMPACTDECAL = 4
 };
 
 AActor *P_LineAttack (AActor *t1, angle_t angle, fixed_t distance, int pitch, int damage, FName damageType, const PClass *pufftype, int flags = 0, AActor **victim = NULL, int *actualdamage = NULL);
 AActor *P_LineAttack (AActor *t1, angle_t angle, fixed_t distance, int pitch, int damage, FName damageType, FName pufftype, int flags = 0, AActor **victim = NULL, int *actualdamage = NULL);
+AActor *P_LinePickActor (AActor *t1, angle_t angle, fixed_t distance, int pitch, ActorFlags actorMask, DWORD wallMask);
 void	P_TraceBleed (int damage, fixed_t x, fixed_t y, fixed_t z, AActor *target, angle_t angle, int pitch);
 void	P_TraceBleed (int damage, AActor *target, angle_t angle, int pitch);
 void	P_TraceBleed (int damage, AActor *target, AActor *missile);		// missile version
 void	P_TraceBleed (int damage, AActor *target);		// random direction version
 bool	P_HitFloor (AActor *thing);
-bool	P_HitWater (AActor *thing, sector_t *sec, fixed_t splashx = FIXED_MIN, fixed_t splashy = FIXED_MIN, fixed_t splashz=FIXED_MIN, bool checkabove = false, bool alert = true);
+bool	P_HitWater (AActor *thing, sector_t *sec, fixed_t splashx = FIXED_MIN, fixed_t splashy = FIXED_MIN, fixed_t splashz=FIXED_MIN, bool checkabove = false, bool alert = true, bool force = false);
 void	P_CheckSplash(AActor *self, fixed_t distance);
-void	P_RailAttack (AActor *source, int damage, int offset_xy, fixed_t offset_z = 0, int color1 = 0, int color2 = 0, float maxdiff = 0, int flags = 0, const PClass *puff = NULL, angle_t angleoffset = 0, angle_t pitchoffset = 0, fixed_t distance = 8192*FRACUNIT, int duration = 0, float sparsity = 1.0, float drift = 1.0, const PClass *spawnclass = NULL);	// [RH] Shoot a railgun
+void	P_RailAttack (AActor *source, int damage, int offset_xy, fixed_t offset_z = 0, int color1 = 0, int color2 = 0, double maxdiff = 0, int flags = 0, const PClass *puff = NULL, angle_t angleoffset = 0, angle_t pitchoffset = 0, fixed_t distance = 8192*FRACUNIT, int duration = 0, double sparsity = 1.0, double drift = 1.0, const PClass *spawnclass = NULL, int SpiralOffset = 270);	// [RH] Shoot a railgun
 
 enum	// P_RailAttack / A_RailAttack / A_CustomRailgun / P_DrawRailTrail flags
 {	
@@ -500,6 +573,7 @@ void	P_RadiusAttack (AActor *spot, AActor *source, int damage, int distance,
 
 void	P_DelSector_List();
 void	P_DelSeclist(msecnode_t *);							// phares 3/16/98
+msecnode_t*	P_DelSecnode(msecnode_t *);
 void	P_CreateSecNodeList(AActor*,fixed_t,fixed_t);		// phares 3/14/98
 int		P_GetMoveFactor(const AActor *mo, int *frictionp);	// phares  3/6/98
 int		P_GetFriction(const AActor *mo, int *frictionfactor);
@@ -555,6 +629,8 @@ enum EDmgFlags
 	DMG_NO_FACTOR = 16,
 	DMG_PLAYERATTACK = 32,
 	DMG_FOILINVUL = 64,
+	DMG_FOILBUDDHA = 128,
+	DMG_NO_PROTECT = 256,
 };
 
 
@@ -583,19 +659,6 @@ struct polyspawns_t
 	fixed_t y;
 	short angle;
 	short type;
-};
-
-enum
-{
-	PO_HEX_ANCHOR_TYPE = 3000,
-	PO_HEX_SPAWN_TYPE,
-	PO_HEX_SPAWNCRUSH_TYPE,
-
-	// [RH] Thing numbers that don't conflict with Doom things
-	PO_ANCHOR_TYPE = 9300,
-	PO_SPAWN_TYPE,
-	PO_SPAWNCRUSH_TYPE,
-	PO_SPAWNHURT_TYPE
 };
 
 extern int po_NumPolyobjs;
