@@ -2,8 +2,10 @@
 #define __GL_FRAMEBUFFER
 
 #ifdef _WIN32
-#include "win32iface.h"
+//#include "win32iface.h"
 #include "win32gliface.h"
+#else
+#include "sdlglvideo.h"
 #endif
 
 class FHardwareTexture;
@@ -13,10 +15,10 @@ extern long gl_frameCount;
 #ifdef _WIN32
 class OpenGLFrameBuffer : public Win32GLFrameBuffer
 {
-	typedef Win32GLFrameBuffer Super;
+	//typedef Win32GLFrameBuffer Super;
 	DECLARE_CLASS(OpenGLFrameBuffer, Win32GLFrameBuffer)
 #else
-#include "sdlglvideo.h"
+//#include "sdlglvideo.h"
 class OpenGLFrameBuffer : public SDLGLFB
 {
 //	typedef SDLGLFB Super;	//[C]commented, DECLARE_CLASS defines this in linux
