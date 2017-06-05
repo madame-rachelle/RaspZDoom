@@ -82,7 +82,7 @@ bool gl_GetSpriteLight(AActor *self, fixed_t x, fixed_t y, fixed_t z, subsector_
 			if (!(light->flags2&MF2_DORMANT) &&
 				(!(light->flags4&MF4_DONTLIGHTSELF) || light->target != self))
 			{
-				float dist = FVector3( FIXED2FLOAT(x - light->x), FIXED2FLOAT(y - light->y), FIXED2FLOAT(z - light->z) ).Length();
+				float dist = FVector3( FIXED2FLOAT(x - light->X()), FIXED2FLOAT(y - light->Y()), FIXED2FLOAT(z - light->Z())).Length();
 				radius = light->GetRadius() * gl_lights_size;
 				
 				if (dist < radius)
@@ -150,7 +150,7 @@ static int gl_SetSpriteLight(AActor *self, fixed_t x, fixed_t y, fixed_t z, subs
 	float result[4]; // Korshun.
 
 	gl_GetLightColor(lightlevel, rellight, cm, &r, &g, &b, weapon);
-	bool res = gl_GetSpriteLight(self, x, y, z, subsec, cm? cm->colormap : 0, result);
+	bool res = gl_GetSpriteLight(self, X(), Y(), Z(), subsec, cm? cm->colormap : 0, result);
 	if (!res || glset.lightmode == 8)
 	{
 		r *= ThingColor.r/255.f;
