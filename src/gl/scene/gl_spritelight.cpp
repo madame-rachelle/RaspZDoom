@@ -93,7 +93,7 @@ bool gl_GetSpriteLight(AActor *self, fixed_t x, fixed_t y, fixed_t z, subsector_
 					{
 						if (line != NULL)
 						{
-							if (P_PointOnLineSide(light->x, light->y, line) != side) 
+							if (P_PointOnLineSide(light->X(), light->Y(), line) != side) 
 							{
 								node = node->nextLight;
 								continue;
@@ -150,7 +150,7 @@ static int gl_SetSpriteLight(AActor *self, fixed_t x, fixed_t y, fixed_t z, subs
 	float result[4]; // Korshun.
 
 	gl_GetLightColor(lightlevel, rellight, cm, &r, &g, &b, weapon);
-	bool res = gl_GetSpriteLight(self, X(), Y(), Z(), subsec, cm? cm->colormap : 0, result);
+	bool res = gl_GetSpriteLight(self, x, y, z, subsec, cm? cm->colormap : 0, result);
 	if (!res || glset.lightmode == 8)
 	{
 		r *= ThingColor.r/255.f;
@@ -197,7 +197,7 @@ int gl_SetSpriteLight(AActor * thing, int lightlevel, int rellight, FColormap * 
 					   float alpha, PalEntry ThingColor, bool weapon)
 { 
 	subsector_t * subsec = thing->subsector;
-	return gl_SetSpriteLight(thing, thing->x, thing->y, thing->z+(thing->height>>1), subsec, 
+	return gl_SetSpriteLight(thing, thing->X(), thing->Y(), thing->Z()+(thing->height>>1), subsec, 
 					  lightlevel, rellight, cm, alpha, ThingColor, weapon);
 }
 

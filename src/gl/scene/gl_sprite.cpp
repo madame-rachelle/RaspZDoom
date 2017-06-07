@@ -482,12 +482,12 @@ void GLSprite::Process(AActor* thing,sector_t * sector)
 	// don't draw first frame of a player missile
 	if (thing->flags&MF_MISSILE && thing->target==GLRenderer->mViewActor && GLRenderer->mViewActor != NULL)
 	{
-		if (P_AproxDistance(thingx-viewx, thingy-viewy) < thing->Speed ) return;
+		if (P_AproxDistance(thingpos.x-viewx, thingpos.y-viewy) < thing->Speed ) return;
 	}
 
 	if (GLRenderer->mCurrentPortal)
 	{
-		int clipres = GLRenderer->mCurrentPortal->ClipPoint(thingx, thingy);
+		int clipres = GLRenderer->mCurrentPortal->ClipPoint(thingpos.x, thingpos.y);
 		if (clipres == GLPortal::PClip_InFront) return;
 	}
 
@@ -588,7 +588,7 @@ void GLSprite::Process(AActor* thing,sector_t * sector)
 					for(unsigned int i=0;i<x.ffloors.Size();i++)
 					{
 						F3DFloor * ff=x.ffloors[i];
-						fixed_t floorh=ff->top.plane->ZatPoint(thingx, thingy);
+						fixed_t floorh=ff->top.plane->ZatPoint(thingpos.x, thingpos.y);
 						fixed_t ceilingh=ff->bottom.plane->ZatPoint(thingpos.x, thingpos.y);
 						if (floorh==thing->floorz) 
 						{
@@ -607,16 +607,16 @@ void GLSprite::Process(AActor* thing,sector_t * sector)
 				else if (thing->Sector->heightsec && !(thing->Sector->heightsec->MoreFlags & SECF_IGNOREHEIGHTSEC))
 				{
 					if (thing->flags2&MF2_ONMOBJ && thing->floorz==
-						thing->Sector->heightsec->floorplane.ZatPoint(thingx, thingy))
+						thing->Sector->heightsec->floorplane.ZatPoint(thingpos.x, thingpos.y))
 					{
 						btm=FIXED2FLOAT(thing->floorz);
 						top=FIXED2FLOAT(thing->ceilingz);
 					}
 				}
 				if (btm==1000000.0f) 
-					btm= FIXED2FLOAT(thing->Sector->floorplane.ZatPoint(thingx, thingy)-thing->floorclip);
+					btm= FIXED2FLOAT(thing->Sector->floorplane.ZatPoint(thingpos.x, thingpos.y)-thing->floorclip);
 				if (top==-1000000.0f)
-					top= FIXED2FLOAT(thing->Sector->ceilingplane.ZatPoint(thingx, thingy));
+					top= FIXED2FLOAT(thing->Sector->ceilingplane.ZatPoint(thingpos.x, thingpos.y));
 
 				float diffb = z2 - btm;
 				float difft = z1 - top;
@@ -678,7 +678,7 @@ void GLSprite::Process(AActor* thing,sector_t * sector)
 		gltexture=NULL;
 	}
 
-	depth = DMulScale20 (thingpos.x-viewx, viewtancos, thing-pos.y-viewy, viewtansin);
+	depth = DMulScale20 (thingpos.x-viewx, viewtancos, thingpos.y-viewy, viewtansin);
 
 	// light calculation
 
