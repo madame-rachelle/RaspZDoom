@@ -121,9 +121,9 @@ void OpenGLFrameBuffer::InitializeState()
 	{
 		first=false;
 		// [BB] For some reason this crashes, if compiled with MinGW and optimization. Has to be investigated.
-#ifdef _MSC_VER
+//#ifdef _MSC_VER
 		gl.PrintStartupLog();
-#endif
+//#endif
 
 		if (gl.flags&RFL_NPOT_TEXTURE)
 		{
@@ -344,7 +344,7 @@ void OpenGLFrameBuffer::GetHitlist(BYTE *hitlist)
 	// check skybox textures and mark the separate faces as used
 	for(int i=0;i<TexMan.NumTextures(); i++)
 	{
-		if (hitlist[i])
+		if (hitlist[i] & FTextureManager::HIT_Sky)
 		{
 			FTexture *tex = TexMan.ByIndex(i);
 			if (tex->gl_info.bSkybox)
@@ -355,7 +355,7 @@ void OpenGLFrameBuffer::GetHitlist(BYTE *hitlist)
 					if (sb->faces[i]) 
 					{
 						int index = sb->faces[i]->id.GetIndex();
-						hitlist[index] |= 1;
+						hitlist[index] |= FTextureManager::HIT_Flat;
 					}
 				}
 			}
