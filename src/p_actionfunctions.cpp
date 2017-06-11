@@ -233,6 +233,38 @@ DEFINE_ACTION_FUNCTION(AActor, CheckClass)
 
 //==========================================================================
 //
+// CheckClass
+//
+// NON-ACTION function to calculate missile damage for the given actor
+//
+//==========================================================================
+
+DEFINE_ACTION_FUNCTION(AActor, GetMissileDamage)
+{
+	if (numret > 0)
+	{
+		assert(ret != NULL);
+		PARAM_SELF_PROLOGUE(AActor);
+		PARAM_INT(mask);
+		PARAM_INT(add)
+		PARAM_INT_OPT(pick_pointer) { pick_pointer = AAPTR_DEFAULT; }
+
+		self = COPY_AAPTR(self, pick_pointer);
+		if (self == NULL)
+		{
+			ret->SetInt(0);
+		}
+		else
+		{
+			ret->SetInt(self->GetMissileDamage(mask, add));
+		}
+		return 1;
+	}
+	return 0;
+}
+
+//==========================================================================
+//
 // IsPointerEqual
 //
 // NON-ACTION function to check if two pointers are equal.
@@ -1000,16 +1032,17 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_PlaySound)
 	PARAM_FLOAT_OPT	(volume)		{ volume = 1; }
 	PARAM_BOOL_OPT	(looping)		{ looping = false; }
 	PARAM_FLOAT_OPT	(attenuation)	{ attenuation = ATTN_NORM; }
+	PARAM_BOOL_OPT	(local)			{ local = false; }
 
 	if (!looping)
 	{
-		S_Sound (self, channel, soundid, (float)volume, (float)attenuation);
+		S_PlaySound(self, channel, soundid, (float)volume, (float)attenuation, local);
 	}
 	else
 	{
 		if (!S_IsActorPlayingSomething (self, channel&7, soundid))
 		{
-			S_Sound (self, channel | CHAN_LOOP, soundid, (float)volume, (float)attenuation);
+			S_PlaySound(self, channel | CHAN_LOOP, soundid, (float)volume, (float)attenuation, local);
 		}
 	}
 	return 0;
@@ -2592,6 +2625,92 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_GiveToSiblings)
 
 //===========================================================================
 //
+// A_SetInventory
+//
+//===========================================================================
+
+DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetInventory)
+{
+	PARAM_ACTION_PROLOGUE;
+	PARAM_CLASS(itemtype, AInventory);
+	PARAM_INT(amount);
+	PARAM_INT_OPT(ptr)			{ ptr = AAPTR_DEFAULT; }
+	PARAM_BOOL_OPT(beyondMax)	{ beyondMax = false; }
+
+	bool res = false;
+
+	if (itemtype == nullptr)
+	{
+		ACTION_RETURN_BOOL(false);
+	}
+
+	AActor *mobj = COPY_AAPTR(self, ptr);
+
+	if (mobj == nullptr)
+	{
+		ACTION_RETURN_BOOL(false);
+	}
+
+	AInventory *item = mobj->FindInventory(itemtype);
+
+	if (item != nullptr)
+	{
+		// A_SetInventory sets the absolute amount. 
+		// Subtract or set the appropriate amount as necessary.
+
+		if (amount == item->Amount)
+		{
+			// Nothing was changed.
+			ACTION_RETURN_BOOL(false);
+		}
+		else if (amount <= 0)
+		{
+			//Remove it all.
+			res = (mobj->TakeInventory(itemtype, item->Amount, true, false));
+			ACTION_RETURN_BOOL(res);
+		}
+		else if (amount < item->Amount)
+		{
+			int amt = abs(item->Amount - amount);
+			res = (mobj->TakeInventory(itemtype, amt, true, false));
+			ACTION_RETURN_BOOL(res);
+		}
+		else
+		{
+			item->Amount = (beyondMax ? amount : clamp(amount, 0, item->MaxAmount));
+			ACTION_RETURN_BOOL(true);
+		}
+	}
+	else
+	{
+		if (amount <= 0)
+		{
+			ACTION_RETURN_BOOL(false);
+		}
+		item = static_cast<AInventory *>(Spawn(itemtype));
+		if (item == nullptr)
+		{
+			ACTION_RETURN_BOOL(false);
+		}
+		else
+		{
+			item->Amount = amount;
+			item->flags |= MF_DROPPED;
+			item->ItemFlags |= IF_IGNORESKILL;
+			item->ClearCounters();
+			if (!item->CallTryPickup(mobj))
+			{
+				item->Destroy();
+				ACTION_RETURN_BOOL(false);
+			}
+			ACTION_RETURN_BOOL(true);
+		}
+	}
+	ACTION_RETURN_BOOL(false);
+}
+
+//===========================================================================
+//
 // A_TakeInventory
 //
 //===========================================================================
@@ -3285,6 +3404,22 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetTranslucent)
 	mode = mode == 0 ? STYLE_Translucent : mode == 2 ? STYLE_Fuzzy : STYLE_Add;
 
 	self->RenderStyle.Flags &= ~STYLEF_Alpha1;
+	self->Alpha = clamp(alpha, 0., 1.);
+	self->RenderStyle = ERenderStyle(mode);
+	return 0;
+}
+
+//===========================================================================
+//
+// A_SetRenderStyle
+//
+//===========================================================================
+DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetRenderStyle)
+{
+	PARAM_SELF_PROLOGUE(AActor);
+	PARAM_FLOAT(alpha);
+	PARAM_INT_OPT(mode) { mode = 0; }
+
 	self->Alpha = clamp(alpha, 0., 1.);
 	self->RenderStyle = ERenderStyle(mode);
 	return 0;
@@ -7311,4 +7446,71 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetSpriteRotation)
 	}
 	mobj->SpriteRotation = angle;
 	ACTION_RETURN_BOOL(true);
+}
+
+//==========================================================================
+//
+// A_SetMaskRotation(anglestart, angleend, pitchstart, pitchend, flags, ptr)
+//
+// Specifies how much to fake a sprite rotation.
+//==========================================================================
+
+enum VRFFlags
+{
+	VRF_NOANGLESTART =		1,
+	VRF_NOANGLEEND =		1 << 1,
+	VRF_NOPITCHSTART =		1 << 2,
+	VRF_NOPITCHEND =		1 << 3,
+};
+
+DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetVisibleRotation)
+{
+	PARAM_ACTION_PROLOGUE;
+	PARAM_ANGLE_OPT(anglestart) { anglestart = 0.;	}
+	PARAM_ANGLE_OPT(angleend)	{ angleend = 0.;	}
+	PARAM_ANGLE_OPT(pitchstart) { pitchstart = 0.;	}
+	PARAM_ANGLE_OPT(pitchend)	{ pitchend = 0.;	}
+	PARAM_INT_OPT(flags)		{ flags = 0; }
+	PARAM_INT_OPT(ptr)			{ ptr = AAPTR_DEFAULT; }
+
+	AActor *mobj = COPY_AAPTR(self, ptr);
+
+	if (mobj == nullptr)
+	{
+		ACTION_RETURN_BOOL(false);
+	}
+		
+	if (!(flags & VRF_NOANGLESTART))
+	{
+		mobj->VisibleStartAngle = anglestart;
+	}
+	if (!(flags & VRF_NOANGLEEND))
+	{
+		mobj->VisibleEndAngle = angleend;
+	}
+	if (!(flags & VRF_NOPITCHSTART))
+	{
+		mobj->VisibleStartPitch = pitchstart;
+	}
+	if (!(flags & VRF_NOPITCHEND))
+	{
+		mobj->VisibleEndPitch = pitchend;
+	}
+
+	ACTION_RETURN_BOOL(true);
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_SetTranslation)
+{
+	PARAM_SELF_PROLOGUE(AActor);
+	PARAM_STRING(trname);
+
+	self->SetTranslation(trname);
+	return 0;
 }

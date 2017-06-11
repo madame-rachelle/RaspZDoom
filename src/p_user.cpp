@@ -52,7 +52,7 @@
 #include "g_level.h"
 #include "d_net.h"
 #include "gstrings.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "r_renderer.h"
 #include "d_player.h"
 #include "r_utility.h"
@@ -64,6 +64,9 @@ static FRandom pr_skullpop ("SkullPop");
 
 // [RH] # of ticks to complete a turn180
 #define TURN180_TICKS	((TICRATE / 4) + 1)
+
+// [SP] Allows respawn in single player
+CVAR(Bool, sv_singleplayerrespawn, false, CVAR_SERVERINFO | CVAR_LATCH)
 
 // Variables for prediction
 CVAR (Bool, cl_noprediction, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
@@ -236,11 +239,6 @@ CCMD (playerclasses)
 
 // 16 pixels of bob
 #define MAXBOB			16.
-
-FArchive &operator<< (FArchive &arc, player_t *&p)
-{
-	return arc.SerializePointer (players, (BYTE **)&p, sizeof(*players));
-}
 
 // The player_t constructor. Since LogText is not a POD, we cannot just
 // memset it all to 0.
@@ -631,29 +629,33 @@ END_POINTERS
 
 IMPLEMENT_CLASS (APlayerChunk)
 
-void APlayerPawn::Serialize (FArchive &arc)
+void APlayerPawn::Serialize(FSerializer &arc)
 {
 	Super::Serialize (arc);
+	auto def = (APlayerPawn*)GetDefault();
 
-	arc << JumpZ
-		<< MaxHealth
-		<< RunHealth
-		<< SpawnMask
-		<< ForwardMove1
-		<< ForwardMove2
-		<< SideMove1
-		<< SideMove2
-		<< ScoreIcon
-		<< InvFirst
-		<< InvSel
-		<< MorphWeapon
-		<< DamageFade
-		<< PlayerFlags
-		<< FlechetteType;
-	arc << GruntSpeed << FallingScreamMinSpeed << FallingScreamMaxSpeed;
-	arc << UseRange;
-	arc << AirCapacity;
-	arc << ViewHeight;
+	arc("jumpz", JumpZ, def->JumpZ)
+		("maxhealth", MaxHealth, def->MaxHealth)
+		("runhealth", RunHealth, def->RunHealth)
+		("spawnmask", SpawnMask, def->SpawnMask)
+		("forwardmove1", ForwardMove1, def->ForwardMove1)
+		("forwardmove2", ForwardMove2, def->ForwardMove2)
+		("sidemove1", SideMove1, def->SideMove1)
+		("sidemove2", SideMove2, def->SideMove2)
+		("scoreicon", ScoreIcon, def->ScoreIcon)
+		("invfirst", InvFirst)
+		("invsel", InvSel)
+		("morphweapon", MorphWeapon, def->MorphWeapon)
+		("damagefade", DamageFade, def->DamageFade)
+		("playerflags", PlayerFlags, def->PlayerFlags)
+		("flechettetype", FlechetteType, def->FlechetteType)
+		("gruntspeed", GruntSpeed, def->GruntSpeed)
+		("fallingscreammin", FallingScreamMinSpeed, def->FallingScreamMinSpeed)
+		("fallingscreammaxn", FallingScreamMaxSpeed, def->FallingScreamMaxSpeed)
+		("userange", UseRange, def->UseRange)
+		("aircapacity", AirCapacity, def->AirCapacity)
+		("viewheight", ViewHeight, def->ViewHeight)
+		("viewbob", ViewBob, def->ViewBob);
 }
 
 //===========================================================================
@@ -1893,7 +1895,7 @@ void P_CalcHeight (player_t *player)
 	{
 		bob = 0;
 	}
-	player->viewz = player->mo->Z() + player->viewheight + bob;
+	player->viewz = player->mo->Z() + player->viewheight + (bob * player->mo->ViewBob); // [SP] Allow DECORATE changes to view bobbing speed.
 	if (player->mo->Floorclip && player->playerstate != PST_DEAD
 		&& player->mo->Z() <= player->mo->floorz)
 	{
@@ -2212,7 +2214,9 @@ void P_DeathThink (player_t *player)
 		if (level.time >= player->respawn_time || ((player->cmd.ucmd.buttons & BT_USE) && player->Bot == NULL))
 		{
 			player->cls = NULL;		// Force a new class if the player is using a random class
-			player->playerstate = (multiplayer || (level.flags2 & LEVEL2_ALLOWRESPAWN)) ? PST_REBORN : PST_ENTER;
+			player->playerstate = 
+				(multiplayer || (level.flags2 & LEVEL2_ALLOWRESPAWN) || sv_singleplayerrespawn)
+				? PST_REBORN : PST_ENTER;
 			if (player->mo->special1 > 2)
 			{
 				player->mo->special1 = 0;
@@ -2673,10 +2677,11 @@ void P_PlayerThink (player_t *player)
 		// Apply degeneration.
 		if (dmflags2 & DF2_YES_DEGENERATION)
 		{
-			if ((level.time % TICRATE) == 0 && player->health > deh.MaxHealth)
+			int maxhealth = player->mo->GetMaxHealth() + player->mo->stamina;
+			if ((level.time % TICRATE) == 0 && player->health > maxhealth)
 			{
-				if (player->health - 5 < deh.MaxHealth)
-					player->health = deh.MaxHealth;
+				if (player->health - 5 < maxhealth)
+					player->health = maxhealth;
 				else
 					player->health--;
 
@@ -3001,17 +3006,17 @@ void P_UnPredictPlayer ()
 	}
 }
 
-void player_t::Serialize (FArchive &arc)
+void player_t::Serialize(FSerializer &arc)
 {
-	int i;
 	FString skinname;
 
-	arc << cls
-		<< mo
-		<< camera
-		<< playerstate
-		<< cmd;
-	if (arc.IsLoading())
+	arc("class", cls)
+		("mo", mo)
+		("camera", camera)
+		("playerstate", playerstate)
+		("cmd", cmd);
+
+	if (arc.isReading())
 	{
 		ReadUserInfo(arc, userinfo, skinname);
 	}
@@ -3019,126 +3024,80 @@ void player_t::Serialize (FArchive &arc)
 	{
 		WriteUserInfo(arc, userinfo);
 	}
-	arc << DesiredFOV << FOV
-		<< viewz
-		<< viewheight
-		<< deltaviewheight
-		<< bob
-		<< Vel
-		<< centering
-		<< health
-		<< inventorytics;
-	arc << fragcount
-		<< spreecount
-		<< multicount
-		<< lastkilltime
-		<< ReadyWeapon << PendingWeapon
-		<< cheats
-		<< refire
-		<< inconsistant
-		<< killcount
-		<< itemcount
-		<< secretcount
-		<< damagecount
-		<< bonuscount
-		<< hazardcount
-		<< poisoncount
-		<< poisoner
-		<< attacker
-		<< extralight
-		<< fixedcolormap << fixedlightlevel
-		<< morphTics
-		<< MorphedPlayerClass
-		<< MorphStyle
-		<< MorphExitFlash
-		<< PremorphWeapon
-		<< chickenPeck
-		<< jumpTics
-		<< respawn_time
-		<< air_finished
-		<< turnticks
-		<< oldbuttons;
-	arc << hazardtype
-		<< hazardinterval;
-	arc << Bot;
-	arc << BlendR
-		<< BlendG
-		<< BlendB
-		<< BlendA;
-	arc << WeaponState;
-	arc << LogText
-		<< ConversationNPC
-		<< ConversationPC
-		<< ConversationNPCAngle.Degrees
-		<< ConversationFaceTalker;
 
-	for (i = 0; i < MAXPLAYERS; i++)
-		arc << frags[i];
+	arc("desiredfov", DesiredFOV)
+		("fov", FOV)
+		("viewz", viewz)
+		("viewheight", viewheight)
+		("deltaviewheight", deltaviewheight)
+		("bob", bob)
+		("vel", Vel)
+		("centering", centering)
+		("health", health)
+		("inventorytics", inventorytics)
+		("fragcount", fragcount)
+		("spreecount", spreecount)
+		("multicount", multicount)
+		("lastkilltime", lastkilltime)
+		("readyweapon", ReadyWeapon)
+		("pendingweapon", PendingWeapon)
+		("cheats", cheats)
+		("refire", refire)
+		("inconsistant", inconsistant)
+		("killcount", killcount)
+		("itemcount", itemcount)
+		("secretcount", secretcount)
+		("damagecount", damagecount)
+		("bonuscount", bonuscount)
+		("hazardcount", hazardcount)
+		("poisoncount", poisoncount)
+		("poisoner", poisoner)
+		("attacker", attacker)
+		("extralight", extralight)
+		("fixedcolormap", fixedcolormap)
+		("fixedlightlevel", fixedlightlevel)
+		("morphTics", morphTics)
+		("morphedplayerclass", MorphedPlayerClass)
+		("morphstyle", MorphStyle)
+		("morphexitflash", MorphExitFlash)
+		("premorphweapon", PremorphWeapon)
+		("chickenpeck", chickenPeck)
+		("jumptics", jumpTics)
+		("respawntime", respawn_time)
+		("airfinished", air_finished)
+		("turnticks", turnticks)
+		("oldbuttons", oldbuttons)
+		("hazardtype", hazardtype)
+		("hazardinterval", hazardinterval)
+		("bot", Bot)
+		("blendr", BlendR)
+		("blendg", BlendG)
+		("blendb", BlendB)
+		("blenda", BlendA)
+		("weaponstate", WeaponState)
+		("logtext", LogText)
+		("conversionnpc", ConversationNPC)
+		("conversionpc", ConversationPC)
+		("conversionnpcangle", ConversationNPCAngle)
+		("conversionfacetalker", ConversationFaceTalker)
+		.Array("frags", frags, MAXPLAYERS)
+		("psprites", psprites)
+		("currentplayerclass", CurrentPlayerClass)
+		("crouchfactor", crouchfactor)
+		("crouching", crouching)
+		("crouchdir", crouchdir)
+		("crouchviewdelta", crouchviewdelta)
+		("original_cmd", original_cmd)
+		("original_oldbuttons", original_oldbuttons)
+		("poisontype", poisontype)
+		("poisonpaintype", poisonpaintype)
+		("timefreezer", timefreezer)
+		("settings_controller", settings_controller)
+		("onground", onground)
+		("musinfoactor", MUSINFOactor)
+		("musinfotics", MUSINFOtics);
 
-	if (SaveVersion < 4547)
-	{
-		int layer = PSP_WEAPON;
-		for (i = 0; i < 5; i++)
-		{
-			FState *state;
-			int tics;
-			double sx, sy;
-			int sprite;
-			int frame;
-
-			arc << state << tics
-				<< sx << sy
-				<< sprite << frame;
-
-			if (state != nullptr &&
-			   ((layer < PSP_TARGETCENTER && ReadyWeapon != nullptr) ||
-			   (layer >= PSP_TARGETCENTER && mo->FindInventory(RUNTIME_CLASS(APowerTargeter), true))))
-			{
-				DPSprite *pspr;
-				pspr = GetPSprite(PSPLayers(layer));
-				pspr->State = state;
-				pspr->Tics = tics;
-				pspr->Sprite = sprite;
-				pspr->Frame = frame;
-				pspr->Owner = this;
-
-				if (layer == PSP_FLASH)
-				{
-					pspr->x = 0;
-					pspr->y = 0;
-				}
-				else
-				{
-					pspr->x = sx;
-					pspr->y = sy;
-				}
-			}
-
-			if (layer == PSP_WEAPON)
-				layer = PSP_FLASH;
-			else if (layer == PSP_FLASH)
-				layer = PSP_TARGETCENTER;
-			else
-				layer++;
-		}
-	}
-	else
-		arc << psprites;
-
-	arc << CurrentPlayerClass;
-
-	arc << crouchfactor
-		<< crouching 
-		<< crouchdir
-		<< crouchviewdelta
-		<< original_cmd
-		<< original_oldbuttons;
-	arc << poisontype << poisonpaintype;
-	arc << timefreezer;
-	arc << settings_controller;
-	arc << onground;
-
-	if (arc.IsLoading ())
+	if (arc.isWriting ())
 	{
 		// If the player reloaded because they pressed +use after dying, we
 		// don't want +use to still be down after the game is loaded.
@@ -3149,7 +3108,6 @@ void player_t::Serialize (FArchive &arc)
 	{
 		userinfo.SkinChanged(skinname, CurrentPlayerClass);
 	}
-	arc << MUSINFOactor << MUSINFOtics;
 }
 
 bool P_IsPlayerTotallyFrozen(const player_t *player)

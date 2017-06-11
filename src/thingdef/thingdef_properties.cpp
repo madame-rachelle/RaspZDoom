@@ -636,7 +636,8 @@ DEFINE_PROPERTY(threshold, I, Actor)
 //==========================================================================
 DEFINE_PROPERTY(damage, X, Actor)
 {
-	PROP_EXP_PARM(id, 0);
+	PROP_INT_PARM(dmgval, 0);
+	PROP_EXP_PARM(id, 1);
 
 	// Damage can either be a single number, in which case it is subject
 	// to the original damage calculation rules. Or, it can be an expression
@@ -646,13 +647,15 @@ DEFINE_PROPERTY(damage, X, Actor)
 
 	// Store this expression here for now. It will be converted to a function
 	// later once all actors have been processed.
-	if (id == NULL)
+	defaults->DamageVal = dmgval;
+
+	if (id == nullptr)
 	{
-		defaults->Damage = NULL;
+		defaults->DamageFunc = nullptr;
 	}
 	else
 	{
-		defaults->Damage = (VMFunction *)(uintptr_t)(ActorDamageFuncs.Push(id) + 1);
+		defaults->DamageFunc = (VMFunction *)(uintptr_t)(ActorDamageFuncs.Push(id) + 1);
 	}
 }
 
@@ -1097,9 +1100,10 @@ DEFINE_PROPERTY(translation, L, Actor)
 		for(int i = 1; i < PROP_PARM_COUNT; i++)
 		{
 			PROP_STRING_PARM(str, i);
-			if (i== 1 && PROP_PARM_COUNT == 2 && !stricmp(str, "Ice"))
+			int tnum;
+			if (i== 1 && PROP_PARM_COUNT == 2 && (tnum = R_FindCustomTranslation(str)) != -1)
 			{
-				defaults->Translation = TRANSLATION(TRANSLATION_Standard, 7);
+				defaults->Translation = tnum;
 				return;
 			}
 			else
@@ -1107,7 +1111,7 @@ DEFINE_PROPERTY(translation, L, Actor)
 				CurrentTranslation.AddToTranslation(str);
 			}
 		}
-		defaults->Translation = CurrentTranslation.StoreTranslation ();
+		defaults->Translation = CurrentTranslation.StoreTranslation (TRANSLATION_Decorate);
 	}
 }
 
@@ -1431,6 +1435,28 @@ DEFINE_PROPERTY(spriterotation, F, Actor)
 //==========================================================================
 //
 //==========================================================================
+DEFINE_PROPERTY(visibleangles, FF, Actor)
+{
+	PROP_DOUBLE_PARM(visstart, 0);
+	PROP_DOUBLE_PARM(visend, 1);
+	defaults->VisibleStartAngle = visstart;
+	defaults->VisibleEndAngle = visend;
+}
+
+//==========================================================================
+//
+//==========================================================================
+DEFINE_PROPERTY(visiblepitch, FF, Actor)
+{
+	PROP_DOUBLE_PARM(visstart, 0);
+	PROP_DOUBLE_PARM(visend, 1);
+	defaults->VisibleStartPitch = visstart;
+	defaults->VisibleEndPitch = visend;
+}
+
+//==========================================================================
+//
+//==========================================================================
 DEFINE_PROPERTY(friction, F, Actor)
 {
 	PROP_DOUBLE_PARM(i, 0);
@@ -1573,10 +1599,6 @@ DEFINE_PROPERTY(telefogdesttype, S, Actor)
 DEFINE_PROPERTY(ripperlevel, I, Actor)
 {
 	PROP_INT_PARM(id, 0);
-	if (id < 0)
-	{
-		I_Error ("RipperLevel must not be negative");
-	}
 	defaults->RipperLevel = id;
 }
 
@@ -1586,10 +1608,6 @@ DEFINE_PROPERTY(ripperlevel, I, Actor)
 DEFINE_PROPERTY(riplevelmin, I, Actor)
 {
 	PROP_INT_PARM(id, 0);
-	if (id < 0)
-	{
-		I_Error ("RipLevelMin must not be negative");
-	}
 	defaults->RipLevelMin = id;
 }
 
@@ -1599,10 +1617,6 @@ DEFINE_PROPERTY(riplevelmin, I, Actor)
 DEFINE_PROPERTY(riplevelmax, I, Actor)
 {
 	PROP_INT_PARM(id, 0);
-	if (id < 0)
-	{
-		I_Error ("RipLevelMax must not be negative");
-	}
 	defaults->RipLevelMax = id;
 }
 
@@ -2929,6 +2943,26 @@ DEFINE_CLASS_PROPERTY_PREFIX(player, weaponslot, ISsssssssssssssssssssssssssssss
 		}
 		static_cast<PClassPlayerPawn *>(info)->Slot[slot] = &weapons[1];
 	}
+}
+
+//==========================================================================
+//
+// [SP] Player.Viewbob
+//
+//==========================================================================
+DEFINE_CLASS_PROPERTY_PREFIX(player, viewbob, F, PlayerPawn)
+{
+	PROP_DOUBLE_PARM(z, 0);
+	// [SP] Hard limits. This is to prevent terrywads from making players sick.
+	//   Remember - this messes with a user option who probably has it set a
+	//   certain way for a reason. I think a 1.5 limit is pretty generous, but
+	//   it may be safe to increase it. I really need opinions from people who
+	//   could be affected by this.
+	if (z < 0.0 || z > 1.5)
+	{
+		I_Error("ViewBob must be between 0.0 and 1.5.");
+	}
+	defaults->ViewBob = z;
 }
 
 //==========================================================================

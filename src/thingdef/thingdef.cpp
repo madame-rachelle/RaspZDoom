@@ -68,13 +68,44 @@
 
 TDeletingArray<class FxExpression *> ActorDamageFuncs;
 
+
 // EXTERNAL FUNCTION PROTOTYPES --------------------------------------------
 void InitThingdef();
-void ParseDecorate (FScanner &sc);
+void ParseDecorate(FScanner &ctx);
 
 // STATIC FUNCTION PROTOTYPES --------------------------------------------
 PClassActor *QuestItemClasses[31];
 
+EXTERN_CVAR(Bool, strictdecorate);
+
+PClassActor *DecoDerivedClass(const FScriptPosition &sc, PClassActor *parent, FName typeName)
+{
+	PClassActor *type = static_cast<PClassActor *>(parent->CreateDerivedClass(typeName, parent->Size));
+	if (type == nullptr)
+	{
+		FString newname = typeName.GetChars();
+		FString sourcefile = sc.FileName;
+
+		sourcefile.Substitute(":", "@");
+		newname << '@' << sourcefile;
+		if (strictdecorate)
+		{
+			sc.Message(MSG_ERROR, "Tried to define class '%s' more than once.", typeName.GetChars());
+		}
+		else
+		{
+			// Due to backwards compatibility issues this cannot be an unconditional error.
+			sc.Message(MSG_WARNING, "Tried to define class '%s' more than once. Renaming class to '%s'", typeName.GetChars(), newname.GetChars());
+		}
+		type = static_cast<PClassActor *>(parent->CreateDerivedClass(newname, parent->Size));
+		if (type == nullptr)
+		{
+			// This we cannot handle cleanly anymore. Let's just abort and forget about the odd mod out that was this careless.
+			sc.Message(MSG_FATAL, "Tried to define class '%s' more than twice in the same file.", typeName.GetChars());
+		}
+	}
+	return type;
+}
 //==========================================================================
 //
 // Starts a new actor definition
@@ -141,7 +172,7 @@ PClassActor *CreateNewActor(const FScriptPosition &sc, FName typeName, FName par
 	else
 	{
 	create:
-		ti = static_cast<PClassActor *>(parent->CreateDerivedClass (typeName, parent->Size));
+		ti = DecoDerivedClass(sc, parent, typeName);
 	}
 
 	ti->Replacee = ti->Replacement = NULL;
@@ -288,7 +319,7 @@ static void FinishThingdef()
 
 			if (func == nullptr)
 			{
-				VMFunctionBuilder buildit;
+				VMFunctionBuilder buildit(true);
 
 				assert(tcall->Proto != nullptr);
 
@@ -348,12 +379,12 @@ static void FinishThingdef()
 			continue;
 		}
 
-		if (def->Damage != NULL)
+		if (def->DamageFunc != nullptr)
 		{
-			FxDamageValue *dmg = (FxDamageValue *)ActorDamageFuncs[(uintptr_t)def->Damage - 1];
+			FxDamageValue *dmg = (FxDamageValue *)ActorDamageFuncs[(uintptr_t)def->DamageFunc - 1];
 			VMScriptFunction *sfunc;
 			sfunc = dmg->GetFunction();
-			if (sfunc == NULL)
+			if (sfunc == nullptr)
 			{
 				FCompileContext ctx(ti);
 				dmg = static_cast<FxDamageValue *>(dmg->Resolve(ctx));
@@ -365,15 +396,15 @@ static void FinishThingdef()
 					dmg->Emit(&buildit);
 					sfunc = buildit.MakeFunction();
 					sfunc->NumArgs = 1;
-					sfunc->Proto = NULL;		///FIXME: Need a proper prototype here
+					sfunc->Proto = nullptr;		///FIXME: Need a proper prototype here
 					// Save this function in case this damage value was reused
 					// (which happens quite easily with inheritance).
 					dmg->SetFunction(sfunc);
 				}
 			}
-			def->Damage = sfunc;
+			def->DamageFunc = sfunc;
 
-			if (dump != NULL && sfunc != NULL)
+			if (dump != nullptr && sfunc != nullptr)
 			{
 				char label[64];
 				int labellen = mysnprintf(label, countof(label), "Function %s.Damage",
@@ -428,6 +459,16 @@ void LoadActors ()
 	while ((lump = Wads.FindLump ("DECORATE", &lastlump)) != -1)
 	{
 		FScanner sc(lump);
+
+		if (Wads.GetLumpFile(lump) == 0)
+		{
+			// define namespace 'zdoom'
+		}
+		else
+		{
+			// use namespace 'zdoom'
+		}
+
 		ParseDecorate (sc);
 	}
 	FinishThingdef();
@@ -438,33 +479,4 @@ void LoadActors ()
 	timer.Unclock();
 	if (!batchrun) Printf("DECORATE parsing took %.2f ms\n", timer.TimeMS());
 	// Base time: ~52 ms
-}
-
-
-//==========================================================================
-//
-// CreateDamageFunction
-//
-// Creates a damage function suitable for a constant, non-expressioned
-// value.
-//
-//==========================================================================
-
-VMScriptFunction *CreateDamageFunction(int dmg)
-{
-	if (dmg == 0)
-	{
-		// For zero damage, do not create a function so that the special collision detection case still works as before.
-		return NULL;
-	}
-	else
-	{
-		VMFunctionBuilder build;
-		build.Registers[REGT_POINTER].Get(1);		// The self pointer
-		build.EmitRetInt(0, false, dmg);
-		build.EmitRetInt(1, true, 0);
-		VMScriptFunction *sfunc = build.MakeFunction();
-		sfunc->NumArgs = 1;
-		return sfunc;
-	}
 }

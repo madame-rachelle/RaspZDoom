@@ -53,7 +53,7 @@
 #include "v_font.h"
 #include "r_renderer.h"
 #include "r_data/colormaps.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "r_utility.h"
 #include "d_player.h"
 #include "p_local.h"
@@ -138,7 +138,7 @@ angle_t			LocalViewAngle;
 int				LocalViewPitch;
 bool			LocalKeyboardTurner;
 
-int				WidescreenRatio;
+float			WidescreenRatio;
 int				setblocks;
 int				extralight;
 bool			setsizeneeded;
@@ -198,9 +198,9 @@ void R_SetViewSize (int blocks)
 //
 //==========================================================================
 
-void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight)
+void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight, bool renderingToCanvas)
 {
-	int trueratio;
+	float trueratio;
 
 	if (windowSize >= 11)
 	{
@@ -220,8 +220,15 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight)
 		freelookviewheight = ((setblocks*fullHeight)/10)&~7;
 	}
 
-	// If the screen is approximately 16:9 or 16:10, consider it widescreen.
-	WidescreenRatio = CheckRatio (fullWidth, fullHeight, &trueratio);
+	if (renderingToCanvas)
+	{
+		WidescreenRatio = fullWidth / (float)fullHeight;
+		trueratio = WidescreenRatio;
+	}
+	else
+	{
+		WidescreenRatio = ActiveRatio(fullWidth, fullHeight, &trueratio);
+	}
 
 	DrawFSHUD = (windowSize == 11);
 	
@@ -230,13 +237,13 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight)
 
 	centery = viewheight/2;
 	centerx = viewwidth/2;
-	if (Is54Aspect(WidescreenRatio))
+	if (AspectTallerThanWide(WidescreenRatio))
 	{
 		centerxwide = centerx;
 	}
 	else
 	{
-		centerxwide = centerx * BaseRatioSizes[WidescreenRatio][3] / 48;
+		centerxwide = centerx * AspectMultiplier(WidescreenRatio) / 48;
 	}
 
 
@@ -1034,33 +1041,49 @@ void FCanvasTextureInfo::EmptyList ()
 //
 //==========================================================================
 
-void FCanvasTextureInfo::Serialize (FArchive &arc)
+void FCanvasTextureInfo::Serialize(FSerializer &arc)
 {
-	if (arc.IsStoring ())
+	if (arc.isWriting())
 	{
-		FCanvasTextureInfo *probe;
-
-		for (probe = List; probe != NULL; probe = probe->Next)
+		if (List != nullptr)
 		{
-			if (probe->Texture != NULL && probe->Viewpoint != NULL)
+			if (arc.BeginArray("canvastextures"))
 			{
-				arc << probe->Viewpoint << probe->FOV << probe->PicNum;
+				FCanvasTextureInfo *probe;
+
+				for (probe = List; probe != nullptr; probe = probe->Next)
+				{
+					if (probe->Texture != nullptr && probe->Viewpoint != nullptr)
+					{
+						if (arc.BeginObject(nullptr))
+						{
+							arc("viewpoint", probe->Viewpoint)
+								("fov", probe->FOV)
+								("texture", probe->PicNum)
+								.EndObject();
+						}
+					}
+				}
+				arc.EndArray();
 			}
 		}
-		AActor *nullactor = NULL;
-		arc << nullactor;
 	}
 	else
 	{
-		AActor *viewpoint;
-		int fov;
-		FTextureID picnum;
-		
-		EmptyList ();
-		while (arc << viewpoint, viewpoint != NULL)
+		if (arc.BeginArray("canvastextures"))
 		{
-			arc << fov << picnum;
-			Add (viewpoint, picnum, fov);
+			AActor *viewpoint;
+			int fov;
+			FTextureID picnum;
+			while (arc.BeginObject(nullptr))
+			{
+				arc("viewpoint", viewpoint)
+					("fov", fov)
+					("texture", picnum)
+					.EndObject();
+				Add(viewpoint, picnum, fov);
+			}
+			arc.EndArray();
 		}
 	}
 }

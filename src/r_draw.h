@@ -143,7 +143,6 @@ extern void (*R_DrawSpanMaskedAddClamp)(void);
 
 // [RH] Span blit into an interleaved intermediate buffer
 extern void (*R_DrawColumnHoriz)(void);
-void R_DrawMaskedColumnHoriz (const BYTE *column, const FTexture::Span *spans);
 
 // [RH] Initialize the above pointers
 void R_InitColumnDrawers ();
@@ -222,9 +221,8 @@ extern void (*rt_tlateaddclamp4cols)(int sx, int yl, int yh);
 extern void (*rt_tlatesubclamp4cols)(int sx, int yl, int yh);
 extern void (*rt_tlaterevsubclamp4cols)(int sx, int yl, int yh);
 
-extern void (*rt_initcols)(BYTE *buffer);
-extern void (*rt_span_coverage)(int x, int start, int stop);
-
+void rt_flip_posts();
+extern void (*rt_initcols)(BYTE *buffer);extern void (*rt_span_coverage)(int x, int start, int stop);
 void rt_draw4cols (int sx);
 
 // [RH] Preps the temporary horizontal buffer.
@@ -373,6 +371,11 @@ void maskwallscan (int x1, int x2, short *uwal, short *dwal, float *swal, fixed_
 // transmaskwallscan is like maskwallscan, but it can also blend to the background
 void transmaskwallscan (int x1, int x2, short *uwal, short *dwal, float *swal, fixed_t *lwal, double yrepeat, const BYTE *(*getcol)(FTexture *tex, int col)=R_GetColumn);
 
+void R_DrawSingleSkyCol1(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawSingleSkyCol4(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawDoubleSkyCol1(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawDoubleSkyCol4(uint32_t solid_top, uint32_t solid_bottom);
+
 // Sets dc_colormap and dc_light to their appropriate values depending on the output format (pal vs true color)
 void R_SetColorMapLight(FColormap *base_colormap, float light, int shade);
 
@@ -387,5 +390,4 @@ EXTERN_CVAR(Bool, r_multithreaded);
 EXTERN_CVAR(Bool, r_magfilter);
 EXTERN_CVAR(Bool, r_minfilter);
 EXTERN_CVAR(Bool, r_mipmap);
-
 #endif

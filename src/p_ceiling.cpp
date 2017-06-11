@@ -29,30 +29,8 @@
 #include "doomstat.h"
 #include "r_state.h"
 #include "gi.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "p_spec.h"
-
-//============================================================================
-//
-// 
-//
-//============================================================================
-
-inline FArchive &operator<< (FArchive &arc, DCeiling::ECeiling &type)
-{
-	BYTE val = (BYTE)type;
-	arc << val;
-	type = (DCeiling::ECeiling)val;
-	return arc;
-}
-
-inline FArchive &operator<< (FArchive &arc, DCeiling::ECrushMode &type)
-{
-	BYTE val = (BYTE)type;
-	arc << val;
-	type = (DCeiling::ECrushMode)val;
-	return arc;
-}
 
 //============================================================================
 //
@@ -72,23 +50,23 @@ DCeiling::DCeiling ()
 //
 //============================================================================
 
-void DCeiling::Serialize (FArchive &arc)
+void DCeiling::Serialize(FSerializer &arc)
 {
 	Super::Serialize (arc);
-	arc << m_Type
-		<< m_BottomHeight
-		<< m_TopHeight
-		<< m_Speed
-		<< m_Speed1
-		<< m_Speed2
-		<< m_Crush
-		<< m_Silent
-		<< m_Direction
-		<< m_Texture
-		<< m_NewSpecial
-		<< m_Tag
-		<< m_OldDirection
-		<< m_CrushMode;
+	arc.Enum("type", m_Type)
+		("bottomheight", m_BottomHeight)
+		("topheight", m_TopHeight)
+		("speed", m_Speed)
+		("speed1", m_Speed1)
+		("speed2", m_Speed2)
+		("crush", m_Crush)
+		("silent", m_Silent)
+		("direction", m_Direction)
+		("texture", m_Texture)
+		("newspecial", m_NewSpecial)
+		("tag", m_Tag)
+		("olddirecton", m_OldDirection)
+		.Enum("crushmode", m_CrushMode);
 }
 
 //============================================================================
@@ -206,7 +184,7 @@ void DCeiling::Tick ()
 				case DCeiling::ceilLowerAndCrush:
 					if (m_CrushMode == ECrushMode::crushSlowdown)
 						m_Speed = 1. / 8;
-						break;
+					break;
 
 				default:
 					break;
@@ -236,6 +214,12 @@ DCeiling::DCeiling (sector_t *sec, double speed1, double speed2, int silent)
 	m_Speed = m_Speed1 = speed1;
 	m_Speed2 = speed2;
 	m_Silent = silent;
+	m_BottomHeight = 0;
+	m_TopHeight = 0;
+	m_Direction = 0;
+	m_Texture = FNullTextureID();
+	m_Tag = 0;
+	m_OldDirection = 0;
 }
 
 //============================================================================

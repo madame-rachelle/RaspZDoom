@@ -29,13 +29,9 @@
 
 #define WEAPONBOTTOM			128.
 
-// [RH] +0x6000 helps it meet the screen bottom
-//		at higher resolutions while still being in
-//		the right spot at 320x200.
-#define WEAPONTOP				(32+6./16)
-
+#define WEAPONTOP				32.
+#define WEAPON_FUDGE_Y			0.375
 class AInventory;
-class FArchive;
 
 //
 // Overlay psprites are scaled shapes
@@ -58,6 +54,7 @@ enum PSPFlags
 	PSPF_ADDBOB		= 1 << 1,
 	PSPF_POWDOUBLE	= 1 << 2,
 	PSPF_CVARFAST	= 1 << 3,
+	PSPF_FLIP		= 1 << 6,
 };
 
 class DPSprite : public DObject
@@ -77,6 +74,7 @@ public:
 	DPSprite*	GetNext()	      { return Next; }
 	AActor*		GetCaller()	      { return Caller; }
 	void		SetCaller(AActor *newcaller) { Caller = newcaller; }
+	void		ResetInterpolation() { oldx = x; oldy = y; }
 
 	double x, y;
 	double oldx, oldy;
@@ -87,7 +85,7 @@ public:
 private:
 	DPSprite () {}
 
-	void Serialize(FArchive &arc);
+	void Serialize(FSerializer &arc);
 	void Tick();
 	void Destroy();
 

@@ -27,8 +27,8 @@
 #include "templates.h"
 #include "thingdef/thingdef.h"
 #include "g_level.h"
-#include "farchive.h"
 #include "d_player.h"
+#include "serializer.h"
 
 
 // MACROS ------------------------------------------------------------------
@@ -262,8 +262,7 @@ void DPSprite::NewTick()
 			while (pspr)
 			{
 				pspr->processPending = true;
-				pspr->oldx = pspr->x;
-				pspr->oldy = pspr->y;
+				pspr->ResetInterpolation();
 
 				pspr = pspr->Next;
 			}
@@ -524,6 +523,7 @@ void P_DropWeapon (player_t *player)
 // A_WeaponReady every tic, and it looks bad if they don't bob smoothly.
 //
 // [XA] Added new bob styles and exposed bob properties. Thanks, Ryan Cordell!
+// [SP] Added new user option for bob speed
 //
 //============================================================================
 
@@ -551,8 +551,9 @@ void P_BobWeapon (player_t *player, float *x, float *y, double ticfrac)
 
 	for (int i = 0; i < 2; i++)
 	{
-		// Bob the weapon based on movement speed.
-		FAngle angle = (BobSpeed * 35 / TICRATE*(level.time - 1 + i)) * (360.f / 8192.f);
+		// Bob the weapon based on movement speed. ([SP] And user's bob speed setting)
+		FAngle angle = (BobSpeed * player->userinfo.GetWBobSpeed() * 35 /
+			TICRATE*(level.time - 1 + i)) * (360.f / 8192.f);
 
 		// [RH] Smooth transitions between bobbing and not-bobbing frames.
 		// This also fixes the bug where you can "stick" a weapon off-center by
@@ -580,8 +581,9 @@ void P_BobWeapon (player_t *player, float *x, float *y, double ticfrac)
 
 		if (curbob != 0)
 		{
-			float bobx = float(player->bob * Rangex);
-			float boby = float(player->bob * Rangey);
+			//[SP] Added in decorate player.viewbob checks
+			float bobx = float(player->bob * Rangex * (float)player->mo->ViewBob);
+			float boby = float(player->bob * Rangey * (float)player->mo->ViewBob);
 			switch (bobstyle)
 			{
 			case AWeapon::BobNormal:
@@ -1004,7 +1006,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_OverlayOffset)
 	PARAM_FLOAT_OPT(wx)		{ wx = 0.; }
 	PARAM_FLOAT_OPT(wy)		{ wy = 32.; }
 	PARAM_INT_OPT(flags)	{ flags = 0; }
-	A_OverlayOffset(self, layer, wx, wy, flags);
+	A_OverlayOffset(self, ((layer != 0) ? layer : stateinfo->mPSPIndex), wx, wy, flags);
 	return 0;
 }
 
@@ -1031,10 +1033,10 @@ DEFINE_ACTION_FUNCTION(AActor, A_OverlayFlags)
 	PARAM_INT(flags);
 	PARAM_BOOL(set);
 
-	if (self->player == nullptr)
+	if (!ACTION_CALL_FROM_PSPRITE())
 		return 0;
 
-	DPSprite *pspr = self->player->FindPSprite(layer);
+	DPSprite *pspr = self->player->FindPSprite(((layer != 0) ? layer : stateinfo->mPSPIndex));
 
 	if (pspr == nullptr)
 		return 0;
@@ -1046,6 +1048,71 @@ DEFINE_ACTION_FUNCTION(AActor, A_OverlayFlags)
 
 	return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// PROC OverlayX/Y
+// Action function to return the X/Y of an overlay.
+//---------------------------------------------------------------------------
+
+static double GetOverlayPosition(AActor *self, int layer, bool gety)
+{
+	if (layer)
+	{
+		DPSprite *pspr = self->player->FindPSprite(layer);
+
+		if (pspr != nullptr)
+		{
+			return gety ? (pspr->y) : (pspr->x);
+		}
+	}
+	return 0.;
+}
+
+DEFINE_ACTION_FUNCTION(AActor, OverlayX)
+{
+	PARAM_ACTION_PROLOGUE;
+	PARAM_INT_OPT(layer) { layer = 0; }
+
+	if (ACTION_CALL_FROM_PSPRITE())
+	{
+		double res = GetOverlayPosition(self, ((layer != 0) ? layer : stateinfo->mPSPIndex), false);
+		ACTION_RETURN_FLOAT(res);	
+	}
+	ACTION_RETURN_FLOAT(0.);
+}
+
+DEFINE_ACTION_FUNCTION(AActor, OverlayY)
+{
+	PARAM_ACTION_PROLOGUE;
+	PARAM_INT_OPT(layer) { layer = 0; }
+
+	if (ACTION_CALL_FROM_PSPRITE())
+	{
+		double res = GetOverlayPosition(self, ((layer != 0) ? layer : stateinfo->mPSPIndex), true);
+		ACTION_RETURN_FLOAT(res);
+	}
+	ACTION_RETURN_FLOAT(0.);
+}
+
+//---------------------------------------------------------------------------
+//
+// PROC OverlayID
+// Because non-action functions cannot acquire the ID of the overlay...
+//---------------------------------------------------------------------------
+
+DEFINE_ACTION_FUNCTION(AActor, OverlayID)
+{
+	PARAM_ACTION_PROLOGUE;
+
+	if (ACTION_CALL_FROM_PSPRITE())
+	{
+		ACTION_RETURN_INT(stateinfo->mPSPIndex);
+	}
+	ACTION_RETURN_INT(0);
+}
+
+
 
 //---------------------------------------------------------------------------
 //
@@ -1446,13 +1513,23 @@ void DPSprite::Tick()
 //
 //------------------------------------------------------------------------
 
-void DPSprite::Serialize(FArchive &arc)
+void DPSprite::Serialize(FSerializer &arc)
 {
 	Super::Serialize(arc);
 
-	arc << Next << Caller << Owner << Flags
-		<< State << Tics << Sprite << Frame
-		<< ID << x << y << oldx << oldy;
+	arc("next", Next)
+		("caller", Caller)
+		("owner", Owner)
+		("flags", Flags)
+		("state", State)
+		("tics", Tics)
+		.Sprite("sprite", Sprite, nullptr)
+		("frame", Frame)
+		("id", ID)
+		("x", x)
+		("y", y)
+		("oldx", oldx)
+		("oldy", oldy);
 }
 
 //------------------------------------------------------------------------

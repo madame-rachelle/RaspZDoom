@@ -86,6 +86,8 @@
 #include "textures/bitmap.h"
 #include "textures/textures.h"
 
+#include "optwin32.h"
+
 // MACROS ------------------------------------------------------------------
 
 #ifdef _MSC_VER
@@ -797,6 +799,7 @@ void I_FatalError(const char *error, ...)
 		va_start(argptr, error);
 		myvsnprintf(errortext, MAX_ERRORTEXT, error, argptr);
 		va_end(argptr);
+		OutputDebugString(errortext);
 
 		// Record error to log (if logging)
 		if (Logfile)
@@ -832,6 +835,7 @@ void I_Error(const char *error, ...)
 	va_start(argptr, error);
 	myvsnprintf(errortext, MAX_ERRORTEXT, error, argptr);
 	va_end(argptr);
+	OutputDebugString(errortext);
 
 	throw CRecoverableError(errortext);
 }
@@ -1310,7 +1314,7 @@ static HCURSOR CreateCompatibleCursor(FTexture *cursorpic)
 	HDC dc = GetDC(NULL);
 	if (dc == NULL)
 	{
-		return false;
+		return nullptr;
 	}
 	HDC and_mask_dc = CreateCompatibleDC(dc);
 	HDC xor_mask_dc = CreateCompatibleDC(dc);
@@ -1714,20 +1718,19 @@ unsigned int I_MakeRNGSeed()
 
 FString I_GetLongPathName(FString shortpath)
 {
-	static TOptWin32Proc<DWORD (WINAPI*)(LPCTSTR, LPTSTR, DWORD)>
-		GetLongPathNameA("kernel32.dll", "GetLongPathNameA");
+	using OptWin32::GetLongPathNameA;
 
 	// Doesn't exist on NT4
-	if (GetLongPathName == NULL)
+	if (!GetLongPathNameA)
 		return shortpath;
 
-	DWORD buffsize = GetLongPathNameA.Call(shortpath.GetChars(), NULL, 0);
+	DWORD buffsize = GetLongPathNameA(shortpath.GetChars(), NULL, 0);
 	if (buffsize == 0)
 	{ // nothing to change (it doesn't exist, maybe?)
 		return shortpath;
 	}
 	TCHAR *buff = new TCHAR[buffsize];
-	DWORD buffsize2 = GetLongPathNameA.Call(shortpath.GetChars(), buff, buffsize);
+	DWORD buffsize2 = GetLongPathNameA(shortpath.GetChars(), buff, buffsize);
 	if (buffsize2 >= buffsize)
 	{ // Failure! Just return the short path
 		delete[] buff;

@@ -111,6 +111,8 @@ struct FPortalGroupArray;
 // Any questions?
 //
 
+
+
 // --- mobj.flags ---
 enum ActorFlag
 {
@@ -415,7 +417,10 @@ enum ActorRenderFlag
 	RF_INVISIBLE		= 0x8000,	// Don't bother drawing this actor
 	RF_ROLLSPRITE		= 0x40000,	//[marrub]roll the sprite billboard
 	RF_DONTFLIP			= 0x80000,	// Don't flip it when viewed from behind.
-	RF_ROLLCENTER		= 0x100000, // Rotate from the center of sprite instead of offsets
+	RF_ROLLCENTER		= 0x00100000, // Rotate from the center of sprite instead of offsets
+	RF_MASKROTATION		= 0x00200000, // [MC] Only draw the actor when viewed from a certain angle range.
+	RF_ABSMASKANGLE		= 0x00400000, // [MC] The mask rotation does not offset by the actor's angle.
+	RF_ABSMASKPITCH		= 0x00800000, // [MC] The mask rotation does not offset by the actor's pitch.
 
 	RF_FORCEYBILLBOARD		= 0x10000,	// [BB] OpenGL only: draw with y axis billboard, i.e. anchored to the floor (overrides gl_billboard_mode setting)
 	RF_FORCEXYBILLBOARD		= 0x20000,	// [BB] OpenGL only: draw with xy axis billboard, i.e. unanchored (overrides gl_billboard_mode setting)
@@ -581,8 +586,9 @@ public:
 	void Destroy ();
 	~AActor ();
 
-	void Serialize (FArchive &arc);
-	
+	void Serialize(FSerializer &arc);
+	void PostSerialize();
+
 	static AActor *StaticSpawn (PClassActor *type, const DVector3 &pos, replace_t allowreplacement, bool SpawningMapThing = false);
 
 	inline AActor *GetDefault () const
@@ -748,6 +754,9 @@ public:
 
 	// What species am I?
 	virtual FName GetSpecies();
+
+	// set translation
+	void SetTranslation(const char *trname);
 
 	double GetBobOffset(double ticfrac = 0) const
 	{
@@ -956,6 +965,7 @@ public:
 	inline void SetFriendPlayer(player_t *player);
 
 	bool IsVisibleToPlayer() const;
+	bool IsInsideVisibleAngles() const;
 
 	// Calculate amount of missile damage
 	virtual int GetMissileDamage(int mask, int add);
@@ -981,12 +991,16 @@ public:
 
 	DAngle			SpriteAngle;
 	DAngle			SpriteRotation;
+	DAngle			VisibleStartAngle;
+	DAngle			VisibleStartPitch;
+	DAngle			VisibleEndAngle;
+	DAngle			VisibleEndPitch;
 	DRotator		Angles;
 	DVector3		Vel;
 	double			Speed;
 	double			FloatSpeed;
 
-	WORD			sprite;				// used to find patch_t and flip value
+	int				sprite;				// used to find patch_t and flip value
 	BYTE			frame;				// sprite frame to draw
 	DVector2		Scale;				// Scaling values; 1 is normal size
 	FRenderStyle	RenderStyle;		// Style to draw this actor with
@@ -1014,7 +1028,9 @@ public:
 	
 	SDWORD			tics;				// state tic counter
 	FState			*state;
-	VMFunction		*Damage;			// For missiles and monster railgun
+	//VMFunction		*Damage;			// For missiles and monster railgun
+	int				DamageVal;
+	VMFunction		*DamageFunc;
 	int				projectileKickback;
 	ActorFlags		flags;
 	ActorFlags2		flags2;			// Heretic flags
@@ -1179,8 +1195,9 @@ public:
 private:
 	static AActor *TIDHash[128];
 	static inline int TIDHASH (int key) { return key & 127; }
+public:
 	static FSharedStringArena mStringPropertyData;
-
+private:
 	friend class FActorIterator;
 	friend bool P_IsTIDUsed(int tid);
 
@@ -1200,6 +1217,23 @@ public:
 	void ClearCounters();
 	FState *GetRaiseState();
 	void Revive();
+
+	void SetDamage(int dmg)
+	{
+		DamageVal = dmg;
+		DamageFunc = nullptr;
+	}
+
+	bool IsZeroDamage() const
+	{
+		return DamageVal == 0 && DamageFunc == nullptr;
+	}
+
+	void RestoreDamage()
+	{
+		DamageVal = GetDefault()->DamageVal;
+		DamageFunc = GetDefault()->DamageFunc;
+	}
 
 	FState *FindState (FName label) const
 	{

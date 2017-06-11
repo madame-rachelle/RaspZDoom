@@ -238,8 +238,8 @@ static const FEnumList ResamplerNames[] =
 	{ "No Interpolation",		FMOD_DSP_RESAMPLER_NOINTERP },
 	{ "NoInterp",				FMOD_DSP_RESAMPLER_NOINTERP },
 	{ "Linear",					FMOD_DSP_RESAMPLER_LINEAR },
-	// [BL] 64-bit version of FMOD Ex 4.26 crashes with these resamplers.
-#if FMOD_STUDIO || !(defined(_M_X64) || defined(__amd64__)) || !(FMOD_VERSION >= 0x42600 && FMOD_VERSION <= 0x426FF)
+	// [BL] 64-bit versions of FMOD Ex between 4.24 and 4.26 crash with these resamplers.
+#if FMOD_STUDIO || !(defined(_M_X64) || defined(__amd64__)) || !(FMOD_VERSION >= 0x42400 && FMOD_VERSION <= 0x426FF)
 	{ "Cubic",					FMOD_DSP_RESAMPLER_CUBIC },
 	{ "Spline",					FMOD_DSP_RESAMPLER_SPLINE },
 #endif
@@ -971,6 +971,7 @@ bool FMODSoundRenderer::Init()
 
 #if FMOD_STUDIO
 	FMOD_ADVANCEDSETTINGS advSettings = {};
+	advSettings.cbSize = sizeof advSettings;
 	advSettings.resamplerMethod = resampler;
 	result = Sys->setAdvancedSettings(&advSettings);
 	if (result != FMOD_OK)
@@ -1370,11 +1371,8 @@ void FMODSoundRenderer::PrintStatus()
 {
 	FMOD_OUTPUTTYPE output;
 	FMOD_SPEAKERMODE speakermode;
-	FMOD_SOUND_FORMAT format;
-	FMOD_DSP_RESAMPLER resampler;
 	int driver;
 	int samplerate;
-	int numoutputchannels;
 	unsigned int bufferlength;
 	int numbuffers;
 
@@ -1413,6 +1411,9 @@ void FMODSoundRenderer::PrintStatus()
 #endif
 	}
 #if !FMOD_STUDIO
+	FMOD_SOUND_FORMAT format;
+	FMOD_DSP_RESAMPLER resampler;
+	int numoutputchannels;
 	if (FMOD_OK == Sys->getSoftwareFormat(&samplerate, &format, &numoutputchannels, NULL, &resampler, NULL))
 	{
 		Printf (TEXTCOLOR_LIGHTBLUE "Software mixer sample rate: " TEXTCOLOR_GREEN "%d\n", samplerate);
@@ -2758,6 +2759,16 @@ std::pair<SoundHandle,bool> FMODSoundRenderer::LoadSoundRaw(BYTE *sfxdata, int l
 	exinfo.defaultfrequency = frequency;
 	switch (bits)
 	{
+#if FMOD_STUDIO
+	case -8:
+		// Need to convert sample data from signed to unsigned.
+		for (int i = 0; i < length; i++)
+		{
+			sfxdata[i] ^= 0x80;
+		}
+
+	case 8:
+#else // !FMOD_STUDIO
 	case 8:
 		// Need to convert sample data from unsigned to signed.
 		for (int i = 0; i < length; ++i)
@@ -2766,6 +2777,7 @@ std::pair<SoundHandle,bool> FMODSoundRenderer::LoadSoundRaw(BYTE *sfxdata, int l
 		}
 
 	case -8:
+#endif // FMOD_STUDIO
 		exinfo.format = FMOD_SOUND_FORMAT_PCM8;
 		numsamples = length;
 		break;

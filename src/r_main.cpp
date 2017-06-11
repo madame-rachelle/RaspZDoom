@@ -58,7 +58,6 @@
 #include "st_start.h"
 #include "v_font.h"
 #include "r_data/colormaps.h"
-#include "farchive.h"
 #include "p_maputl.h"
 
 // MACROS ------------------------------------------------------------------
@@ -235,7 +234,7 @@ void R_SetVisibility(double vis)
 	else
 		r_WallVisibility = r_BaseVisibility;
 
-	r_WallVisibility = (InvZtoScale * SCREENWIDTH*BaseRatioSizes[WidescreenRatio][1] /
+	r_WallVisibility = (InvZtoScale * SCREENWIDTH*AspectBaseHeight(WidescreenRatio) /
 		(viewwidth*SCREENHEIGHT*3)) * (r_WallVisibility * FocalTangent);
 
 	// Prevent overflow on floors/ceilings. Note that the calculation of
@@ -298,7 +297,7 @@ CCMD (r_visibility)
 //
 //==========================================================================
 
-void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, int trueratio)
+void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, float trueratio)
 {
 	int virtheight, virtwidth, virtwidth2, virtheight2;
 
@@ -321,22 +320,22 @@ void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight,
 	virtwidth = virtwidth2 = fullWidth;
 	virtheight = virtheight2 = fullHeight;
 
-	if (Is54Aspect(trueratio))
+	if (AspectTallerThanWide(trueratio))
 	{
-		virtheight2 = virtheight2 * BaseRatioSizes[trueratio][3] / 48;
+		virtheight2 = virtheight2 * AspectMultiplier(trueratio) / 48;
 	}
 	else
 	{
-		virtwidth2 = virtwidth2 * BaseRatioSizes[trueratio][3] / 48;
+		virtwidth2 = virtwidth2 * AspectMultiplier(trueratio) / 48;
 	}
 
-	if (Is54Aspect(WidescreenRatio))
+	if (AspectTallerThanWide(WidescreenRatio))
 	{
-		virtheight = virtheight * BaseRatioSizes[WidescreenRatio][3] / 48;
+		virtheight = virtheight * AspectMultiplier(WidescreenRatio) / 48;
 	}
 	else
 	{
-		virtwidth = virtwidth * BaseRatioSizes[WidescreenRatio][3] / 48;
+		virtwidth = virtwidth * AspectMultiplier(WidescreenRatio) / 48;
 	}
 
 	BaseYaspectMul = 320.0 * virtheight2 / (r_Yaspect * virtwidth2);
@@ -359,7 +358,7 @@ void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight,
 	MaxVisForWall = (InvZtoScale * (SCREENWIDTH*r_Yaspect) /
 		(viewwidth*SCREENHEIGHT * FocalTangent));
 	MaxVisForWall = 32767.0 / MaxVisForWall;
-	MaxVisForFloor = 32767.0 / (viewheight * FocalLengthY / 160);
+	MaxVisForFloor = 32767.0 / (viewheight >> 2) * FocalLengthY / 160;
 
 	// Reset r_*Visibility vars
 	R_SetVisibility(R_GetVisibility());
@@ -449,6 +448,8 @@ void R_CopyStackedViewParameters()
 //
 //==========================================================================
 
+EXTERN_CVAR(Bool, r_fullbrightignoresectorcolor)
+
 void R_SetupColormap(player_t *player)
 {
 	realfixedcolormap = NULL;
@@ -475,6 +476,11 @@ void R_SetupColormap(player_t *player)
 		else if (player->fixedlightlevel >= 0 && player->fixedlightlevel < NUMCOLORMAPS)
 		{
 			fixedlightlev = player->fixedlightlevel * 256;
+			// [SP] Emulate GZDoom's light-amp goggles.
+			if (r_fullbrightignoresectorcolor && fixedlightlev >= 0)
+			{
+				fixedcolormap = FullNormalLight.Maps;
+			}
 		}
 	}
 	// [RH] Inverse light for shooting the Sigil
@@ -688,7 +694,7 @@ void R_EnterPortal (PortalDrawseg* pds, int depth)
 			ViewPos.X = (x1 + r * dx)*2 - x;
 			ViewPos.Y = (y1 + r * dy)*2 - y;
 		}
-		ViewAngle = pds->src->Delta().Angle() - startang;
+		ViewAngle = pds->src->Delta().Angle() * 2 - startang;
 	}
 	else
 	{
@@ -968,7 +974,7 @@ void R_RenderViewToCanvas (AActor *actor, DCanvas *canvas,
 	RenderTarget = canvas;
 	bRenderingToCanvas = true;
 
-	R_SetWindow (12, width, height, height);
+	R_SetWindow (12, width, height, height, true);
 	viewwindowx = x;
 	viewwindowy = y;
 	viewactive = true;

@@ -839,9 +839,11 @@ bool PIT_CheckLine(FMultiBlockLinesIterator &mit, FMultiBlockLinesIterator::Chec
 
 	// If the floor planes on both sides match we should recalculate open.bottom at the actual position we are checking
 	// This is to avoid bumpy movement when crossing a linedef with the same slope on both sides.
+	// This should never narrow down the opening, though, only widen it.
 	if (open.frontfloorplane == open.backfloorplane && open.bottom > LINEOPEN_MIN)
 	{
-		open.bottom = open.frontfloorplane.ZatPoint(cres.Position);
+		auto newopen = open.frontfloorplane.ZatPoint(cres.Position);
+		if (newopen < open.bottom) open.bottom = newopen;
 	}
 
 	if (rail &&
@@ -1254,7 +1256,7 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 		{
 			// ideally this should take the mass factor into account
 			thing->Vel += tm.thing->Vel.XY();
-			if ((thing->Vel.X + thing->Vel.Y) > 3.)
+			if (fabs(thing->Vel.X) + fabs(thing->Vel.Y) > 3.)
 			{
 				int newdam;
 				damage = (tm.thing->Mass / 100) + 1;
@@ -1320,7 +1322,7 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 		// [RH] What is the point of this check, again? In Hexen, it is unconditional,
 		// but here we only do it if the missile's damage is 0.
 		// MBF bouncer might have a non-0 damage value, but they must not deal damage on impact either.
-		if ((tm.thing->BounceFlags & BOUNCE_Actors) && (tm.thing->Damage == 0 || !(tm.thing->flags & MF_MISSILE)))
+		if ((tm.thing->BounceFlags & BOUNCE_Actors) && (tm.thing->IsZeroDamage() || !(tm.thing->flags & MF_MISSILE)))
 		{
 			return (tm.thing->target == thing || !(thing->flags & MF_SOLID));
 		}

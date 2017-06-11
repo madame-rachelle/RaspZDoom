@@ -39,7 +39,7 @@
 
 class PClass;
 
-class FArchive;
+class FSerializer;
 
 class   DObject;
 /*
@@ -201,6 +201,7 @@ enum EObjectFlags
 	OF_EuthanizeMe		= 1 << 5,		// Object wants to die
 	OF_Cleanup			= 1 << 6,		// Object is now being deleted by the collector
 	OF_YesReallyDelete	= 1 << 7,		// Object is being deleted outside the collector, and this is okay, so don't print a warning
+	OF_Transient		= 1 << 11,		// Object should not be archived (references to it will be nulled on disk)
 
 	OF_WhiteBits		= OF_White0 | OF_White1,
 	OF_MarkBits			= OF_WhiteBits | OF_Black,
@@ -413,15 +414,11 @@ public:
 		return GC::ReadBarrier(p) == u;
 	}
 
-	template<class U> friend inline FArchive &operator<<(FArchive &arc, TObjPtr<U> &o);
 	template<class U> friend inline void GC::Mark(TObjPtr<U> &obj);
+	template<class U> friend FSerializer &Serialize(FSerializer &arc, const char *key, TObjPtr<U> &value, TObjPtr<U> *);
+
 	friend class DObject;
 };
-
-template<class T> inline FArchive &operator<<(FArchive &arc, TObjPtr<T> &o)
-{
-	return arc << o.p;
-}
 
 // Use barrier_cast instead of static_cast when you need to cast
 // the contents of a TObjPtr to a related type.
@@ -463,8 +460,9 @@ public:
 	inline bool IsKindOf (const PClass *base) const;
 	inline bool IsA (const PClass *type) const;
 
-	void SerializeUserVars(FArchive &arc);
-	virtual void Serialize (FArchive &arc);
+	void SerializeUserVars(FSerializer &arc);
+	virtual void Serialize(FSerializer &arc);
+
 	void ClearClass()
 	{
 		Class = NULL;
@@ -576,6 +574,9 @@ protected:
 	}
 };
 
+// When you write to a pointer to an Object, you must call this for
+// proper bookkeeping in case the Object holding this pointer has
+// already been processed by the GC.
 static inline void GC::WriteBarrier(DObject *pointing, DObject *pointed)
 {
 	if (pointed != NULL && pointed->IsWhite() && pointing->IsBlack())

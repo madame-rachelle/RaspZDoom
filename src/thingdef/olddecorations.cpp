@@ -140,6 +140,7 @@ DEFINE_CLASS_PROPERTY(respawns, 0, FakeInventory)
 // Reads an old style decoration object
 //
 //==========================================================================
+PClassActor *DecoDerivedClass(const FScriptPosition &sc, PClassActor *parent, FName typeName);
 
 void ParseOldDecoration(FScanner &sc, EDefinitionType def)
 {
@@ -154,7 +155,7 @@ void ParseOldDecoration(FScanner &sc, EDefinitionType def)
 
 	sc.MustGetString();
 	typeName = FName(sc.String);
-	type = static_cast<PClassActor *>(parent->CreateDerivedClass (typeName, parent->Size));
+	type = DecoDerivedClass(FScriptPosition(sc), parent, typeName);
 	ResetBaggage(&bag, parent);
 	bag.Info = type;
 #ifdef _DEBUG
@@ -496,8 +497,7 @@ static void ParseInsideDecoration (Baggage &bag, AActor *defaults,
 		else if (def == DEF_Projectile && sc.Compare ("Damage"))
 		{
 			sc.MustGetNumber ();
-			FxDamageValue *x = new FxDamageValue(new FxConstant(sc.Number, sc), false);
-			defaults->Damage = (VMFunction *)(uintptr_t)(ActorDamageFuncs.Push(x) + 1);
+			defaults->SetDamage(sc.Number);
 		}
 		else if (def == DEF_Projectile && sc.Compare ("DamageType"))
 		{

@@ -10,7 +10,6 @@ struct FRemapTable;
 struct FCopyInfo;
 class FScanner;
 class PClassInventory;
-class FArchive;
 
 // Texture IDs
 class FTextureManager;
@@ -21,8 +20,6 @@ class FNullTextureID : public FTextureID
 public:
 	FNullTextureID() : FTextureID(0) {}
 };
-
-FArchive &operator<< (FArchive &arc, FTextureID &tex);
 
 //
 // Animating textures and planes
@@ -222,6 +219,7 @@ public:
 	int GetScaledTopOffset () { int foo = int((TopOffset * 2) / Scale.Y); return (foo >> 1) + (foo & 1); }
 	double GetScaledLeftOffsetDouble() { return LeftOffset / Scale.X; }
 	double GetScaledTopOffsetDouble() { return TopOffset / Scale.Y; }
+	virtual void ResolvePatches() {}
 
 	virtual void SetFrontSkyLayer();
 
@@ -252,6 +250,7 @@ public:
 	}
 
 	void SetScaledSize(int fitwidth, int fitheight);
+	PalEntry GetSkyCapColor(bool bottom);
 
 	virtual void HackHack (int newheight);	// called by FMultipatchTexture to discover corrupt patches.
 
@@ -279,6 +278,11 @@ protected:
 	void GenerateBgraMipmaps();
 	void GenerateBgraMipmapsFast();
 	int MipmapLevels() const;
+
+private:
+	bool bSWSkyColorDone = false;
+	PalEntry FloorSkyColor;
+	PalEntry CeilingSkyColor;
 
 public:
 	static void FlipSquareBlock (BYTE *block, int x, int y);
@@ -366,7 +370,7 @@ public:
 
 	FTextureID CheckForTexture (const char *name, int usetype, BITFIELD flags=TEXMAN_TryAny);
 	FTextureID GetTexture (const char *name, int usetype, BITFIELD flags=0);
-	int ListTextures (const char *name, TArray<FTextureID> &list);
+	int ListTextures (const char *name, TArray<FTextureID> &list, bool listall = false);
 
 	void AddTexturesLump (const void *lumpdata, int lumpsize, int deflumpnum, int patcheslump, int firstdup=0, bool texture1=false);
 	void AddTexturesLumps (int lump1, int lump2, int patcheslump);
@@ -399,9 +403,6 @@ public:
 	void UnloadAll ();
 
 	int NumTextures () const { return (int)Textures.Size(); }
-
-	void WriteTexture (FArchive &arc, int picnum);
-	int ReadTexture (FArchive &arc);
 
 	void UpdateAnimations (DWORD mstime);
 	int GuesstimateNumTextures ();
@@ -518,7 +519,6 @@ protected:
 // A texture that can be drawn to.
 class DSimpleCanvas;
 class AActor;
-class FArchive;
 
 class FCanvasTexture : public FTexture
 {

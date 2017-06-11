@@ -46,8 +46,10 @@
 #include "i_system.h"
 #include "w_wad.h"
 #include "r_data/colormaps.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "d_player.h"
+#include "r_data/sprites.h"
+#include "r_state.h"
 
 #include "gi.h"
 #include "stats.h"
@@ -192,27 +194,62 @@ bool FRemapTable::operator==(const FRemapTable &o)
 //
 //----------------------------------------------------------------------------
 
-void FRemapTable::Serialize(FArchive &arc)
+void FRemapTable::Serialize(FSerializer &arc)
 {
 	int n = NumEntries;
 
-	arc << NumEntries;
-	if (arc.IsStoring())
-	{
-		arc.Write (Remap, NumEntries);
-	}
-	else
+	arc("numentries", NumEntries);
+	if (arc.isReading())
 	{
 		if (n != NumEntries)
 		{
 			Free();
 			Alloc(NumEntries);
 		}
-		arc.Read (Remap, NumEntries);
 	}
-	for (int j = 0; j < NumEntries; ++j)
+	arc.Array("remap", Remap, NumEntries);
+	arc.Array("palette", Palette, NumEntries);
+}
+
+void FRemapTable::StaticSerializeTranslations(FSerializer &arc)
+{
+	if (arc.BeginArray("translations"))
 	{
-		arc << Palette[j];
+		// Does this level have custom translations?
+		FRemapTable *trans;
+		int w;
+		if (arc.isWriting())
+		{
+			for (unsigned int i = 0; i < translationtables[TRANSLATION_LevelScripted].Size(); ++i)
+			{
+				trans = translationtables[TRANSLATION_LevelScripted][i];
+				if (trans != NULL && !trans->IsIdentity())
+				{
+					if (arc.BeginObject(nullptr))
+					{
+						arc("index", i);
+						trans->Serialize(arc);
+						arc.EndObject();
+					}
+				}
+			}
+		}
+		else
+		{
+			while (arc.BeginObject(nullptr))
+			{
+				arc("index", w);
+				trans = translationtables[TRANSLATION_LevelScripted].GetVal(w);
+				if (trans == NULL)
+				{
+					trans = new FRemapTable;
+					translationtables[TRANSLATION_LevelScripted].SetVal(w, trans);
+				}
+				trans->Serialize(arc);
+				arc.EndObject();
+			}
+		}
+		arc.EndArray();
 	}
 }
 
@@ -572,26 +609,26 @@ void FRemapTable::AddToTranslation(const char *range)
 //
 //----------------------------------------------------------------------------
 
-int FRemapTable::StoreTranslation()
+int FRemapTable::StoreTranslation(int slot)
 {
 	unsigned int i;
 
-	for (i = 0; i < translationtables[TRANSLATION_Decorate].Size(); i++)
+	for (i = 0; i < translationtables[slot].Size(); i++)
 	{
-		if (*this == *translationtables[TRANSLATION_Decorate][i])
+		if (*this == *translationtables[slot][i])
 		{
 			// A duplicate of this translation already exists
-			return TRANSLATION(TRANSLATION_Decorate, i);
+			return TRANSLATION(slot, i);
 		}
 	}
-	if (translationtables[TRANSLATION_Decorate].Size() >= MAX_DECORATE_TRANSLATIONS)
+	if (translationtables[slot].Size() >= MAX_DECORATE_TRANSLATIONS)
 	{
 		I_Error("Too many DECORATE translations");
 	}
 	FRemapTable *newtrans = new FRemapTable;
 	*newtrans = *this;
-	i = translationtables[TRANSLATION_Decorate].Push(newtrans);
-	return TRANSLATION(TRANSLATION_Decorate, i);
+	i = translationtables[slot].Push(newtrans);
+	return TRANSLATION(slot, i);
 }
 
 
@@ -1150,4 +1187,95 @@ void R_GetPlayerTranslation (int color, const FPlayerColorSet *colorset, FPlayer
 		&h, &s, &v);
 
 	R_CreatePlayerTranslation (h, s, v, colorset, skin, table, NULL, NULL);
+}
+
+//----------------------------------------------------------------------------
+//
+//
+//
+//----------------------------------------------------------------------------
+static TMap<FName, int> customTranslationMap;
+
+int R_FindCustomTranslation(const char *name)
+{
+	if (name == nullptr)
+	{
+		return -1;
+	}
+	// Ice is a special case which will remain in its original slot.
+	if (!stricmp(name, "Ice"))
+	{
+		return TRANSLATION(TRANSLATION_Standard, 7);
+	}
+	else if (!stricmp(name, "None"))
+	{
+		return 0;
+	}
+	int *t = customTranslationMap.CheckKey(FName(name, true));
+	return (t != nullptr)? *t : -1;
+}
+
+//----------------------------------------------------------------------------
+//
+//
+//
+//----------------------------------------------------------------------------
+
+void R_ParseTrnslate()
+{
+	customTranslationMap.Clear();
+	translationtables[TRANSLATION_Custom].Clear();
+
+	int lump;
+	int lastlump = 0;
+	while (-1 != (lump = Wads.FindLump("TRNSLATE", &lastlump)))
+	{
+		FScanner sc(lump);
+		while (sc.GetToken())
+		{
+			sc.TokenMustBe(TK_Identifier);
+
+			FName newtrans = sc.String;
+			FRemapTable *base = nullptr;
+			if (sc.CheckToken(':'))
+			{
+				sc.MustGetAnyToken();
+				if (sc.TokenType == TK_IntConst)
+				{
+					int max = 6;
+					if (sc.Number < 0 || sc.Number > max)
+					{
+						sc.ScriptError("Translation must be in the range [0,%d]", max);
+					}
+					base = translationtables[TRANSLATION_Standard][sc.Number];
+				}
+				else if (sc.TokenType == TK_Identifier)
+				{
+					int tnum = R_FindCustomTranslation(sc.String);
+					if (tnum == -1)
+					{
+						sc.ScriptError("Base translation '%s' not found in '%s'", sc.String, newtrans.GetChars());
+					}
+					base = translationtables[GetTranslationType(tnum)][GetTranslationIndex(tnum)];
+				}
+				else
+				{
+					// error out.
+					sc.TokenMustBe(TK_Identifier);
+				}
+			}
+			sc.MustGetToken('=');
+			FRemapTable NewTranslation;
+			if (base != nullptr)  NewTranslation = *base;
+			else NewTranslation.MakeIdentity();
+			do
+			{
+				sc.MustGetToken(TK_StringConst);
+				NewTranslation.AddToTranslation(sc.String);
+			} while (sc.CheckToken(','));
+
+			int trans = NewTranslation.StoreTranslation(TRANSLATION_Custom);
+			customTranslationMap[newtrans] = trans;
+		}
+	}
 }

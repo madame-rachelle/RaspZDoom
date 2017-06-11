@@ -241,7 +241,7 @@ class CommandDrawImage : public SBarInfoCommandFlowControl
 				applyscale = false;
 			}
 			if(type == PLAYERICON)
-				texture = TexMan[statusBar->CPlayer->mo->ScoreIcon];
+				texture = TexMan(statusBar->CPlayer->mo->ScoreIcon);
 			else if(type == AMMO1)
 			{
 				AAmmo *ammo = statusBar->ammo1;
@@ -270,7 +270,7 @@ class CommandDrawImage : public SBarInfoCommandFlowControl
 			{
 				AInventory *item = statusBar->CPlayer->mo->FindInventory<ASigil>();
 				if (item != NULL)
-					texture = TexMan[item->Icon];
+					texture = TexMan(item->Icon);
 			}
 			else if(type == HEXENARMOR_ARMOR || type == HEXENARMOR_SHIELD || type == HEXENARMOR_HELM || type == HEXENARMOR_AMULET)
 			{
@@ -290,7 +290,7 @@ class CommandDrawImage : public SBarInfoCommandFlowControl
 				}
 			}
 			else if(type == INVENTORYICON)
-				texture = TexMan[sprite];
+				texture = TexMan(sprite);
 			else if(type == SELECTEDINVENTORYICON && statusBar->CPlayer->mo->InvSel != NULL)
 				texture = TexMan(statusBar->CPlayer->mo->InvSel->Icon);
 			else if(image >= 0)
@@ -312,7 +312,7 @@ class CommandDrawImage : public SBarInfoCommandFlowControl
 				spawnScaleY = item->Scale.Y;
 			}
 			
-			texture = TexMan[icon];
+			texture = TexMan(icon);
 		}
 		
 		enum ImageType
@@ -1021,7 +1021,7 @@ class CommandDrawNumber : public CommandDrawString
 			usePrefix(false), interpolationSpeed(0), drawValue(0), length(3),
 			lowValue(-1), lowTranslation(CR_UNTRANSLATED), highValue(-1),
 			highTranslation(CR_UNTRANSLATED), value(CONSTANT),
-			inventoryItem(NULL)
+			inventoryItem(NULL), cvarName(nullptr)
 		{
 		}
 
@@ -1165,6 +1165,37 @@ class CommandDrawNumber : public CommandDrawString
 						}
 
 						if(parenthesized) sc.MustGetToken(')');
+					}
+					else if (sc.Compare("intcvar"))
+					{
+						bool parenthesized = sc.CheckToken('(');
+
+						value = INTCVAR;
+
+						if (!parenthesized || !sc.CheckToken(TK_StringConst))
+							sc.MustGetToken(TK_Identifier);
+						
+						cvarName = sc.String;
+
+						// We have a name, but make sure it exists. If not, send notification so modders
+						// are aware of the situation.
+						FBaseCVar *CVar = FindCVar(cvarName, nullptr);
+
+						if (CVar != nullptr)
+						{
+							ECVarType cvartype = CVar->GetRealType();
+
+							if (!(cvartype == CVAR_Bool || cvartype == CVAR_Int))
+							{
+								sc.ScriptMessage("CVar '%s' is not an int or bool", cvarName.GetChars());
+							}
+						}
+						else
+						{
+							sc.ScriptMessage("CVar '%s' does not exist", cvarName.GetChars());
+						}
+						
+						if (parenthesized) sc.MustGetToken(')');
 					}
 				}
 				if(value == INVENTORY)
@@ -1444,6 +1475,24 @@ class CommandDrawNumber : public CommandDrawString
 							num++;
 					}
 					break;
+				case INTCVAR:
+				{
+					FBaseCVar *CVar = GetCVar(statusBar->CPlayer->mo, cvarName);
+					if (CVar != nullptr)
+					{
+						ECVarType cvartype = CVar->GetRealType();
+
+						if (cvartype == CVAR_Bool || cvartype == CVAR_Int)
+						{
+							num = CVar->GetGenericRep(CVAR_Int).Int;
+							break;
+						}
+					}
+
+					// Fallback in case of bad cvar/type. Unset can remove a cvar at will.
+					num = 0;
+					break;
+				}
 				default: break;
 			}
 			if(interpolationSpeed != 0 && (!hudChanged || level.time == 1))
@@ -1522,6 +1571,7 @@ class CommandDrawNumber : public CommandDrawString
 			ACCURACY,
 			STAMINA,
 			KEYS,
+			INTCVAR,
 
 			CONSTANT
 		};
@@ -1544,6 +1594,7 @@ class CommandDrawNumber : public CommandDrawString
 		PClassActor			*inventoryItem;
 
 		FString				prefixPadding;
+		FString				cvarName;
 
 		friend class CommandDrawInventoryBar;
 };
@@ -1914,7 +1965,7 @@ class CommandAspectRatio : public SBarInfoCommandFlowControl
 		{
 			SBarInfoCommandFlowControl::Tick(block, statusBar, hudChanged);
 
-			SetTruth(ratioMap[CheckRatio(screen->GetWidth(), screen->GetHeight())] == ratio, block, statusBar);
+			SetTruth(ratioMap[FindRatio()] == ratio, block, statusBar);
 		}
 	protected:
 		enum Ratio
@@ -1931,6 +1982,37 @@ class CommandAspectRatio : public SBarInfoCommandFlowControl
 		static Ratio	ratioMap[5];
 
 		Ratio			ratio;
+
+	private:
+		int FindRatio()
+		{
+			float aspect = ActiveRatio(screen->GetWidth(), screen->GetHeight());
+
+			static std::pair<float, int> ratioTypes[] =
+			{
+				{ 21 / 9.0f , ASPECTRATIO_16_9 },
+				{ 16 / 9.0f , ASPECTRATIO_16_9 },
+				{ 17 / 10.0f , ASPECTRATIO_17_10 },
+				{ 16 / 10.0f , ASPECTRATIO_16_10 },
+				{ 4 / 3.0f , ASPECTRATIO_4_3 },
+				{ 5 / 4.0f , ASPECTRATIO_5_4 },
+				{ 0.0f, 0 }
+			};
+
+			int ratio = ratioTypes[0].second;
+			float distance = fabs(ratioTypes[0].first - aspect);
+			for (int i = 1; ratioTypes[i].first != 0.0f; i++)
+			{
+				float d = fabs(ratioTypes[i].first - aspect);
+				if (d < distance)
+				{
+					ratio = ratioTypes[i].second;
+					distance = d;
+				}
+			}
+
+			return ratio;
+		}
 };
 CommandAspectRatio::Ratio CommandAspectRatio::ratioMap[5] = {ASPECTRATIO_4_3,ASPECTRATIO_16_9,ASPECTRATIO_16_10,ASPECTRATIO_16_10,ASPECTRATIO_5_4};
 
@@ -2354,22 +2436,22 @@ class CommandDrawKeyBar : public SBarInfoCommand
 				{
 					if(!vertical)
 					{
-						statusBar->DrawGraphic(TexMan[item->Icon], x+slotOffset, y+rowOffset, block->XOffset(), block->YOffset(), block->Alpha(), block->FullScreenOffsets());
-						rowWidth = rowIconSize == -1 ? TexMan[item->Icon]->GetScaledHeight()+2 : rowIconSize;
+						statusBar->DrawGraphic(TexMan(item->Icon), x+slotOffset, y+rowOffset, block->XOffset(), block->YOffset(), block->Alpha(), block->FullScreenOffsets());
+						rowWidth = rowIconSize == -1 ? TexMan(item->Icon)->GetScaledHeight()+2 : rowIconSize;
 					}
 					else
 					{
-						statusBar->DrawGraphic(TexMan[item->Icon], x+rowOffset, y+slotOffset, block->XOffset(), block->YOffset(), block->Alpha(), block->FullScreenOffsets());
-						rowWidth = rowIconSize == -1 ? TexMan[item->Icon]->GetScaledWidth()+2 : rowIconSize;
+						statusBar->DrawGraphic(TexMan(item->Icon), x+rowOffset, y+slotOffset, block->XOffset(), block->YOffset(), block->Alpha(), block->FullScreenOffsets());
+						rowWidth = rowIconSize == -1 ? TexMan(item->Icon)->GetScaledWidth()+2 : rowIconSize;
 					}
 		
 					// If cmd.special is -1 then the slot size is auto detected
 					if(iconSize == -1)
 					{
 						if(!vertical)
-							slotOffset += (reverse ? -1 : 1) * (TexMan[item->Icon]->GetScaledWidth() + 2);
+							slotOffset += (reverse ? -1 : 1) * (TexMan(item->Icon)->GetScaledWidth() + 2);
 						else
-							slotOffset += (reverse ? -1 : 1) * (TexMan[item->Icon]->GetScaledHeight() + 2);
+							slotOffset += (reverse ? -1 : 1) * (TexMan(item->Icon)->GetScaledHeight() + 2);
 					}
 					else
 						slotOffset += (reverse ? -iconSize : iconSize);

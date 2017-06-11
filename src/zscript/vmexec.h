@@ -52,11 +52,17 @@ begin:
 	{
 #if !COMPGOTO
 	VM_UBYTE op;
-	for(;;) switch(op = pc->op, a = pc->a, pc++, op)
+	for(;;) switch(op = pc->op, a = pc->a, op)
 #else
+	pc--;
 	NEXTOP;
 #endif
 	{
+#if !COMPGOTO
+	default:
+		assert(0 && "Undefined opcode hit");
+		NEXTOP;
+#endif
 	OP(LI):
 		ASSERTD(a);
 		reg.d[a] = BCs;
@@ -367,13 +373,13 @@ begin:
 		}
 		NEXTOP;
 	OP(JMP):
-		pc += JMPOFS(pc - 1);
+		pc += JMPOFS(pc);
 		NEXTOP;
 	OP(IJMP):
 		ASSERTD(a);
 		pc += (BCs + reg.d[a]);
-		assert(pc->op == OP_JMP);
-		pc += 1 + JMPOFS(pc);
+		assert(pc[1].op == OP_JMP);
+		pc += 1 + JMPOFS(pc+1);
 		NEXTOP;
 	OP(PARAMI):
 		assert(f->NumParam < sfunc->MaxParam);
@@ -490,7 +496,7 @@ begin:
 			VMReturn returns[MAX_RETURNS];
 			int numret;
 
-			FillReturns(reg, f, returns, pc, C);
+			FillReturns(reg, f, returns, pc+1, C);
 			if (call->Native)
 			{
 				numret = static_cast<VMNativeFunction *>(call)->NativeCall(stack, reg.param + f->NumParam - B, B, returns, C);
@@ -603,8 +609,8 @@ begin:
 		{
 			THROW(X_TOO_MANY_TRIES);
 		}
-		assert((pc + JMPOFS(pc - 1))->op == OP_CATCH);
-		exception_frames[try_depth++] = pc + JMPOFS(pc - 1);
+		assert((pc + JMPOFS(pc) + 1)->op == OP_CATCH);
+		exception_frames[try_depth++] = pc + JMPOFS(pc) + 1;
 		NEXTOP;
 	OP(UNTRY):
 		assert(a <= try_depth);
@@ -616,11 +622,15 @@ begin:
 			ASSERTA(B);
 			throw((VMException *)reg.a[B]);
 		}
-		else
+		else if (a == 1)
 		{
 			ASSERTKA(B);
 			assert(konstatag[B] == ATAG_OBJECT);
 			throw((VMException *)konsta[B].o);
+		}
+		else
+		{
+			THROW(BC);
 		}
 		NEXTOP;
 	OP(CATCH):
@@ -700,8 +710,8 @@ begin:
 			}
 			if (cmp == (a & CMP_CHECK))
 			{
-				assert(pc->op == OP_JMP);
-				pc += 1 + JMPOFS(pc);
+				assert(pc[1].op == OP_JMP);
+				pc += 1 + JMPOFS(pc+1);
 			}
 			else
 			{
@@ -786,27 +796,51 @@ begin:
 
 	OP(DIV_RR):
 		ASSERTD(a); ASSERTD(B); ASSERTD(C);
+		if (reg.d[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = reg.d[B] / reg.d[C];
 		NEXTOP;
 	OP(DIV_RK):
 		ASSERTD(a); ASSERTD(B); ASSERTKD(C);
+		if (konstd[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = reg.d[B] / konstd[C];
 		NEXTOP;
 	OP(DIV_KR):
 		ASSERTD(a); ASSERTKD(B); ASSERTD(C);
+		if (reg.d[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = konstd[B] / reg.d[C];
 		NEXTOP;
 
 	OP(MOD_RR):
 		ASSERTD(a); ASSERTD(B); ASSERTD(C);
+		if (reg.d[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = reg.d[B] % reg.d[C];
 		NEXTOP;
 	OP(MOD_RK):
 		ASSERTD(a); ASSERTD(B); ASSERTKD(C);
+		if (konstd[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = reg.d[B] % konstd[C];
 		NEXTOP;
 	OP(MOD_KR):
 		ASSERTD(a); ASSERTKD(B); ASSERTD(C);
+		if (reg.d[C] == 0)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.d[a] = konstd[B] % reg.d[C];
 		NEXTOP;
 
@@ -981,14 +1015,26 @@ begin:
 
 	OP(DIVF_RR):
 		ASSERTF(a); ASSERTF(B); ASSERTF(C);
+		if (reg.f[C] == 0.)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.f[a] = reg.f[B] / reg.f[C];
 		NEXTOP;
 	OP(DIVF_RK):
 		ASSERTF(a); ASSERTF(B); ASSERTKF(C);
+		if (konstf[C] == 0.)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.f[a] = reg.f[B] / konstf[C];
 		NEXTOP;
 	OP(DIVF_KR):
 		ASSERTF(a); ASSERTKF(B); ASSERTF(C);
+		if (reg.f[C] == 0.)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.f[a] = konstf[B] / reg.f[C];
 		NEXTOP;
 
@@ -996,6 +1042,10 @@ begin:
 		ASSERTF(a); ASSERTF(B); ASSERTF(C);
 		fb = reg.f[B]; fc = reg.f[C];
 	Do_MODF:
+		if (fc == 0.)
+		{
+			THROW(X_DIVISION_BY_ZERO);
+		}
 		reg.f[a] = luai_nummod(fb, fc);
 		NEXTOP;
 	OP(MODF_RK):

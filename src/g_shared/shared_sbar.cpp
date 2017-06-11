@@ -51,8 +51,9 @@
 #include "colormatcher.h"
 #include "v_palette.h"
 #include "d_player.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "gstrings.h"
+#include "r_utility.h"
 
 #include "../version.h"
 
@@ -118,6 +119,7 @@ CUSTOM_CVAR(Int, am_showmaplabel, 2, CVAR_ARCHIVE)
 }
 
 CVAR (Bool, idmypos, false, 0);
+CVAR(Float, underwater_fade_scalar, 1.0f, CVAR_ARCHIVE) // [Nash] user-settable underwater blend intensity
 
 //---------------------------------------------------------------------------
 //
@@ -299,14 +301,15 @@ void DBaseStatusBar::SetScaled (bool scale, bool force)
 	{
 		ST_X = 0;
 		ST_Y = VirticalResolution - RelTop;
-		if (CheckRatio(SCREENWIDTH, SCREENHEIGHT) != 4)
+		float aspect = ActiveRatio(SCREENWIDTH, SCREENHEIGHT);
+		if (!AspectTallerThanWide(aspect))
 		{ // Normal resolution
 			::ST_Y = Scale (ST_Y, SCREENHEIGHT, VirticalResolution);
 		}
 		else
 		{ // 5:4 resolution
-			::ST_Y = Scale(ST_Y - VirticalResolution/2, SCREENHEIGHT*3, Scale(VirticalResolution, BaseRatioSizes[4][1], 200)) + SCREENHEIGHT/2
-				+ (SCREENHEIGHT - SCREENHEIGHT * BaseRatioSizes[4][3] / 48) / 2;
+			::ST_Y = Scale(ST_Y - VirticalResolution/2, SCREENHEIGHT*3, Scale(VirticalResolution, AspectBaseHeight(aspect), 200)) + SCREENHEIGHT/2
+				+ (SCREENHEIGHT - SCREENHEIGHT * AspectMultiplier(aspect) / 48) / 2;
 		}
 		Displacement = 0;
 	}
@@ -1035,10 +1038,10 @@ void DBaseStatusBar::DrSmallNumberOuter (int val, int x, int y, bool center) con
 
 void DBaseStatusBar::RefreshBackground () const
 {
-	int x, x2, y, ratio;
+	int x, x2, y;
 
-	ratio = CheckRatio (SCREENWIDTH, SCREENHEIGHT);
-	x = (!IsRatioWidescreen(ratio) || !Scaled) ? ST_X : SCREENWIDTH*(48-BaseRatioSizes[ratio][3])/(48*2);
+	float ratio = ActiveRatio (SCREENWIDTH, SCREENHEIGHT);
+	x = (ratio < 1.5f || !Scaled) ? ST_X : SCREENWIDTH*(48-AspectMultiplier(ratio))/(48*2);
 	y = x == ST_X && x > 0 ? ST_Y : ::ST_Y;
 
 	if(!CompleteBorder)
@@ -1058,8 +1061,8 @@ void DBaseStatusBar::RefreshBackground () const
 	{
 		if(!CompleteBorder)
 		{
-			x2 = !IsRatioWidescreen(ratio) || !Scaled ? ST_X+HorizontalResolution :
-				SCREENWIDTH - (SCREENWIDTH*(48-BaseRatioSizes[ratio][3])+48*2-1)/(48*2);
+			x2 = ratio < 1.5f || !Scaled ? ST_X+HorizontalResolution :
+				SCREENWIDTH - (SCREENWIDTH*(48-AspectMultiplier(ratio))+48*2-1)/(48*2);
 		}
 		else
 		{
@@ -1542,7 +1545,10 @@ void DBaseStatusBar::DrawPowerups ()
 
 void DBaseStatusBar::BlendView (float blend[4])
 {
-	V_AddBlend (BaseBlendR / 255.f, BaseBlendG / 255.f, BaseBlendB / 255.f, BaseBlendA, blend);
+	// [Nash] Allow user to set blend intensity
+	float cnt = (BaseBlendA * underwater_fade_scalar);
+
+	V_AddBlend (BaseBlendR / 255.f, BaseBlendG / 255.f, BaseBlendB / 255.f, cnt, blend);
 	V_AddPlayerBlend(CPlayer, blend, 1.0f, 228);
 
 	if (screen->Accel2D || (CPlayer->camera != NULL && menuactive == MENU_Off && ConsoleState == c_up))
@@ -1653,12 +1659,9 @@ void DBaseStatusBar::ReceivedWeapon (AWeapon *weapon)
 {
 }
 
-void DBaseStatusBar::Serialize (FArchive &arc)
+void DBaseStatusBar::SerializeMessages(FSerializer &arc)
 {
-	for (size_t i = 0; i < countof(Messages); ++i)
-	{
-		arc << Messages[i];
-	}
+	arc.Array("hudmessages", Messages, 3, true);
 }
 
 void DBaseStatusBar::ScreenSizeChanged ()

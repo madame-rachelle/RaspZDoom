@@ -46,8 +46,7 @@
 
 EXTERN_CVAR(Bool, r_shadercolormaps)
 
-class FArchive;
-void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, int trueratio);
+void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, float trueratio);
 void R_SetupColormap(player_t *);
 void R_SetupFreelook();
 void R_InitRenderer();
@@ -204,7 +203,7 @@ void FSoftwareRenderer::RemapVoxels()
 //
 //===========================================================================
 
-void FSoftwareRenderer::WriteSavePic (player_t *player, FILE *file, int width, int height)
+void FSoftwareRenderer::WriteSavePic (player_t *player, FileWriter *file, int width, int height)
 {
 	DCanvas *pic = new DSimpleCanvas (width, height, false);
 	PalEntry palette[256];
@@ -299,7 +298,7 @@ void FSoftwareRenderer::ClearBuffer(int color)
 //
 //===========================================================================
 
-void FSoftwareRenderer::SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight, int trueratio)
+void FSoftwareRenderer::SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight, float trueratio)
 {
 	R_SWRSetWindow(windowSize, fullWidth, fullHeight, stHeight, trueratio);
 }

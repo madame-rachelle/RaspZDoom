@@ -38,7 +38,7 @@
 #include "gi.h"
 #include "p_setup.h"
 #include "c_bind.h"
-#include "farchive.h"
+#include "serializer.h"
 #include "r_renderer.h"
 #include "r_sky.h"
 #include "sbar.h"
@@ -473,6 +473,11 @@ static AMColorset AMMod;
 static AMColorset AMModOverlay;
 
 
+void AM_ClearColorsets()
+{
+	AMModOverlay.defined = false;
+	AMMod.defined = false;
+}
 //=============================================================================
 //
 //
@@ -2046,7 +2051,8 @@ void AM_drawSubsectors()
 				scale / scaley,
 				rotation,
 				colormap,
-				floorlight
+				floorlight,
+				f_y + f_h
 				);
 		}
 	}
@@ -3106,13 +3112,14 @@ void AM_Drawer ()
 //
 //=============================================================================
 
-void AM_SerializeMarkers(FArchive &arc)
+void AM_SerializeMarkers(FSerializer &arc)
 {
-	arc << markpointnum;
-	for (int i=0; i<AM_NUMMARKPOINTS; i++)
+	if (arc.BeginObject("automarkers"))
 	{
-		arc << markpoints[i].x << markpoints[i].y;
+		arc("markpointnum", markpointnum)
+			.Array("markpoints", &markpoints[0].x, AM_NUMMARKPOINTS*2)	// write as a double array.
+			("scale_mtof", scale_mtof)
+			("scale_ftom", scale_ftom)
+			.EndObject();
 	}
-	arc << scale_mtof;
-	arc << scale_ftom; 
 }

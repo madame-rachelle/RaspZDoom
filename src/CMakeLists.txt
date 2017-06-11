@@ -9,6 +9,8 @@ endif()
 include( CheckCXXSourceCompiles )
 include( CheckFunctionExists )
 include( CheckCXXCompilerFlag )
+include( CheckIncludeFile )
+include( CheckIncludeFiles )
 include( CheckLibraryExists )
 include( FindPkgConfig )
 
@@ -114,59 +116,61 @@ if( WIN32 )
 	set( FMOD_LIB_PATH_SUFFIXES PATH_SUFFIXES lib )
 	set( NASM_NAMES nasmw nasm )
 	
-	if( NOT MSVC )
-		find_path( D3D_INCLUDE_DIR d3d9.h
-			PATHS ENV DXSDK_DIR
-			PATH_SUFFIXES Include )
-		if( NOT D3D_INCLUDE_DIR )
+	find_path( D3D_INCLUDE_DIR d3d9.h
+		PATHS ENV DXSDK_DIR
+		PATH_SUFFIXES Include )
+	if( NOT D3D_INCLUDE_DIR )
+		# Modern versions of the Windows SDK include d3d9.h. Unfortunately,
+		# CMake cannot find this file via find_path, so we check for it using
+		# CHECK_INCLUDE_FILE.
+		CHECK_INCLUDE_FILE( d3d9.h D3D9_H_FOUND )
+		if ( NOT D3D9_H_FOUND )
 			message( SEND_ERROR "Could not find DirectX 9 header files" )
-		else()
-			include_directories( ${D3D_INCLUDE_DIR} )
 		endif()
+	else()
+		include_directories( ${D3D_INCLUDE_DIR} )
+	endif()
 	
-		find_path( XINPUT_INCLUDE_DIR xinput.h
-			PATHS ENV DXSDK_DIR
-			PATH_SUFFIXES Include )
-		if( NOT XINPUT_INCLUDE_DIR )
+	find_path( XINPUT_INCLUDE_DIR xinput.h
+		PATHS ENV DXSDK_DIR
+		PATH_SUFFIXES Include )
+	if( NOT XINPUT_INCLUDE_DIR )
+		# Modern versions of the Windows SDK include xinput.h. Unfortunately,
+		# CMake cannot find this file via find_path, so we check for it using
+		# CHECK_INCLUDE_FILES. windows.h must be included before xinput.h.
+		CHECK_INCLUDE_FILES( "windows.h;xinput.h" XINPUT_H_FOUND )
+		if( NOT XINPUT_H_FOUND )
 			message( WARNING "Could not find xinput.h. XInput will be disabled." )
 			add_definitions( -DNO_XINPUT )
-		else()
-			include_directories( ${XINPUT_INCLUDE_DIR} )
 		endif()
-
-		find_library( DX_dxguid_LIBRARY dxguid
-			PATHS ENV DXSDK_DIR
-			PATH_SUFFIXES Lib Lib/${XBITS} )
-		find_library( DX_dinput8_LIBRARY dinput8
-			PATHS ENV DXSDK_DIR
-			PATH_SUFFIXES Lib Lib/${XBITS} )
-
-		set( DX_LIBS_FOUND YES )
-		if( NOT DX_dxguid_LIBRARY )
-			set( DX_LIBS_FOUND NO )
-		endif()
-		if( NOT DX_dinput8_LIBRARY )
-			set( DX_LIBS_FOUND NO )
-		endif()
-
-		if( NOT DX_LIBS_FOUND )
-			message( FATAL_ERROR "Could not find DirectX 9 libraries" )
-		endif()
-		
-		set( DX_LIBS
-			"${DX_dxguid_LIBRARY}"
-			"${DX_dinput8_LIBRARY}"
-		)
 	else()
-		set( DX_LIBS
-			dxguid
-			dinput8
-		)
+		include_directories( ${XINPUT_INCLUDE_DIR} )
 	endif()
 
-	set( ZDOOM_LIBS ${DX_LIBS}
+	find_library( DX_dinput8_LIBRARY dinput8
+		PATHS ENV DXSDK_DIR
+		PATH_SUFFIXES Lib Lib/${XBITS} )
+	find_library( DX_dxguid_LIBRARY dxguid
+		PATHS ENV DXSDK_DIR
+		PATH_SUFFIXES Lib Lib/${XBITS} )
+
+	# Modern versions of the Windows SDK include dinput8.lib. Unfortunately,
+	# CMake cannot find these libraries via find_library.
+	if( NOT DX_dinput8_LIBRARY )
+		# If we got this far, assume dinput8.lib is in the system library path.
+		set( DX_dinput8_LIBRARY dinput8 )
+	endif()
+
+	# Modern versions of the Windows SDK do NOT include dxguid.lib. Its contents
+	# were moved to dinput8.lib.
+	if( NOT DX_dxguid_LIBRARY )
+		message( STATUS "Could not find dxguid.lib. Build may fail on old Windows SDKs.")
+	endif()
+
+	set( ZDOOM_LIBS
 		wsock32
 		winmm
+		"${DX_dinput8_LIBRARY}"
 		ole32
 		user32
 		gdi32
@@ -174,14 +178,22 @@ if( WIN32 )
 		comdlg32
 		ws2_32
 		setupapi
-		oleaut32 
-		DelayImp )
+		oleaut32 )
+
+	if( NOT ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
+		set( ZDOOM_LIBS ${ZDOOM_LIBS} DelayImp )
+	endif()
+
+	if( DX_dxguid_LIBRARY )
+		list( APPEND ZDOOM_LIBS "${DX_dxguid_LIBRARY}" )
+	endif()
 else()
 	if( APPLE )
 		set( FMOD_SEARCH_PATHS "/Developer/FMOD Programmers API Mac/api" )
 		set( FMOD_INC_PATH_SUFFIXES PATH_SUFFIXES inc )
 		set( FMOD_LIB_PATH_SUFFIXES PATH_SUFFIXES lib )
 		set( NO_GTK ON )
+		set( DYN_GTK OFF )
 
 		# Prevent inclusion of fp.h and FixMath.h from Carbon framework
 		# Declarations from these files are not used but cause the following conflicts:
@@ -190,6 +202,7 @@ else()
 		add_definitions( -D__FP__ -D__FIXMATH__ )
 	else()
 		option( NO_GTK "Disable GTK+ dialogs (Not applicable to Windows)" )
+		option( DYN_GTK "Load GTK+ at runtime instead of compile time" ON )
 		option( VALGRIND "Add special Valgrind sequences to self-modifying code" )
 
 		set( FMOD_SEARCH_PATHS
@@ -205,22 +218,37 @@ else()
 
 		# Use GTK+ for the IWAD picker, if available.
 		if( NOT NO_GTK )
-			pkg_check_modules( GTK2 gtk+-2.0 )
-			if( GTK2_FOUND )
-				set( ZDOOM_LIBS ${ZDOOM_LIBS} ${GTK2_LIBRARIES} )
-				include_directories( ${GTK2_INCLUDE_DIRS} )
-				link_directories( ${GTK2_LIBRARY_DIRS} )
+			pkg_check_modules( GTK3 gtk+-3.0 )
+			if( GTK3_FOUND )
+				if( NOT DYN_GTK )
+					set( ZDOOM_LIBS ${ZDOOM_LIBS} ${GTK3_LIBRARIES} )
+				endif()
+				include_directories( ${GTK3_INCLUDE_DIRS} )
+				link_directories( ${GTK3_LIBRARY_DIRS} )
 			else()
-				set( NO_GTK ON )
+				pkg_check_modules( GTK2 gtk+-2.0 )
+				if( GTK2_FOUND )
+					if( NOT DYN_GTK )
+						set( ZDOOM_LIBS ${ZDOOM_LIBS} ${GTK2_LIBRARIES} )
+					endif()
+					include_directories( ${GTK2_INCLUDE_DIRS} )
+					link_directories( ${GTK2_LIBRARY_DIRS} )
+				else()
+					set( NO_GTK ON )
+				endif()
 			endif()
 		endif()
 	endif()
 	set( NASM_NAMES nasm )
 	
 	if( NO_GTK )
-		add_definitions( -DNO_GTK=1 )
+		add_definitions( -DNO_GTK )
+	elseif( DYN_GTK )
+		add_definitions( -DDYN_GTK=1 )
+	else()
+		add_definitions( -DDYN_GTK=0 )
 	endif()
-	
+
 	# Non-Windows version also needs SDL except native OS X backend
 	if( NOT APPLE OR NOT OSX_COCOA_BACKEND )
 		find_package( SDL2 REQUIRED )
@@ -272,6 +300,23 @@ if( NOT NO_FMOD )
 	if( FMOD_INCLUDE_DIR )
 		message( STATUS "FMOD include files found at ${FMOD_INCLUDE_DIR}" )
 		include_directories( "${FMOD_INCLUDE_DIR}" )
+		
+		if( EXISTS "${FMOD_INCLUDE_DIR}/fmod_common.h" )
+			set( FMOD_STUDIO YES )
+			set( FMOD_VERSION_FILE "fmod_common.h" )
+		else()
+			set( FMOD_STUDIO NO )
+			set( FMOD_VERSION_FILE "fmod.h" )
+		endif()
+
+		file( STRINGS "${FMOD_INCLUDE_DIR}/${FMOD_VERSION_FILE}" FMOD_VERSION_LINE REGEX "^#define[ \t]+FMOD_VERSION[ \t]+0x[0-9]+$" )
+		string( REGEX REPLACE "^#define[ \t]+FMOD_VERSION[ \t]+0x([0-9][0-9][0-9][0-9])([0-9][0-9])([0-9][0-9])$" "\\1.\\2.\\3" FMOD_VERSION "${FMOD_VERSION_LINE}" )
+		message( STATUS "FMOD version: ${FMOD_VERSION}" )
+
+		# FMOD Ex didn't hide xiph symbols in the past (not applicable to Win32 since symbols are hidden by default there).
+		if( NOT WIN32 AND NOT FMOD_STUDIO AND NOT NO_OPENAL AND "${FMOD_VERSION}" VERSION_LESS "4.36.00")
+			message( SEND_ERROR "Use of FMOD Ex ${FMOD_VERSION} with OpenAL will result in crashes. Either update FMOD to 4.36 or later or set NO_OPENAL." )
+		endif()
 	else()
 		message( STATUS "Could not find FMOD include files" )
 		set( NO_FMOD ON )
@@ -664,7 +709,8 @@ set( PLAT_SDL_SOURCES
 	posix/sdl/sdlvideo.cpp
 	posix/sdl/st_start.cpp )
 set( PLAT_UNIX_SOURCES
-	posix/unix/i_specialpaths.cpp )
+	posix/unix/i_specialpaths.cpp
+	posix/unix/iwadpicker_gtk.cpp )
 set( PLAT_OSX_SOURCES
 	posix/osx/iwadpicker_cocoa.mm
 	posix/osx/i_specialpaths.mm
@@ -686,15 +732,7 @@ if( WIN32 )
 	set( SYSTEM_SOURCES ${PLAT_WIN32_SOURCES} )
 	set( OTHER_SYSTEM_SOURCES ${PLAT_POSIX_SOURCES} ${PLAT_SDL_SOURCES} ${PLAT_OSX_SOURCES} ${PLAT_COCOA_SOURCES} ${PLAT_UNIX_SOURCES} )
 	
-	if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
-		# CMake is not set up to compile and link rc files with GCC. :(
-		add_custom_command( OUTPUT zdoom-rc.o
-			COMMAND windres -o zdoom-rc.o -i ${CMAKE_CURRENT_SOURCE_DIR}/win32/zdoom.rc
-			DEPENDS win32/zdoom.rc )
-		set( SYSTEM_SOURCES ${SYSTEM_SOURCES} zdoom-rc.o )
-	else()
-		set( SYSTEM_SOURCES ${SYSTEM_SOURCES} win32/zdoom.rc )
-	endif()
+	set( SYSTEM_SOURCES ${SYSTEM_SOURCES} win32/zdoom.rc )
 elseif( APPLE )
 	if( OSX_COCOA_BACKEND )
 		set( SYSTEM_SOURCES_DIR posix posix/cocoa )
@@ -1045,7 +1083,6 @@ set (PCH_SOURCES
 	dthinker.cpp
 	edata.cpp
 	f_wipe.cpp
-	farchive.cpp
 	files.cpp
 	g_doomedmap.cpp
 	g_game.cpp
@@ -1057,6 +1094,7 @@ set (PCH_SOURCES
 	gi.cpp
 	gitinfo.cpp
 	hu_scores.cpp
+	i_module.cpp
 	i_net.cpp
 	info.cpp
 	keysections.cpp
@@ -1082,6 +1120,7 @@ set (PCH_SOURCES
 	p_3dfloors.cpp
 	p_3dmidtex.cpp
 	p_acs.cpp
+	p_actionfunctions.cpp
 	p_buildmap.cpp
 	p_ceiling.cpp
 	p_conversation.cpp
@@ -1125,6 +1164,7 @@ set (PCH_SOURCES
 	po_man.cpp
 	portal.cpp
 	r_utility.cpp
+	serializer.cpp
 	sc_man.cpp
 	st_stuff.cpp
 	statistics.cpp
@@ -1218,7 +1258,6 @@ set (PCH_SOURCES
 	textures/warptexture.cpp
 	thingdef/olddecorations.cpp
 	thingdef/thingdef.cpp
-	thingdef/thingdef_codeptr.cpp
 	thingdef/thingdef_data.cpp
 	thingdef/thingdef_exp.cpp
 	thingdef/thingdef_expression.cpp
@@ -1226,7 +1265,6 @@ set (PCH_SOURCES
 	thingdef/thingdef_properties.cpp
 	thingdef/thingdef_states.cpp
 	xlat/parse_xlat.cpp
-	fragglescript/t_fspic.cpp
 	fragglescript/t_func.cpp
 	fragglescript/t_load.cpp
 	fragglescript/t_oper.cpp
@@ -1341,7 +1379,16 @@ endif()
 
 if( MSVC )
 	option( ZDOOM_GENERATE_MAPFILE "Generate .map file for debugging." OFF )
-	set( LINKERSTUFF "/MANIFEST:NO /DELAYLOAD:\"fmodex${X64}.dll\"" )
+	set( LINKERSTUFF "/MANIFEST:NO" )
+
+	if( NOT NO_FMOD )
+		if( FMOD_STUDIO )
+			set( LINKERSTUFF "${LINKERSTUFF} /DELAYLOAD:\"fmod${X64}.dll\"" )
+		else()
+			set( LINKERSTUFF "${LINKERSTUFF} /DELAYLOAD:\"fmodex${X64}.dll\"" )
+		endif()
+	endif()
+
 	if( ZDOOM_GENERATE_MAPFILE )
 		set( LINKERSTUFF "${LINKERSTUFF} /MAP" )
 	endif()
@@ -1381,20 +1428,35 @@ if( APPLE )
 		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/posix/osx/zdoom-info.plist" )
 
 	if( NOT NO_FMOD )
+		if( FMOD_STUDIO )
+			set( FMOD_DYLIB libfmod.dylib )
+		else()
+			set( FMOD_DYLIB libfmodex.dylib )
+		endif()
+
 		# Fix fmod link so that it can be found in the app bundle.
 		find_program( OTOOL otool HINTS "/usr/bin" "${OSX_DEVELOPER_ROOT}/usr/bin" )
 		find_program( INSTALL_NAME_TOOL install_name_tool HINTS "/usr/bin" "${OSX_DEVELOPER_ROOT}/usr/bin" )
 		execute_process( COMMAND "${OTOOL}" -L "${FMOD_LIBRARY}"
-			COMMAND grep "libfmodex.dylib (compat"
+			COMMAND grep "${FMOD_DYLIB} (compat"
 			COMMAND head -n1
 			COMMAND awk "{print $1}"
 			OUTPUT_VARIABLE FMOD_LINK
 			OUTPUT_STRIP_TRAILING_WHITESPACE )
 		add_custom_command( TARGET zdoom POST_BUILD
-			COMMAND "${INSTALL_NAME_TOOL}" -change "${FMOD_LINK}" @executable_path/../Frameworks/libfmodex.dylib "$<TARGET_FILE:zdoom>"
+			COMMAND "${INSTALL_NAME_TOOL}" -change "${FMOD_LINK}" @executable_path/../Frameworks/${FMOD_DYLIB} "$<TARGET_FILE:zdoom>"
 			COMMENT "Relinking FMOD Ex" )
 	endif()
 endif()
+
+if( WIN32 )
+	set( INSTALL_PATH . CACHE STRING "Directory where the zdoom executable will be placed during install." )
+else()
+	set( INSTALL_PATH bin CACHE STRING "Directory where the zdoom executable will be placed during install." )
+endif()
+install(TARGETS zdoom
+		DESTINATION ${INSTALL_PATH}
+		COMPONENT "Game executable")
 
 source_group("Assembly Files\\ia32" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/asm_ia32/.+")
 source_group("Assembly Files\\x86_64" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/asm_x86_64/.+")
@@ -1415,6 +1477,7 @@ source_group("Games\\Strife Game" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DI
 source_group("Intermission" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/intermission/.+")
 source_group("Math" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/math/.+")
 source_group("Menu" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/menu/.+")
+source_group("RapidJSON" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/rapidjson/.+")
 source_group("Render Core\\Render Headers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/r_.+\\.h$")
 source_group("Render Core\\Render Sources" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/r_.+\\.cpp$")
 source_group("Render Data\\Resource Headers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/r_data/.+\\.h$")

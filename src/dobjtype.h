@@ -22,11 +22,27 @@ typedef std::pair<const class PType *, unsigned> FTypeAndOffset;
 
 // Symbol information -------------------------------------------------------
 
-class PSymbol : public DObject
+class PTypeBase : public DObject
 {
-	DECLARE_ABSTRACT_CLASS(PSymbol, DObject);
+	DECLARE_ABSTRACT_CLASS(PTypeBase, DObject)
+
+public:
+	virtual FString QualifiedName() const
+	{
+		return "";
+	}
+};
+
+class PSymbol : public PTypeBase
+{
+	DECLARE_ABSTRACT_CLASS(PSymbol, PTypeBase);
 public:
 	virtual ~PSymbol();
+
+	virtual FString QualifiedName() const
+	{
+		return SymbolName.GetChars();
+	}
 
 	FName SymbolName;
 
@@ -153,13 +169,13 @@ extern PSymbolTable		 GlobalSymbols;
 
 struct ZCC_ExprConstant;
 class PClassType;
-class PType : public DObject
+class PType : public PTypeBase
 {
 	//DECLARE_ABSTRACT_CLASS_WITH_META(PType, DObject, PClassType);
 	// We need to unravel the _WITH_META macro, since PClassType isn't defined yet,
 	// and we can't define it until we've defined PClass. But we can't define that
 	// without defining PType.
-	DECLARE_ABSTRACT_CLASS(PType, DObject)
+	DECLARE_ABSTRACT_CLASS(PType, PTypeBase)
 	HAS_OBJECT_POINTERS;
 protected:
 	enum { MetaClassNum = CLASSREG_PClassType };
@@ -193,15 +209,11 @@ public:
 	// a tag indicating its type. The tag is there so that variable types can be changed
 	// without completely breaking savegames, provided that the change isn't between
 	// totally unrelated types.
-	virtual void WriteValue(FArchive &ar, const void *addr) const;
+	virtual void WriteValue(FSerializer &ar, const char *key,const void *addr) const;
 
 	// Returns true if the stored value was compatible. False otherwise.
 	// If the value was incompatible, then the memory at *addr is unchanged.
-	virtual bool ReadValue(FArchive &ar, void *addr) const;
-
-	// Skips over a value written with WriteValue
-	static void SkipValue(FArchive &ar);
-	static void SkipValue(FArchive &ar, int tag);
+	virtual bool ReadValue(FSerializer &ar, const char *key,void *addr) const;
 
 	// Sets the default value for this type at (base + offset)
 	// If the default value is binary 0, then this function doesn't need
@@ -336,14 +348,15 @@ class PNamedType : public PCompoundType
 	DECLARE_ABSTRACT_CLASS(PNamedType, PCompoundType);
 	HAS_OBJECT_POINTERS;
 public:
-	DObject			*Outer;			// object this type is contained within
+	PTypeBase		*Outer;			// object this type is contained within
 	FName			TypeName;		// this type's name
 
 	PNamedType() : Outer(NULL) {}
-	PNamedType(FName name, DObject *outer) : Outer(outer), TypeName(name) {}
+	PNamedType(FName name, PTypeBase *outer) : Outer(outer), TypeName(name) {}
 
 	virtual bool IsMatch(intptr_t id1, intptr_t id2) const;
 	virtual void GetTypeIDs(intptr_t &id1, intptr_t &id2) const;
+	virtual FString QualifiedName() const;
 };
 
 // Basic types --------------------------------------------------------------
@@ -354,8 +367,8 @@ class PInt : public PBasicType
 public:
 	PInt(unsigned int size, bool unsign);
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 
 	virtual void SetValue(void *addr, int val);
 	virtual void SetValue(void *addr, double val);
@@ -383,8 +396,8 @@ class PFloat : public PBasicType
 public:
 	PFloat(unsigned int size);
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 
 	virtual void SetValue(void *addr, int val);
 	virtual void SetValue(void *addr, double val);
@@ -421,8 +434,8 @@ public:
 
 	virtual int GetRegType() const;
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 	void SetDefaultValue(void *base, unsigned offset, TArray<FTypeAndOffset> *special=NULL) const override;
 	void InitializeValue(void *addr, const void *def) const override;
 	void DestroyValue(void *addr) const override;
@@ -436,8 +449,8 @@ class PName : public PInt
 public:
 	PName();
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 };
 
 class PSound : public PInt
@@ -446,8 +459,8 @@ class PSound : public PInt
 public:
 	PSound();
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 };
 
 class PColor : public PInt
@@ -465,8 +478,8 @@ class PStatePointer : public PBasicType
 public:
 	PStatePointer();
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 
 	virtual int GetStoreOp() const;
 	virtual int GetLoadOp() const;
@@ -489,8 +502,8 @@ public:
 	virtual bool IsMatch(intptr_t id1, intptr_t id2) const;
 	virtual void GetTypeIDs(intptr_t &id1, intptr_t &id2) const;
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 
 protected:
 	PPointer();
@@ -537,7 +550,7 @@ class PEnum : public PNamedType
 	DECLARE_CLASS(PEnum, PNamedType);
 	HAS_OBJECT_POINTERS;
 public:
-	PEnum(FName name, DObject *outer);
+	PEnum(FName name, PTypeBase *outer);
 
 	PType *ValueType;
 	TMap<FName, int> Values;
@@ -559,8 +572,8 @@ public:
 	virtual bool IsMatch(intptr_t id1, intptr_t id2) const;
 	virtual void GetTypeIDs(intptr_t &id1, intptr_t &id2) const;
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 
 	void SetDefaultValue(void *base, unsigned offset, TArray<FTypeAndOffset> *special) const override;
 
@@ -614,7 +627,7 @@ class PStruct : public PNamedType
 {
 	DECLARE_CLASS(PStruct, PNamedType);
 public:
-	PStruct(FName name, DObject *outer);
+	PStruct(FName name, PTypeBase *outer);
 
 	TArray<PField *> Fields;
 
@@ -622,12 +635,12 @@ public:
 
 	size_t PropagateMark();
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
 	void SetDefaultValue(void *base, unsigned offset, TArray<FTypeAndOffset> *specials) const override;
 
-	static void WriteFields(FArchive &ar, const void *addr, const TArray<PField *> &fields);
-	bool ReadFields(FArchive &ar, void *addr) const;
+	static void WriteFields(FSerializer &ar, const void *addr, const TArray<PField *> &fields);
+	bool ReadFields(FSerializer &ar, void *addr) const;
 protected:
 	PStruct();
 };
@@ -692,8 +705,10 @@ public:
 	typedef PClassClass MetaClass;
 	MetaClass *GetClass() const;
 
-	void WriteValue(FArchive &ar, const void *addr) const override;
-	bool ReadValue(FArchive &ar, void *addr) const override;
+	void WriteValue(FSerializer &ar, const char *key,const void *addr) const override;
+	void WriteAllFields(FSerializer &ar, const void *addr) const;
+	bool ReadValue(FSerializer &ar, const char *key,void *addr) const override;
+	bool ReadAllFields(FSerializer &ar, void *addr) const;
 
 	virtual void DeriveData(PClass *newclass) {}
 	static void StaticInit();
@@ -824,8 +839,8 @@ PDynArray *NewDynArray(PType *type);
 PPointer *NewPointer(PType *type);
 PClassPointer *NewClassPointer(PClass *restrict);
 PClassWaitingForParent *NewUnknownClass(FName myname, FName parentname);
-PEnum *NewEnum(FName name, DObject *outer);
-PStruct *NewStruct(FName name, DObject *outer);
+PEnum *NewEnum(FName name, PTypeBase *outer);
+PStruct *NewStruct(FName name, PTypeBase *outer);
 PPrototype *NewPrototype(const TArray<PType *> &rettypes, const TArray<PType *> &argtypes);
 
 // Built-in types -----------------------------------------------------------

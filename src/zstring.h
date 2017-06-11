@@ -236,11 +236,45 @@ public:
 	void Insert (size_t index, const char *instr);
 	void Insert (size_t index, const char *instr, size_t instrlen);
 
+	template<typename Func>
+	void ReplaceChars (Func IsOldChar, char newchar)
+	{
+		size_t i, j;
+
+		LockBuffer();
+		for (i = 0, j = Len(); i < j; ++i)
+		{
+			if (IsOldChar(Chars[i]))
+			{
+				Chars[i] = newchar;
+			}
+		}
+		UnlockBuffer();
+	}
+
 	void ReplaceChars (char oldchar, char newchar);
 	void ReplaceChars (const char *oldcharset, char newchar);
 
+	template<typename Func>
+	void StripChars (Func IsKillChar)
+	{
+		size_t read, write, mylen;
+
+		LockBuffer();
+		for (read = write = 0, mylen = Len(); read < mylen; ++read)
+		{
+			if (!IsKillChar(Chars[read]))
+			{
+				Chars[write++] = Chars[read];
+			}
+		}
+		Chars[write] = '\0';
+		ReallocBuffer (write);
+		UnlockBuffer();
+	}
+
 	void StripChars (char killchar);
-	void StripChars (const char *killchars);
+	void StripChars (const char *killcharset);
 
 	void MergeChars (char merger);
 	void MergeChars (char merger, char newchar);
@@ -268,6 +302,7 @@ public:
 	bool IsNotEmpty() const { return Len() != 0; }
 
 	void Truncate (long newlen);
+	void Remove(size_t index, size_t remlen);
 
 	int Compare (const FString &other) const { return strcmp (Chars, other.Chars); }
 	int Compare (const char *other) const { return strcmp (Chars, other); }

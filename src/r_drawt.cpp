@@ -839,6 +839,21 @@ void rt_tlaterevsubclamp4cols_c (int sx, int yl, int yh)
 	rt_revsubclamp4cols(sx, yl, yh);
 }
 
+// Reorder the posts so that they get drawn top-to-bottom instead of bottom-to-top.
+void rt_flip_posts()
+{
+	unsigned int *front = horizspan[dc_x & 3];
+	unsigned int *back = dc_ctspan[dc_x & 3] - 2;
+
+	while (front < back)
+	{
+		swapvalues(front[0], back[0]);
+		swapvalues(front[1], back[1]);
+		front += 2;
+		back -= 2;
+	}
+}
+
 // Copies all spans in all four columns to the screen starting at sx.
 // sx should be dword-aligned.
 void rt_draw4cols (int sx)
