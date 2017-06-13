@@ -82,8 +82,8 @@ static DWORD Col2RGB8_2[63][256];
 // There's also only one, not four.
 DFrameBuffer *screen;
 
-CVAR (Int, vid_defwidth, 640, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
-CVAR (Int, vid_defheight, 480, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CVAR (Int, vid_defwidth, 320, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CVAR (Int, vid_defheight, 200, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR (Int, vid_defbits, 8, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR (Bool, vid_fps, false, 0)
 CVAR (Bool, ticker, false, 0)
@@ -187,6 +187,9 @@ void DCanvas::Clear (int left, int top, int right, int bottom, int color) const
 {
 	int x, y;
 	byte *dest;
+
+	assert (left < right);
+	assert (top < bottom);
 
 	dest = Buffer + top * Pitch + left;
 	x = right - left;
@@ -609,7 +612,7 @@ void DFrameBuffer::DrawRateStuff ()
 	// Draws frame time and cumulative fps
 	if (vid_fps)
 	{
-		QWORD ms = I_MSTime ();
+		DWORD ms = I_FPSTime();
 		DWORD howlong = DWORD(ms - LastMS);
 		if (howlong > 0)
 		{
@@ -617,9 +620,9 @@ void DFrameBuffer::DrawRateStuff ()
 			int chars;
 
 			chars = sprintf (fpsbuff, "%2lu ms (%3lu fps)", howlong, LastCount);
-			Clear (0, screen->GetHeight() - 8, chars * 8, screen->GetHeight(), 0);
+			Clear (Width - chars * 8, 0, Width, 8, 0);
 			SetFont (ConFont);
-			DrawText (CR_WHITE, 0, screen->GetHeight() - 8, (char *)&fpsbuff[0], TAG_DONE);
+			DrawText (CR_WHITE, Width - chars * 8, 0, (char *)&fpsbuff[0], TAG_DONE);
 			SetFont (SmallFont);
 
 			DWORD thisSec = ms/1000;
@@ -949,6 +952,14 @@ void V_Shutdown()
 }
 
 EXTERN_CVAR (Bool, vid_tft)
+CUSTOM_CVAR (Bool, vid_nowidescreen, false, CVAR_GLOBALCONFIG|CVAR_ARCHIVE)
+{
+	setsizeneeded = true;
+	if (StatusBar != NULL)
+	{
+		StatusBar->ScreenSizeChanged();
+	}
+}
 
 // Tries to guess the physical dimensions of the screen based on the
 // screen's pixel dimensions. Can return:
@@ -958,6 +969,14 @@ EXTERN_CVAR (Bool, vid_tft)
 // 4: 5:4
 int CheckRatio (int width, int height)
 {
+	if (vid_nowidescreen)
+	{
+		if (!vid_tft)
+		{
+			return 0;
+		}
+		return (height * 5/4 == width) ? 4 : 0;
+	}
 	// If the size is approximately 16:9, consider it so.
 	if (abs (height * 16/9 - width) < 10)
 	{

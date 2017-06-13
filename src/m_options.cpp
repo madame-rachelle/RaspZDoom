@@ -451,6 +451,9 @@ EXTERN_CVAR (Int,  wipetype)
 EXTERN_CVAR (Bool, vid_palettehack)
 EXTERN_CVAR (Bool, vid_attachedsurfaces)
 EXTERN_CVAR (Int,  screenblocks)
+EXTERN_CVAR (Bool, vid_vsync)
+EXTERN_CVAR (Bool, cl_capfps)
+EXTERN_CVAR (Int, vid_displaybits)
 
 static value_t Crosshairs[] =
 {
@@ -466,10 +469,11 @@ static value_t Crosshairs[] =
 
 static value_t DetailModes[] =
 {
-	{ 0.0, "Normal" },
+	{ 0.0, "High" },
 	{ 1.0, "Double Horizontally" },
 	{ 2.0, "Double Vertically" },
-	{ 3.0, "Double Horiz and Vert" }
+	{ 3.0, "Double Horiz and Vert" },
+	{ 4.0, "Quad Horiz and Double Vert" }
 };
 
 static value_t ColumnMethods[] = {
@@ -495,6 +499,12 @@ static value_t Wipes[] = {
 	{ 3.0, "Crossfade" }
 };
 
+static value_t Bits[] = {
+	{ 8.0, "8" },
+	{ 16.0, "16" },
+	{ 32.0, "32" }
+};
+
 static menuitem_t VideoItems[] = {
 	{ more,		"Message Options",		{NULL},					{0.0}, {0.0},	{0.0}, {(value_t *)StartMessagesMenu} },
 	{ more,		"Automap Options",		{NULL},					{0.0}, {0.0},	{0.0}, {(value_t *)StartAutomapMenu} },
@@ -502,20 +512,24 @@ static menuitem_t VideoItems[] = {
 	{ slider,	"Screen size",			{&screenblocks},	   	{3.0}, {12.0},	{1.0}, {NULL} },
 	{ slider,	"Brightness",			{&Gamma},			   	{1.0}, {3.0},	{0.1}, {NULL} },
 	{ discrete,	"Crosshair",			{&crosshair},		   	{8.0}, {0.0},	{0.0}, {Crosshairs} },
+	{ discrete, "Vertical Sync",		{&vid_vsync},	   		{2.0}, {0.0},	{0.0}, {OnOff} },
+	{ discrete, "Rendering Interpolation",	{&cl_capfps},	   	{2.0}, {0.0},	{0.0}, {NoYes} },	
 	{ discrete, "Column render mode",	{&r_columnmethod},		{2.0}, {0.0},	{0.0}, {ColumnMethods} },
-	{ discrete, "Detail mode",			{&r_detail},		   	{4.0}, {0.0},	{0.0}, {DetailModes} },
+	{ discrete, "Detail mode",			{&r_detail},		   	{5.0}, {0.0},	{0.0}, {DetailModes} },
 	{ discrete, "Stretch short skies",	{&r_stretchsky},	   	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Stretch status bar",	{&st_scale},			{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Screen wipe style",	{&wipetype},			{4.0}, {0.0},	{0.0}, {Wipes} },
+	{ discrete, "Fullscreen display bits", {&vid_displaybits},	{3.0}, {0.0},	{0.0}, {Bits} },
 #ifdef _WIN32
 	{ discrete, "DirectDraw palette hack", {&vid_palettehack},	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Use attached surfaces", {&vid_attachedsurfaces},{2.0}, {0.0},	{0.0}, {OnOff} },
 #endif
-	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
+//	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ discrete, "Use fuzz effect",		{&r_drawfuzz},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Rocket Trails",		{&cl_rockettrails},		{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Blood Type",			{&cl_bloodtype},	   	{3.0}, {0.0},	{0.0}, {BloodTypes} },
 	{ discrete, "Bullet Puff Type",		{&cl_pufftype},			{2.0}, {0.0},	{0.0}, {PuffTypes} },
+	{ discrete, "Interpolate monster movement",	{&nomonsterinterpolation},		{2.0}, {0.0},	{0.0}, {NoYes} },
 };
 
 menu_t VideoMenu =
@@ -819,6 +833,8 @@ EXTERN_CVAR (Bool, fullscreen)
 static value_t Depths[22];
 
 EXTERN_CVAR (Bool, vid_tft)		// Defined below
+EXTERN_CVAR (Bool, vid_nowidescreen)
+
 CUSTOM_CVAR (Int, menu_screenratios, 0, CVAR_ARCHIVE)
 {
 	if (self < 0 || self > 4)
@@ -859,6 +875,7 @@ static menuitem_t ModesItems[] = {
 	{ discrete, "Aspect ratio",			{&menu_screenratios},	{4.0}, {0.0},	{0.0}, {Ratios} },
 	{ discrete, "Fullscreen",			{&fullscreen},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Enable 5:4 aspect ratio",{&vid_tft},			{2.0}, {0.0},	{0.0}, {YesNo} },
+	{ discrete, "Widescreen aspect ratio",{&vid_nowidescreen},	{2.0}, {0.0},	{0.0}, {NoYes} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ screenres,NULL,					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ screenres,NULL,					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
@@ -878,9 +895,9 @@ static menuitem_t ModesItems[] = {
 
 #define VM_DEPTHITEM	0
 #define VM_ASPECTITEM	0
-#define VM_RESSTART		4
+#define VM_RESSTART		5
 #define VM_ENTERLINE	14
-#define VM_TESTLINE		16
+#define VM_TESTLINE		17
 
 menu_t ModesMenu =
 {
@@ -891,7 +908,7 @@ menu_t ModesMenu =
 	ModesItems,
 };
 
-CUSTOM_CVAR (Bool, vid_tft, false, CVAR_ARCHIVE)
+CUSTOM_CVAR (Bool, vid_tft, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
 	if (self)
 	{
@@ -988,8 +1005,6 @@ static menuitem_t CompatibilityItems[] = {
 	{ bitflag,	"Self ref. sectors don't block shots",		{&compatflags}, {0}, {0}, {0}, {(value_t *)COMPATF_TRACE} },
 	{ bitflag,	"Monsters get stuck over dropoffs",			{&compatflags}, {0}, {0}, {0}, {(value_t *)COMPATF_DROPOFF} },
 	{ bitflag,	"Boom scrollers are additive",				{&compatflags}, {0}, {0}, {0}, {(value_t *)COMPATF_BOOMSCROLL} },
-	
-	{ discrete, "Interpolate monster movement",	{&nomonsterinterpolation},		{2.0}, {0.0},	{0.0}, {NoYes} },
 };
 
 static menu_t CompatibilityMenu =

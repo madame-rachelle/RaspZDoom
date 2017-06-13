@@ -578,9 +578,9 @@ CUSTOM_CVAR (Int, r_detail, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 		return;
 	}
 
-	if (self < 0 || self > 3)
+	if (self < 0 || self > 4)
 	{
-		Printf ("Bad detail mode. (Use 0-3)\n");
+		Printf ("Bad detail mode. (Use 0-4)\n");
 		badrecovery = true;
 		self = (detailyshift << 1) | detailxshift;
 		return;
@@ -598,8 +598,14 @@ CUSTOM_CVAR (Int, r_detail, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 void R_SetDetail (int detail)
 {
-	detailxshift = detail & 1;
-	detailyshift = (detail >> 1) & 1;
+	if (detail < 4) {
+		detailxshift = detail & 1;
+		detailyshift = (detail >> 1) & 1;
+	}
+	else {
+		detailxshift = 1;
+		detailyshift = 1;
+	}
 }
 
 //==========================================================================
@@ -734,7 +740,7 @@ void R_ExecuteSetViewSize ()
 //
 //==========================================================================
 
-CUSTOM_CVAR (Int, screenblocks, 10, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CUSTOM_CVAR (Int, screenblocks, 9, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
 	if (self > 12)
 		self = 12;
