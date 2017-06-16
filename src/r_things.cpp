@@ -524,7 +524,7 @@ void R_DrawWallSprite(vissprite_t *spr)
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 	else if (!foggy && (spr->renderflags & RF_FULLBRIGHT))
-		R_SetColorMapLight = ((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : usecolormap, 0, 0);
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : usecolormap, 0, 0);
 	else
 		calclighting = true;
 
@@ -1117,7 +1117,7 @@ void R_ProjectSprite (AActor *thing, int fakeside, F3DFloor *fakefloor, F3DFloor
 		}
 		else if (!foggy && ((renderflags & RF_FULLBRIGHT) || (thing->flags5 & MF5_BRIGHT)))
 		{ // full bright
-			vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : mybasecolormap;
+			vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? &FullNormalLight : mybasecolormap;
 			vis->Style.ColormapNum = 0;
 		}
 		else
@@ -1440,12 +1440,12 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 			}
 			if (fixedlightlev >= 0)
 			{
-				vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? (FullNormalLight.Maps + fixedlightlev) : mybasecolormap; // ???
+				vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? &FullNormalLight : mybasecolormap;
 				vis->Style.ColormapNum = fixedlightlev >> COLORMAPSHIFT;
 			}
 			else if (!foggy && pspr->GetState()->GetFullbright())
 			{ // full bright
-				vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : mybasecolormap;	// [RH] use basecolormap
+				vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? &FullNormalLight : mybasecolormap;	// [RH] use basecolormap
 				vis->Style.ColormapNum = 0;
 			}
 			else
@@ -2044,7 +2044,7 @@ void R_DrawSprite (vissprite_t *spr)
 			}
 			else if (!foggy && (spr->renderflags & RF_FULLBRIGHT))
 			{ // full bright
-				spr->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : mybasecolormap;
+				spr->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? &FullNormalLight : mybasecolormap;
 				spr->Style.ColormapNum = 0;
 			}
 			else
@@ -2608,7 +2608,7 @@ void R_ProjectParticle (particle_t *particle, const sector_t *sector, int shade,
 	}
 	else if (particle->bright)
 	{
-		vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : map;
+		vis->Style.BaseColormap = (r_fullbrightignoresectorcolor) ? &FullNormalLight : map;
 		vis->Style.ColormapNum = 0;
 	}
 	else

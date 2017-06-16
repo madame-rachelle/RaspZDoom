@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <stddef.h>
+#include <cmath>
 
 #include "templates.h"
 #include "i_system.h"
@@ -315,7 +316,7 @@ void R_RenderMaskedSegRange (drawseg_t *ds, int x1, int x2)
 	rw_scalestep = ds->iscalestep;
 
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev)); // ???
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 
@@ -632,7 +633,7 @@ void R_RenderFakeWall(drawseg_t *ds, int x1, int x2, F3DFloor *rover)
 	}
 
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev)); // ???
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 
@@ -1117,7 +1118,7 @@ WallscanSampler::WallscanSampler(int y1, float swal, double yrepeat, fixed_t xof
 		v = v - floor(v);
 		double v_step = uv_stepd / texture->GetHeight();
 
-		if (isnan(v) || isnan(v_step)) // this should never happen, but it apparently does..
+		if (std::isnan(v) || std::isnan(v_step)) // this should never happen, but it apparently does..
 		{
 			uv_stepd = 0.0;
 			v = 0.0;
@@ -1501,7 +1502,7 @@ void wallscan_any(
 		}
 	}
 
-	// The last unaligned columns: // ??? (pending from QZDoom?)
+	// The last unaligned columns:
 	for (int x = aligned_x2; x < x2; x++, light += rw_lightstep)
 	{
 		int y1 = uwal[x];
@@ -1517,16 +1518,6 @@ void wallscan_any(
 	}
 
 	NetUpdate();
-}
-
-void wallscan(int x1, int x2, short *uwal, short *dwal, float *swal, fixed_t *lwal, double yrepeat, const BYTE *(*getcol)(FTexture *tex, int x))
-{
-	wallscan_any(x1, x2, uwal, dwal, swal, lwal, yrepeat, getcol, [](int bits, Draw1ColumnFuncPtr &line1, Draw4ColumnsFuncPtr &line4)
-	{
-		setupvline(bits);
-		line1 = dovline1;
-		line4 = dovline4;
-	});
 }
 
 void wallscan(int x1, int x2, short *uwal, short *dwal, float *swal, fixed_t *lwal, double yrepeat, const BYTE *(*getcol)(FTexture *tex, int x))
@@ -1769,7 +1760,7 @@ void R_RenderSegLoop ()
 	fixed_t xoffset = rw_offset;
 
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : basecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev)); // ???
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 
@@ -3038,11 +3029,11 @@ static void R_RenderDecal (side_t *wall, DBaseDecal *decal, drawseg_t *clipper, 
 
 	rw_light = rw_lightleft + (x1 - savecoord.sx1) * rw_lightstep;
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : usecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev)); // ???
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : usecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 	else if (!foggy && (decal->RenderFlags & RF_FULLBRIGHT))
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? FullNormalLight.Maps : usecolormap, 0, 0);
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : usecolormap, 0, 0);
 	else
 		calclighting = true;
 
