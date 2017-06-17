@@ -254,8 +254,6 @@ bool			sprflipvert;
 void R_DrawMaskedColumn (const BYTE *column, const FTexture::Span *span, bool useRt)
 {
 	int pixelsize = r_swtruecolor ? 4 : 1;
-	const fixed_t centeryfrac = FLOAT2FIXED(CenterY);
-	const fixed_t texturemid = FLOAT2FIXED(dc_texturemid);
 	while (span->Length != 0)
 	{
 		const int length = span->Length;
@@ -283,7 +281,7 @@ void R_DrawMaskedColumn (const BYTE *column, const FTexture::Span *span, bool us
 		{
 			dc_texturefrac = FLOAT2FIXED((dc_yl + 0.5 - sprtopscreen) / spryscale);
 			dc_source = column;
-			dc_dest = (ylookup[dc_yl] + dc_x) + dc_destorg;
+			dc_dest = (ylookup[dc_yl] + dc_x) * pixelsize + dc_destorg;
 			dc_count = dc_yh - dc_yl + 1;
 
 			fixed_t maxfrac = ((top + length) << FRACBITS) - 1;
@@ -1314,7 +1312,7 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 	}
 
 	sx = pspr->oldx + (pspr->x - pspr->oldx) * ticfrac;
-	sy = pspr->oldy + (pspr->y - pspr->oldy) * ticfrac + WEAPON_FUDGE_Y;
+	sy = pspr->oldy + (pspr->y - pspr->oldy) * ticfrac;
 
 	if (pspr->Flags & PSPF_ADDBOB)
 	{
@@ -1627,7 +1625,7 @@ void R_DrawPlayerSprites ()
 			else
 			{
 				wx = weapon->oldx + (weapon->x - weapon->oldx) * r_TicFracF;
-				wy = weapon->oldy + (weapon->y - weapon->oldy) * r_TicFracF + WEAPON_FUDGE_Y;
+				wy = weapon->oldy + (weapon->y - weapon->oldy) * r_TicFracF;
 			}
 		}
 		else
