@@ -297,7 +297,7 @@ void R_DrawMaskedColumn (const BYTE *column, const FTexture::Span *span, bool us
 			if (useRt)
 				hcolfunc_pre();
 			else
-				colfunc (); // ???
+				colfunc ();
 		}
 		span++;
 	}

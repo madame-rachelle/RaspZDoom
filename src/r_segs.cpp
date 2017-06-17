@@ -316,7 +316,7 @@ void R_RenderMaskedSegRange (drawseg_t *ds, int x1, int x2)
 	rw_scalestep = ds->iscalestep;
 
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev));
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 
@@ -633,7 +633,7 @@ void R_RenderFakeWall(drawseg_t *ds, int x1, int x2, F3DFloor *rover)
 	}
 
 	if (fixedlightlev >= 0)
-		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap , 0, FIXEDLIGHT2SHADE(fixedlightlev));
+		R_SetColorMapLight((r_fullbrightignoresectorcolor) ? &FullNormalLight : basecolormap, 0, FIXEDLIGHT2SHADE(fixedlightlev));
 	else if (fixedcolormap != NULL)
 		R_SetColorMapLight(fixedcolormap, 0, 0);
 
@@ -1091,21 +1091,30 @@ WallscanSampler::WallscanSampler(int y1, float swal, double yrepeat, fixed_t xof
 	{
 		height = texture->GetHeight();
 		int uv_fracbits = 32 - texture->HeightBits;
-		uv_max = height << uv_fracbits;
+		if (uv_fracbits != 32)
+		{
+			uv_max = height << uv_fracbits;
 
-		// Find start uv in [0-base_height[ range.
-		// Not using xs_ToFixed because it rounds the result and we need something that always rounds down to stay within the range.
-		double uv_stepd = swal * yrepeat;
-		double v = (dc_texturemid + uv_stepd * (y1 - CenterY + 0.5)) / height;
-		v = v - floor(v);
-		v *= height;
-		v *= (1 << uv_fracbits);
+			// Find start uv in [0-base_height[ range.
+			// Not using xs_ToFixed because it rounds the result and we need something that always rounds down to stay within the range.
+			double uv_stepd = swal * yrepeat;
+			double v = (dc_texturemid + uv_stepd * (y1 - CenterY + 0.5)) / height;
+			v = v - floor(v);
+			v *= height;
+			v *= (1 << uv_fracbits);
 
-		uv_pos = (uint32_t)v;
-		uv_step = xs_ToFixed(uv_fracbits, uv_stepd);
-		if (uv_step == 0) // To prevent divide by zero elsewhere
-			uv_step = 1;
-
+			uv_pos = (uint32_t)v;
+			uv_step = xs_ToFixed(uv_fracbits, uv_stepd);
+			if (uv_step == 0) // To prevent divide by zero elsewhere
+				uv_step = 1;
+		}
+		else
+		{ // Hack for one pixel tall textures
+			uv_pos = 0;
+			uv_step = 0;
+			uv_max = 1;
+		}
+		
 		source = getcol(texture, xoffset >> FRACBITS);
 		source2 = nullptr;
 		texturefracx = 0;
@@ -1212,7 +1221,7 @@ void wallscan_drawcol1(int x, int y1, int y2, WallscanSampler &sampler, DWORD(*d
 	}
 	else
 	{
-		if (sampler.uv_max == 0) // power of two
+		if (sampler.uv_max == 0 || sampler.uv_step == 0) // power of two
 		{
 			int count = y2 - y1;
 
@@ -1287,7 +1296,7 @@ void wallscan_drawcol4(int x, int y1, int y2, WallscanSampler *sampler, void(*dr
 	}
 	else
 	{
-		if (sampler[0].uv_max == 0) // power of two, no wrap handling needed
+		if (sampler[0].uv_max == 0 || sampler[0].uv_step == 0) // power of two, no wrap handling needed
 		{
 			int count = y2 - y1;
 			for (int i = 0; i < 4; i++)
@@ -1366,7 +1375,14 @@ void wallscan_any(
 
 	fixed_t xoffset = rw_offset;
 	rw_pic->GetHeight(); // To ensure that rw_pic->HeightBits has been set
-
+	int fracbits = 32 - rw_pic->HeightBits;
+	if (fracbits == 32)
+	{ // Hack for one pixel tall textures
+		fracbits = 0;
+		yrepeat = 0;
+		dc_texturemid = 0;
+	}
+	
 	DWORD(*draw1column)();
 	void(*draw4columns)();
 	setupwallscan(r_swtruecolor ? FRACBITS : 32 - rw_pic->HeightBits, draw1column, draw4columns);
