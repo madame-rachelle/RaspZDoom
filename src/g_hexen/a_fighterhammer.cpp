@@ -57,7 +57,7 @@ DEFINE_ACTION_FUNCTION(AActor, A_FHammerAttack)
 					AdjustPlayerAngle(pmo, &t);
 					if (t.linetarget->flags3 & MF3_ISMONSTER || t.linetarget->player)
 					{
-						t.linetarget->Thrust(t.angleFromSource, 10);
+						t.linetarget->Thrust(t.attackAngleFromSource, 10);
 					}
 					pmo->weaponspecial = false; // Don't throw a hammer
 					goto hammerdone;

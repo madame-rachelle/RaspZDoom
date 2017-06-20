@@ -235,14 +235,14 @@ DEFINE_ACTION_FUNCTION_PARAMS(AActor, A_Saw)
 		if (anglediff < 0.0)
 		{
 			if (anglediff < -4.5)
-				self->Angles.Yaw = angle + 90.0 / 21;
+				self->Angles.Yaw = t.angleFromSource + 90.0 / 21;
 			else
 				self->Angles.Yaw -= 4.5;
 		}
 		else
 		{
 			if (anglediff > 4.5)
-				self->Angles.Yaw = angle - 90.0 / 21;
+				self->Angles.Yaw = t.angleFromSource - 90.0 / 21;
 			else
 				self->Angles.Yaw += 4.5;
 		}
