@@ -281,6 +281,7 @@ void R_DrawMaskedColumn (const BYTE *column, const FTexture::Span *span, bool us
 		{
 			dc_texturefrac = FLOAT2FIXED((dc_yl + 0.5 - sprtopscreen) / spryscale);
 			dc_source = column;
+			dc_source2 = nullptr;
 			dc_dest = (ylookup[dc_yl] + dc_x) * pixelsize + dc_destorg;
 			dc_count = dc_yh - dc_yl + 1;
 
@@ -3080,6 +3081,7 @@ void R_DrawVoxel(const FVector3 &globalpos, FAngle viewangle,
 										dc_x = lxt + x;
 										rt_initcols(OffscreenColorBuffer + (dc_x & ~3) * OffscreenBufferHeight);
 										dc_source = col;
+										dc_source2 = nullptr;
 										dc_texturefrac = yplc[xxl];
 										hcolfunc_pre();
 									}
