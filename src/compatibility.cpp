@@ -660,7 +660,7 @@ void SetCompatibilityParams()
 				}
 				case CP_SETVERTEX:
 				{
-					if ((unsigned)CompatParams[i + 1] < numvertexes)
+					if ((unsigned)CompatParams[i + 1] < (unsigned)numvertexes)
 					{
 						vertexes[CompatParams[i + 1]].p.X = CompatParams[i + 2] / 256.;
 						vertexes[CompatParams[i + 1]].p.Y = CompatParams[i + 3] / 256.;
