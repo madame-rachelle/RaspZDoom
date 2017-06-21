@@ -88,10 +88,10 @@ typedef double vtype;
 
 struct vertex_t
 {
-private:
+//private:
 	DVector2 p;
 
-public:
+//public:
 
 	void set(fixed_t x, fixed_t y)
 	{
@@ -132,7 +132,7 @@ public:
 
 	DVector2 fPos()
 	{
-		return { p.X, p.Y };
+		return p;
 	}
 
 	bool operator== (const vertex_t &other)

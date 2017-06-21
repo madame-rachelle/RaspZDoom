@@ -613,10 +613,10 @@ void SetCompatibilityParams()
 				}
 				case CP_SETVERTEX:
 				{
-					if ((unsigned)CompatParams[i + 1] < level.vertexes.Size())
+					if ((unsigned)CompatParams[i + 1] < numvertexes)
 					{
-						level.vertexes[CompatParams[i + 1]].p.X = CompatParams[i + 2] / 256.;
-						level.vertexes[CompatParams[i + 1]].p.Y = CompatParams[i + 3] / 256.;
+						vertexes[CompatParams[i + 1]].p.X = CompatParams[i + 2] / 256.;
+						vertexes[CompatParams[i + 1]].p.Y = CompatParams[i + 3] / 256.;
 					}
 					i += 4;
 					break;
