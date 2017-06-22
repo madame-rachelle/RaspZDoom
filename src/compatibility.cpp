@@ -719,9 +719,9 @@ void SetCompatibilityParams()
 				}
 				case CP_SETSECTORTEXTURE:
 				{
-					if ((unsigned)CompatParams[i + 1] < level.sectors.Size())
+					if ((unsigned)CompatParams[i + 1] < (unsigned)numsectors)
 					{
-						sector_t *sec = &level.sectors[CompatParams[i+1]];
+						sector_t *sec = &sectors[CompatParams[i + 1]];
 						assert (sec != nullptr);
 						secplane_t& plane = sector_t::floor == CompatParams[i + 2] 
 							? sec->floorplane 
@@ -736,9 +736,9 @@ void SetCompatibilityParams()
 				}
 				case CP_SETSECTORLIGHT:
 				{
-					if ((unsigned)CompatParams[i + 1] < level.sectors.Size())
+					if ((unsigned)CompatParams[i + 1] < (unsigned)numsectors)
 					{
-						sector_t *sec = &level.sectors[CompatParams[i+1]];
+						sector_t *sec = &sectors[CompatParams[i + 1]];
 						assert (sec != nullptr);
 
 						sec->SetLightLevel((unsigned)CompatParams[i + 2]);
