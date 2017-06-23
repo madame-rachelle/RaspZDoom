@@ -953,7 +953,7 @@ static void DoPrintStr(const char *cp, HWND edit, HANDLE StdOut)
 			buf[bpos] = 0;
 			if (edit != NULL)
 			{
-				ToEditControl(edit, buf, wbuf, bpos);
+				SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 			}
 			if (StdOut != NULL)
 			{
@@ -1020,7 +1020,7 @@ static void DoPrintStr(const char *cp, HWND edit, HANDLE StdOut)
 		buf[bpos] = 0;
 		if (edit != NULL)
 		{
-			ToEditControl(edit, buf, wbuf, bpos);
+			SendMessage(edit, EM_REPLACESEL, FALSE, (LPARAM)buf);
 		}
 		if (StdOut != NULL)
 		{
