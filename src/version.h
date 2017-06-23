@@ -41,12 +41,12 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "2.9pre"
+#define VERSIONSTR "2.8.2"
 
 // The version as seen in the Windows resource
-#define RC_FILEVERSION 2,8,9999,0
-#define RC_PRODUCTVERSION 2,8,9999,0
-#define RC_PRODUCTVERSION2 "2.9pre"
+#define RC_FILEVERSION 2,8,2,0
+#define RC_PRODUCTVERSION 2,8,2,0
+#define RC_PRODUCTVERSION2 "2.8.2"
 
 // Version identifier for network games.
 // Bump it every time you do a release unless you're certain you
