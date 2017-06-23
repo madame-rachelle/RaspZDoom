@@ -96,7 +96,7 @@ EXTERN_CVAR(Bool, ticker   )
 EXTERN_CVAR(Bool, vid_vsync)
 EXTERN_CVAR(Bool, vid_hidpi)
 
-CUSTOM_CVAR(Bool, swtruecolor, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
+CUSTOM_CVAR(Bool, r_truecolor, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
 	// Strictly speaking this doesn't require a mode switch, but it is the easiest
 	// way to force a CreateFramebuffer call without a lot of refactoring.
@@ -1084,7 +1084,7 @@ void I_CreateRenderer()
 
 DFrameBuffer* I_SetMode(int &width, int &height, DFrameBuffer* old)
 {
-	return Video->CreateFrameBuffer(width, height, swtruecolor, fullscreen, old);
+	return Video->CreateFrameBuffer(width, height, r_truecolor, fullscreen, old);
 }
 
 bool I_CheckResolution(const int width, const int height, const int bits)

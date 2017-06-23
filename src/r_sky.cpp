@@ -48,6 +48,8 @@ bool		skystretch;
 fixed_t		sky1cyl,		sky2cyl;
 double		sky1pos,		sky2pos;
 
+EXTERN_CVAR(Bool, r_truecolor);
+
 CUSTOM_CVAR(Int, testskyoffset, 0, 0)
 {
 	R_InitSkyMap();
@@ -55,9 +57,11 @@ CUSTOM_CVAR(Int, testskyoffset, 0, 0)
 
 // [RH] Stretch sky texture if not taller than 128 pixels?
 // Also now controls capped skies. 0 = normal, 1 = stretched, 2 = capped
-CUSTOM_CVAR (Int, r_skymode, 2, CVAR_ARCHIVE)
+CUSTOM_CVAR (Int, r_skymode, 1, CVAR_ARCHIVE)
 {
-	R_InitSkyMap ();
+	if ((self == 2) && r_truecolor)
+		self = 1;
+	R_InitSkyMap();
 }
 
 

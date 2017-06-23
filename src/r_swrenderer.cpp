@@ -45,6 +45,7 @@
 #include "r_draw_rgba.h"
 
 EXTERN_CVAR(Bool, r_shadercolormaps)
+EXTERN_CVAR(Int, r_skymode)
 
 void R_SWRSetWindow(int windowSize, int fullWidth, int fullHeight, int stHeight, float trueratio);
 void R_SetupColormap(player_t *);
@@ -236,12 +237,12 @@ void FSoftwareRenderer::DrawRemainingPlayerSprites()
 // Get max. view angle (renderer specific information so it goes here now)
 //
 //===========================================================================
-#define MAX_DN_ANGLE	56		// Max looking down angle
+#define MAX_DN_ANGLE	48		// Max looking down angle
 #define MAX_UP_ANGLE	32		// Max looking up angle
 
 int FSoftwareRenderer::GetMaxViewPitch(bool down)
 {
-	return down ? MAX_DN_ANGLE : MAX_UP_ANGLE;
+	return down ? MAX_DN_ANGLE : ((r_skymode == 2) ? MAX_DN_ANGLE : MAX_UP_ANGLE);
 }
 
 //==========================================================================
