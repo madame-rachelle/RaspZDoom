@@ -1191,6 +1191,8 @@ static void R_DrawSky (visplane_t *pl)
 	}
 	else
 	{ // The texture does not tile nicely
+		if (skyscale == 0)
+			R_InitSkyMap(); // R_InitSkyMap is called too late on certain maps
 		frontyScale *= skyscale;
 		frontiScale = 1 / frontyScale;
 		R_DrawSkyStriped (pl);
