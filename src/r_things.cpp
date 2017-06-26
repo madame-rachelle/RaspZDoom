@@ -136,6 +136,7 @@ short			screenheightarray[MAXWIDTH];
 EXTERN_CVAR (Bool, r_drawplayersprites)
 EXTERN_CVAR (Bool, r_drawvoxels)
 EXTERN_CVAR (Int, r_detail)
+EXTERN_CVAR (Int, screenblocks)
 
 //
 // INITIALIZATION FUNCTIONS
@@ -1713,9 +1714,21 @@ void R_DrawRemainingPlayerSprites()
 			colormapstyle.Desaturate = colormap->Desaturate;
 			colormapstyle.FadeLevel = vis->Style.ColormapNum / float(NUMCOLORMAPS);
 		}
+		double posx,posy;
+		if (r_detail > 1)
+			vis->yscale=(vis->yscale)*2;
+		posx=viewwindowx + vispsprites[i].x1;
+		posy=viewwindowy + realviewheight/2 - vis->texturemid * vis->yscale - 0.5;
+		if (r_detail == 1 || r_detail > 2)
+		{
+			if (screenblocks > 9)
+				posx=posx*2;
+			else
+				posx=posx*2 - (10-screenblocks)*((SCREENWIDTH/2)/10);
+		}
 		screen->DrawTexture(vis->pic,
-			viewwindowx + vispsprites[i].x1,
-			viewwindowy + viewheight/2 - vis->texturemid * vis->yscale - 0.5,
+			posx,
+			posy,
 			DTA_DestWidthF, FIXED2DBL(vis->pic->GetWidth() * vis->xscale),
 			DTA_DestHeightF, vis->pic->GetHeight() * vis->yscale,
 			DTA_Translation, TranslationToTable(vis->Translation),
@@ -1724,8 +1737,8 @@ void R_DrawRemainingPlayerSprites()
 			DTA_LeftOffset, 0,
 			DTA_ClipLeft, viewwindowx,
 			DTA_ClipTop, viewwindowy,
-			DTA_ClipRight, viewwindowx + viewwidth,
-			DTA_ClipBottom, viewwindowy + viewheight,
+			DTA_ClipRight, viewwindowx + realviewwidth,
+			DTA_ClipBottom, viewwindowy + realviewheight,
 			DTA_AlphaF, vis->Style.Alpha,
 			DTA_RenderStyle, vis->Style.RenderStyle,
 			DTA_FillColor, vis->FillColor,
