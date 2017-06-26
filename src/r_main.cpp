@@ -104,6 +104,8 @@ bool r_dontmaplines;
 CVAR (String, r_viewsize, "", CVAR_NOSET)
 CVAR (Bool, r_shadercolormaps, true, CVAR_ARCHIVE)
 
+EXTERN_CVAR(Bool, r_truecolor)
+
 bool			r_swtruecolor;
 
 double			r_BaseVisibility;
@@ -311,11 +313,20 @@ CUSTOM_CVAR (Int, r_detail, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 		return;
 	}
 
-	if (self < 0 || self > 3)
+	if (self < 0 || self > 3 || r_truecolor)
 	{
-		Printf ("Bad detail mode. (Use 0-3)\n");
 		badrecovery = true;
-		self = (detailyshift << 1) | detailxshift;
+		if (!r_truecolor)
+		{
+			Printf ("Bad detail mode. (Use 0-3)\n");
+			self = (detailyshift << 1) | detailxshift;
+		}
+		else
+		{
+			self = 0;
+			setdetail = self;
+			setsizeneeded = true;
+		}
 		return;
 	}
 

@@ -53,7 +53,9 @@ EXTERN_CVAR (Bool, ticker)
 EXTERN_CVAR (Bool, fullscreen)
 EXTERN_CVAR (Bool, r_truecolor)
 EXTERN_CVAR (Float, vid_winscale)
+
 EXTERN_CVAR(Int, r_skymode)
+EXTERN_CVAR(Int, r_detail)
 
 IVideo *Video;
 
@@ -290,6 +292,8 @@ CUSTOM_CVAR(Bool, r_truecolor, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG|CVAR_NOINIT
 	// way to force a CreateFramebuffer call without a lot of refactoring.
 	if ((r_skymode == 2) && self)
 		r_skymode = 1;
+	if (r_detail && self)
+		r_detail = 0;
 	NewWidth = screen->GetWidth();
 	NewHeight = screen->GetHeight();
 	NewBits = DisplayBits;
