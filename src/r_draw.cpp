@@ -207,6 +207,7 @@ BYTE identitymap[256];
 FDynamicColormap identitycolormap;
 
 EXTERN_CVAR (Int, r_columnmethod)
+EXTERN_CVAR (Int, r_detail)
 
 void R_InitShadeMaps()
 {
@@ -2665,9 +2666,9 @@ void R_DetailDouble ()
 	DetailDoubleCycles.Reset();
 	DetailDoubleCycles.Clock();
 
-	switch ((detailxshift << 1) | detailyshift)
+	switch (r_detail) // (detailxshift << 1) | detailyshift
 	{
-	case 1:		// y-double
+	case 2:		// y-double
 #ifdef X86_ASM
 		DoubleVert_ASM (viewheight, viewwidth, dc_destorg, RenderTarget->GetPitch());
 #else
@@ -2686,7 +2687,7 @@ void R_DetailDouble ()
 #endif
 		break;
 
-	case 2:		// x-double
+	case 1:		// x-double
 #ifdef X86_ASM
 		if (CPU.bMMX && (viewwidth&15)==0)
 		{
