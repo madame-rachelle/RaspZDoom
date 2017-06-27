@@ -139,7 +139,7 @@ int				LocalViewPitch;
 bool			LocalKeyboardTurner;
 
 float			WidescreenRatio;
-int				setblocks;
+int				setblocks, setdetail = -1;
 int				extralight;
 bool			setsizeneeded;
 double			FocalTangent;
@@ -194,6 +194,26 @@ void R_SetViewSize (int blocks)
 
 //==========================================================================
 //
+// R_SetDetail
+//
+//==========================================================================
+
+void R_SetDetail (int detail)
+{
+	if (detail < 4)
+	{
+		detailxshift = detail & 1;
+		detailyshift = (detail >> 1) & 1;
+	}
+	else
+	{
+		detailxshift = 1;
+		detailyshift = 1;
+	}
+}
+
+//==========================================================================
+//
 // R_SetWindow
 //
 //==========================================================================
@@ -204,19 +224,19 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight, b
 
 	if (windowSize >= 11)
 	{
-		viewwidth = fullWidth;
-		freelookviewheight = viewheight = fullHeight;
+		realviewwidth = fullWidth;
+		freelookviewheight = realviewheight = fullHeight;
 	}
 	else if (windowSize == 10)
 	{
-		viewwidth = fullWidth;
-		viewheight = stHeight;
+		realviewwidth = fullWidth;
+		realviewheight = stHeight;
 		freelookviewheight = fullHeight;
 	}
 	else
 	{
-		viewwidth = ((setblocks*fullWidth)/10) & (~15);
-		viewheight = ((setblocks*stHeight)/10)&~7;
+		realviewwidth = ((setblocks*fullWidth)/10) & (~15);
+		realviewheight = ((setblocks*stHeight)/10)&~7;
 		freelookviewheight = ((setblocks*fullHeight)/10)&~7;
 	}
 
@@ -235,8 +255,8 @@ void R_SetWindow (int windowSize, int fullWidth, int fullHeight, int stHeight, b
 	// [RH] Sky height fix for screens not 200 (or 240) pixels tall
 	R_InitSkyMap ();
 
-	centery = viewheight/2;
-	centerx = viewwidth/2;
+	centery = realviewheight/2;
+	centerx = realviewwidth/2;
 	if (AspectTallerThanWide(WidescreenRatio))
 	{
 		centerxwide = centerx;
@@ -271,13 +291,19 @@ void R_ExecuteSetViewSize ()
 	setsizeneeded = false;
 	V_SetBorderNeedRefresh();
 
+	if (setdetail >= 0)
+	{
+		R_SetDetail (setdetail);
+		setdetail = -1;
+	}
+
 	R_SetWindow (setblocks, SCREENWIDTH, SCREENHEIGHT, ST_Y);
 
 	// Handle resize, e.g. smaller view windows with border and/or status bar.
-	viewwindowx = (screen->GetWidth() - viewwidth) >> 1;
+	viewwindowx = (screen->GetWidth() - (viewwidth<<detailxshift)) >> 1;
 
 	// Same with base row offset.
-	viewwindowy = (viewwidth == screen->GetWidth()) ? 0 : (ST_Y - viewheight) >> 1;
+	viewwindowy = ((viewwidth<<detailxshift) == screen->GetWidth()) ? 0 : (ST_Y - (viewheight<<detailyshift)) >> 1;
 }
 
 //==========================================================================

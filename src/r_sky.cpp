@@ -64,8 +64,10 @@ CUSTOM_CVAR (Int, r_skymode, 1, CVAR_ARCHIVE)
 	R_InitSkyMap();
 }
 
-
+extern "C" int detailxshift, detailyshift;
 int			freelookviewheight;
+
+EXTERN_CVAR (Int, r_detail)
 
 //==========================================================================
 //
@@ -133,11 +135,24 @@ void R_InitSkyMap ()
 
 	if (viewwidth != 0 && viewheight != 0)
 	{
-		skyiscale = float(r_Yaspect / freelookviewheight);
-		skyscale = freelookviewheight / r_Yaspect;
+		skyiscale = float(r_Yaspect / (freelookviewheight<<detailxshift));
+		skyscale = (freelookviewheight<<detailxshift) / r_Yaspect;
 
 		skyiscale *= float(FieldOfView.Degrees / 90.);
 		skyscale *= float(90. / FieldOfView.Degrees);
+		if (r_detail > 0)
+		{
+			if (r_detail < 3)
+			{	
+				skyiscale = skyiscale*2;
+				skyscale = skyscale*2;
+			}
+			else
+			{
+				skyiscale = skyiscale*4;
+				skyscale = skyscale*4;
+			}
+		}
 	}
 
 	if (skystretch)

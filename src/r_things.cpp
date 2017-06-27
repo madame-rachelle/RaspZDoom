@@ -135,6 +135,8 @@ short			screenheightarray[MAXWIDTH];
 
 EXTERN_CVAR (Bool, r_drawplayersprites)
 EXTERN_CVAR (Bool, r_drawvoxels)
+EXTERN_CVAR (Int, r_detail)
+EXTERN_CVAR (Int, screenblocks)
 
 //
 // INITIALIZATION FUNCTIONS
@@ -1331,14 +1333,20 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 	tx = sx - BASEXCENTER;
 
 	tx -= tex->GetScaledLeftOffset();
-	x1 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	if (r_detail == 0 || r_detail == 2)
+		x1 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	else
+		x1 = xs_RoundToInt(CenterX + tx * (pspritexscale/2));
 
 	// off the right side
 	if (x1 > viewwidth)
 		return;
 
 	tx += tex->GetScaledWidth();
-	x2 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	if (r_detail == 0 || r_detail == 2)
+		x2 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	else
+		x2 = xs_RoundToInt(CenterX + tx * (pspritexscale/2));
 
 	// off the left side
 	if (x2 <= 0)
@@ -1352,13 +1360,13 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 	vis->texturemid = (BASEYCENTER - sy) * tex->Scale.Y + tex->TopOffset;
 
 	if (camera->player && (RenderTarget != screen ||
-		viewheight == RenderTarget->GetHeight() ||
+		realviewheight == RenderTarget->GetHeight() ||
 		(RenderTarget->GetWidth() > (BASEXCENTER * 2) && !st_scale)))
 	{	// Adjust PSprite for fullscreen views
 		AWeapon *weapon = dyn_cast<AWeapon>(pspr->GetCaller());
 		if (weapon != nullptr && weapon->YAdjust != 0)
 		{
-			if (RenderTarget != screen || viewheight == RenderTarget->GetHeight())
+			if (RenderTarget != screen || realviewheight == RenderTarget->GetHeight())
 			{
 				vis->texturemid -= weapon->YAdjust;
 			}
@@ -1375,19 +1383,28 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 	vis->x1 = x1 < 0 ? 0 : x1;
 	vis->x2 = x2 >= viewwidth ? viewwidth : x2;
 	vis->xscale = FLOAT2FIXED(pspritexscale / tex->Scale.X);
-	vis->yscale = float(pspriteyscale / tex->Scale.Y);
+	if (r_detail == 0 || r_detail == 2)
+		vis->yscale = float(pspriteyscale / tex->Scale.Y);
+	else
+		vis->yscale = float((pspriteyscale/2) / tex->Scale.Y);
 	vis->Translation = 0;		// [RH] Use default colors
 	vis->pic = tex;
 	vis->Style.ColormapNum = 0;
 
 	if (!(flip) != !(pspr->Flags & PSPF_FLIP))
 	{
-		vis->xiscale = -FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		if (r_detail == 0 || r_detail == 2)
+			vis->xiscale = -FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		else
+			vis->xiscale = -FLOAT2FIXED(pspritexiscale*2 * tex->Scale.X);
 		vis->startfrac = (tex->GetWidth() << FRACBITS) - 1;
 	}
 	else
 	{
-		vis->xiscale = FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		if (r_detail == 0 || r_detail == 2)
+			vis->xiscale = FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		else
+			vis->xiscale = FLOAT2FIXED(pspritexiscale*2 * tex->Scale.X);
 		vis->startfrac = 0;
 	}
 
@@ -1697,9 +1714,21 @@ void R_DrawRemainingPlayerSprites()
 			colormapstyle.Desaturate = colormap->Desaturate;
 			colormapstyle.FadeLevel = vis->Style.ColormapNum / float(NUMCOLORMAPS);
 		}
+		double posx,posy;
+		if (r_detail > 1)
+			vis->yscale=(vis->yscale)*2;
+		posx=viewwindowx + vispsprites[i].x1;
+		posy=viewwindowy + realviewheight/2 - vis->texturemid * vis->yscale - 0.5;
+		if (r_detail == 1 || r_detail > 2)
+		{
+			if (screenblocks > 9)
+				posx=posx*2;
+			else
+				posx=posx*2 - (10-screenblocks)*((SCREENWIDTH/2)/10);
+		}
 		screen->DrawTexture(vis->pic,
-			viewwindowx + vispsprites[i].x1,
-			viewwindowy + viewheight/2 - vis->texturemid * vis->yscale - 0.5,
+			posx,
+			posy,
 			DTA_DestWidthF, FIXED2DBL(vis->pic->GetWidth() * vis->xscale),
 			DTA_DestHeightF, vis->pic->GetHeight() * vis->yscale,
 			DTA_Translation, TranslationToTable(vis->Translation),
@@ -1708,8 +1737,8 @@ void R_DrawRemainingPlayerSprites()
 			DTA_LeftOffset, 0,
 			DTA_ClipLeft, viewwindowx,
 			DTA_ClipTop, viewwindowy,
-			DTA_ClipRight, viewwindowx + viewwidth,
-			DTA_ClipBottom, viewwindowy + viewheight,
+			DTA_ClipRight, viewwindowx + realviewwidth,
+			DTA_ClipBottom, viewwindowy + realviewheight,
 			DTA_AlphaF, vis->Style.Alpha,
 			DTA_RenderStyle, vis->Style.RenderStyle,
 			DTA_FillColor, vis->FillColor,
@@ -2671,7 +2700,7 @@ void R_DrawParticle_C (vissprite_t *vis)
 
 	/*
 
-	spacing = RenderTarget->GetPitch() - countbase;
+	spacing = (RenderTarget->GetPitch()<<detailyshift) - countbase;
 	dest = ylookup[yl] + x1 + dc_destorg;
 
 	do
@@ -2690,7 +2719,7 @@ void R_DrawParticle_C (vissprite_t *vis)
 	// width = countbase
 	// height = ycount
 
-	spacing = RenderTarget->GetPitch();
+	spacing = RenderTarget->GetPitch()<<detailyshift;
 
 	for (int x = x1; x < (x1+countbase); x++)
 	{

@@ -594,7 +594,15 @@ OptionMenu "JoystickConfigMenu"
 //
 //-------------------------------------------------------------------------------------------
 
-OptionValue ColumnMethods
+OptionValue DetailModes 
+{
+	0.0, "High"
+	1.0, "Double Horizontally"
+	2.0, "Double Vertically"
+	3.0, "Double Horiz and Vert"
+}
+
+OptionValue ColumnMethods 
 {
 	0.0, "$OPTVAL_ORIGINAL"
 	1.0, "$OPTVAL_OPTIMIZED"
@@ -690,7 +698,8 @@ OptionMenu "VideoOptions"
 	Option "$DSPLYMNU_MAGFILTER",				"r_magfilter", "OnOff"
 	Option "$DSPLYMNU_MIPMAP",					"r_mipmap", "OnOff"
 	Option "$DSPLYMNU_MULTITHREADED",			"r_multithreaded", "OnOff"
-
+    Option "Detail mode",				"r_detail",		  "DetailModes"
+	
 	StaticText " "
 	Option "$DSPLYMNU_WIPETYPE",				"wipetype", "Wipes"
 

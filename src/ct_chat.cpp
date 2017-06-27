@@ -250,7 +250,7 @@ void CT_Drawer (void)
 			st_y = ST_Y / active_con_scaletext();
 		}
 
-		y += ((SCREENHEIGHT == viewheight && viewactive) || gamestate != GS_LEVEL) ? screen_height : st_y;
+		y += ((SCREENHEIGHT == realviewheight && viewactive) || gamestate != GS_LEVEL) ? screen_height : st_y;
 
 		promptwidth = SmallFont->StringWidth (prompt) * scalex;
 		x = SmallFont->GetCharWidth ('_') * scalex * 2 + promptwidth;
