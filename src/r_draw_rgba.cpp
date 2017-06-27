@@ -60,10 +60,10 @@ CVAR(Bool, r_multithreaded, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 CVAR(Bool, r_magfilter, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 
 // Use linear filtering when scaling down
-CVAR(Bool, r_minfilter, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
+CVAR(Bool, r_minfilter, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 
 // Use mipmapped textures
-CVAR(Bool, r_mipmap, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
+CVAR(Bool, r_mipmap, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 
 #ifndef NO_SSE
 
