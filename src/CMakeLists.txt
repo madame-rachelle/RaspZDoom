@@ -516,6 +516,9 @@ else()
 	set( BACKPATCH 0 )
 endif()
 
+set ( GCC_SSE2_FLAGS "-msse2 -mfpmath=sse")
+option( USE_SSE2 "Use SSE2 instructions, requires P4 or later CPU." OFF)
+
 # Set up flags for GCC
 
 if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
@@ -589,6 +592,13 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set (CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -s" )
 		set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s" )
 	endif()
+
+	if ( USE_SSE2 )
+		set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_SSE2_FLAGS}" )
+	else ()
+		add_definitions( -DNO_SSE )
+	endif()
+	
 endif()
 
 # Check for functions that may or may not exist.
