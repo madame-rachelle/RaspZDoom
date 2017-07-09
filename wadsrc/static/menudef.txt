@@ -600,14 +600,15 @@ OptionValue DetailModes
 	1.0, "Double Horizontally"
 	2.0, "Double Vertically"
 	3.0, "Double Horiz and Vert"
+	4.0, "Quad Horiz and Double Vert"
 }
 
 OptionValue CullDistance
 {
-	2000.0, "Close"
+	2000.0, "Near"
 	3500.0, "Medium"
 	5000.0, "Far"
-	0.0, "Infinite"
+	8000.0, "Maximum"
 }
 
 OptionValue ColumnMethods 
