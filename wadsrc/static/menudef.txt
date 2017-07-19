@@ -603,23 +603,6 @@ OptionValue DetailModes
 	4.0, "Quad Horiz and Double Vert"
 }
 
-OptionValue SpriteCullDistance
-{
-	2000.0, "Near"
-	3500.0, "Medium"
-	5000.0, "Far"
-	8000.0, "Maximum"
-}
-
-OptionValue LineCullDistance
-{
-	4000.0, "Near"
-	6000.0, "Medium"
-	8000.0, "Far"
-	12000.0, "Very Far"
-	0.0, "Infinite"
-}
-
 OptionValue ColumnMethods 
 {
 	0.0, "$OPTVAL_ORIGINAL"
@@ -712,8 +695,8 @@ OptionMenu "VideoOptions"
 	Slider "$DSPLYMNU_WATERFADE",				"underwater_fade_scalar", 0.0, 1.0, 0.05, 2
 	Option "$DSPLYMNU_COLUMNMETHOD",			"r_columnmethod", "ColumnMethods"
 	Option "Detail mode",						"r_detail",	"DetailModes"
-	Option "Sprite Cull Distance",				"r_spritedistancecull",	"SpriteCullDistance"
-	Option "Wall Cull Distance",				"r_linedistancecull",	"LineCullDistance"
+	Slider "Sprite Cull Distance",				"r_spritedistancecull",	2000.0, 8000.0, 500.0, 0
+	Slider "Wall Cull Distance",				"r_linedistancecull",	4000.0, 16000.0, 1000.0, 0
 	StaticText " "
 	Option "$DSPLYMNU_TRUECOLOR",				"r_truecolor", "OnOff"
 	Option "$DSPLYMNU_MINFILTER",				"r_minfilter", "OnOff"
