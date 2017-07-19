@@ -95,11 +95,19 @@
 EXTERN_CVAR(Bool, ticker   )
 EXTERN_CVAR(Bool, vid_vsync)
 EXTERN_CVAR(Bool, vid_hidpi)
+EXTERN_CVAR (Bool, r_truecolor)
+
+EXTERN_CVAR(Int, r_skymode)
+EXTERN_CVAR(Int, r_detail)
 
 CUSTOM_CVAR(Bool, r_truecolor, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
 	// Strictly speaking this doesn't require a mode switch, but it is the easiest
 	// way to force a CreateFramebuffer call without a lot of refactoring.
+	if ((r_skymode == 2) && self)
+		r_skymode = 1;
+	if (r_detail && self)
+		r_detail = 0;
 	extern int NewWidth, NewHeight, NewBits, DisplayBits;
 	NewWidth      = screen->GetWidth();
 	NewHeight     = screen->GetHeight();
