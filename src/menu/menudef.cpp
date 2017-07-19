@@ -966,12 +966,12 @@ static void ParseAddOptionMenu(FScanner &sc)
 {
 	sc.MustGetString();
 
-	DMenuDescriptor **pOld = MenuDescriptors.CheckKey(sc.String);
-	if (pOld == nullptr || *pOld == nullptr || !(*pOld)->IsKindOf(RUNTIME_CLASS(DOptionMenuDescriptor)))
+	FMenuDescriptor **pOld = MenuDescriptors.CheckKey(sc.String);
+	if (pOld == nullptr || *pOld == nullptr || !(*pOld)->mType == MDESC_OptionsMenu)
 	{
 		sc.ScriptError("%s is not an option menu that can be extended", sc.String);
 	}
-	ParseOptionMenuBody(sc, (DOptionMenuDescriptor*)(*pOld));
+	ParseOptionMenuBody(sc, (FOptionMenuDescriptor*)(*pOld));
 }
 
 
