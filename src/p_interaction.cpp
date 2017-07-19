@@ -1816,6 +1816,15 @@ CCMD (kill)
 			Net_WriteByte (DEM_GENERICCHEAT);
 			Net_WriteByte (CHT_MASSACRE);
 		}
+		else if (!stricmp (argv[1], "baddies"))
+		{
+			// Kill all the unfriendly monsters
+			if (CheckCheatmode ())
+				return;
+
+			Net_WriteByte (DEM_GENERICCHEAT);
+			Net_WriteByte (CHT_MASSACRE2);
+		}
 		else
 		{
 			Net_WriteByte (DEM_KILLCLASSCHEAT);

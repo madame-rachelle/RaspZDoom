@@ -78,7 +78,7 @@ bool A_RaiseMobj (AActor *, double speed);
 bool A_SinkMobj (AActor *, double speed);
 
 bool CheckBossDeath (AActor *);
-int P_Massacre ();
+int P_Massacre (bool baddies = false);
 bool P_CheckMissileRange (AActor *actor);
 
 #define SKULLSPEED (20.)
