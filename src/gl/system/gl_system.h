@@ -21,9 +21,9 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <winsock.h>
-#ifndef __WINE__
-#include <dshow.h>
-#endif
+//#ifndef __WINE__
+//#include <dshow.h>
+//#endif
 #include <d3d9.h>
 //#include <dsound.h>
 //#include <dinput.h>
