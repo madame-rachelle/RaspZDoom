@@ -71,6 +71,7 @@ FRenderer *Renderer;
 
 IMPLEMENT_ABSTRACT_CLASS (DCanvas)
 IMPLEMENT_ABSTRACT_CLASS (DFrameBuffer)
+EXTERN_CVAR (Bool, r_truecolor)
 
 #if defined(_DEBUG) && defined(_M_IX86) && !defined(__MINGW32__)
 #define DBGBREAK	{ __asm int 3 }
@@ -813,7 +814,7 @@ void DSimpleCanvas::Resize(int width, int height)
 			Pitch = width + MAX(0, CPU.DataL1LineSize - 8);
 		}
 	}
-	int bytes_per_pixel = Bgra ? 4 : 1;
+	int bytes_per_pixel = r_truecolor ? 4 : 1;
 	MemBuffer = new BYTE[Pitch * height * bytes_per_pixel];
 }
 
