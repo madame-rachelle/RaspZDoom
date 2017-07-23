@@ -1316,3 +1316,12 @@ CCMD(angleconvtest)
 			ang, ang1, ang2, ang3);
 	}
 }
+
+EXTERN_CVAR(Float, r_spritedistancecull)
+EXTERN_CVAR(Float, r_linedistancecull)
+
+CCMD(nocull)
+{
+		r_spritedistancecull = 0.0;
+		r_linedistancecull = 0.0;
+}

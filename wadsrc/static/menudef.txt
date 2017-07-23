@@ -694,9 +694,11 @@ OptionMenu "VideoOptions"
 	Slider "$DSPLYMNU_PICKUPFADE",				"pickup_fade_scalar", 0.0, 1.0, 0.05, 2
 	Slider "$DSPLYMNU_WATERFADE",				"underwater_fade_scalar", 0.0, 1.0, 0.05, 2
 	Option "$DSPLYMNU_COLUMNMETHOD",			"r_columnmethod", "ColumnMethods"
+	StaticText " "
 	Option "Detail mode",						"r_detail",	"DetailModes"
 	Slider "Sprite Cull Distance",				"r_spritedistancecull",	2000.0, 8000.0, 500.0, 0
 	Slider "Wall Cull Distance",				"r_linedistancecull",	4000.0, 16000.0, 1000.0, 0
+	Command "Disable Render Culling",			"nocull"
 	StaticText " "
 	Option "$DSPLYMNU_TRUECOLOR",				"r_truecolor", "OnOff"
 	Option "$DSPLYMNU_MINFILTER",				"r_minfilter", "OnOff"
