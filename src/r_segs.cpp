@@ -2538,9 +2538,9 @@ void R_StoreWallRange (int start, int stop)
 				iend = 1 / iend;
 				ds_p->yscale = (float)yscale;
 				ds_p->iscale = (float)istart;
-				if (stop - start > 0)
+				if (stop - start > 1)
 				{
-					ds_p->iscalestep = float((iend - istart) / (stop - start));
+					ds_p->iscalestep = float((iend - istart) / (stop - start -1));
 				}
 				else
 				{
