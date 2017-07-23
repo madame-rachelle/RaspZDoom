@@ -1103,7 +1103,7 @@ WallscanSampler::WallscanSampler(int y1, float swal, double yrepeat, fixed_t xof
 			v *= height;
 			v *= (1 << uv_fracbits);
 
-			uv_pos = (uint32_t)v;
+			uv_pos = (uint32_t)(int64_t)v;
 			uv_step = xs_ToFixed(uv_fracbits, uv_stepd);
 			if (uv_step == 0) // To prevent divide by zero elsewhere
 				uv_step = 1;
@@ -1135,8 +1135,8 @@ WallscanSampler::WallscanSampler(int y1, float swal, double yrepeat, fixed_t xof
 		}
 
 		// Convert to uint32:
-		uv_pos = (uint32_t)(v * 0x100000000LL);
-		uv_step = (uint32_t)(v_step * 0x100000000LL);
+		uv_pos = (uint32_t)(int64_t)(v * 0x100000000LL);
+		uv_step = (uint32_t)(int64_t)(v_step * 0x100000000LL);
 		uv_max = 0;
 
 		// Texture mipmap and filter selection:
@@ -1243,6 +1243,7 @@ void wallscan_drawcol1(int x, int y1, int y2, WallscanSampler &sampler, DWORD(*d
 			uint32_t uv_pos = sampler.uv_pos;
 
 			uint32_t left = y2 - y1;
+			int y = y1;
 			while (left > 0)
 			{
 				uint32_t available = sampler.uv_max - uv_pos;
@@ -1254,12 +1255,13 @@ void wallscan_drawcol1(int x, int y1, int y2, WallscanSampler &sampler, DWORD(*d
 				dc_source = sampler.source;
 				dc_source2 = sampler.source2;
 				dc_texturefracx = sampler.texturefracx;
-				dc_dest = (ylookup[y1] + x) + dc_destorg;
+				dc_dest = (ylookup[y] + x) + dc_destorg;
 				dc_count = count;
 				dc_iscale = sampler.uv_step;
 				dc_texturefrac = uv_pos;
 				draw1column();
 
+				y += count;
 				left -= count;
 				uv_pos += sampler.uv_step * count;
 				if (uv_pos >= sampler.uv_max)
