@@ -735,6 +735,7 @@ FMaterial::~FMaterial()
 		if (mMaterials[i]==this) 
 		{
 			mMaterials.Delete(i);
+			mMaterials = NULL;
 			break;
 		}
 	}
