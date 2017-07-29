@@ -645,13 +645,13 @@ OptionValue Endoom
 	2.0, "Only modified"
 }
 
-OptionValue Renderer 
+OptionValue VideoBackend
 {
 	0.0, "Direct3D"
 	1.0, "DirectDraw"
 }
 
-OptionValue Bits 
+OptionValue Bits
 {
 	8.0, "8"
 	16.0, "16"
@@ -692,9 +692,8 @@ OptionMenu "VideoOptions"
 	{
 		Option	"Show ENDOOM screen",	"showendoom", "Endoom"
 		StaticText " "
-		Option "Video Renderer", "vid_forceddraw", "Renderer"
-		Option "DirectDraw display bits", "vid_displaybits", "Bits"
-		StaticText "Restart required", 1
+		Option "Video backend", 			"vid_forceddraw", "VideoBackend"
+		Option "DirectDraw display bits", 	"vid_displaybits", "Bits"
 		//Option "DirectDraw palette hack", "vid_palettehack", "OnOff"
 		//Option "Use attached surfaces", "vid_attachedsurfaces", "OnOff"
 		StaticText " "
@@ -1699,6 +1698,11 @@ OptionMenu ModReplayerOptions
  *
  *=======================================*/
 
+OptionValue Renderers
+{
+	0.0, "Software"
+	1.0, "OpenGL"
+}
 OptionValue ForceRatios
 {
 	0.0, "Off"
@@ -1737,6 +1741,7 @@ OptionMenu VideoModeMenu
 	{
 		Option "Retina/HiDPI support", "vid_hidpi", "YesNo"
 	}
+	Option "Renderer",				"vid_renderer", "Renderers"
 	Option "Aspect ratio",			"menu_screenratios", "Ratios"
 	Option "Force aspect ratio",	"vid_aspect", "ForceRatios"
 	Option "Enable 5:4 aspect ratio","vid_tft", "YesNo"
