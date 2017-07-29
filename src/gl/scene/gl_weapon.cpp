@@ -96,8 +96,8 @@ void FGLRenderer::DrawPSprite (player_t * player,pspdef_t *psp,fixed_t sx, fixed
 
 	tex->BindPatch(cm_index, 0, OverrideShader);
 
-	int vw = viewwidth;
-	int vh = viewheight;
+	int vw = realviewwidth;
+	int vh = realviewheight;
 
 	// calculate edges of the shape
 	scalex = xratio[WidescreenRatio] * vw / 320;

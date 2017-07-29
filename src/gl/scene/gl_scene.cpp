@@ -195,8 +195,8 @@ void FGLRenderer::SetViewport(GL_IRECT *bounds)
 		int trueheight = static_cast<OpenGLFrameBuffer*>(screen)->GetTrueHeight();	// ugh...
 		int bars = (trueheight-screen->GetHeight())/2; 
 
-		int vw = viewwidth;
-		int vh = viewheight;
+		int vw = realviewwidth;
+		int vh = realviewheight;
 		gl.Viewport(viewwindowx, trueheight-bars-(height+viewwindowy-((height-vh)/2)), vw, height);
 		gl.Scissor(viewwindowx, trueheight-bars-(vh+viewwindowy), vw, vh);
 	}
