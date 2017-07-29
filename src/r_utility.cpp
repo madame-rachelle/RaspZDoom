@@ -300,10 +300,10 @@ void R_ExecuteSetViewSize ()
 	R_SetWindow (setblocks, SCREENWIDTH, SCREENHEIGHT, ST_Y);
 
 	// Handle resize, e.g. smaller view windows with border and/or status bar.
-	viewwindowx = (screen->GetWidth() - (viewwidth<<detailxshift)) >> 1;
+	viewwindowx = (screen->GetWidth() - realviewwidth) >> 1;
 
 	// Same with base row offset.
-	viewwindowy = ((viewwidth<<detailxshift) == screen->GetWidth()) ? 0 : (ST_Y - (viewheight<<detailyshift)) >> 1;
+	viewwindowy = (realviewwidth == screen->GetWidth()) ? 0 : (ST_Y - realviewheight) >> 1;
 }
 
 //==========================================================================
