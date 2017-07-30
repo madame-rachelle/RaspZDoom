@@ -2046,7 +2046,14 @@ static void AddAutoloadFiles(const char *autoname)
 		const char *wad = BaseFileSearch ("zvox.wad", NULL);
 		if (wad)
 			D_AddFile (allwads, wad);
-	
+
+		wad = BaseFileSearch ("brightmaps.pk3", NULL);
+		if (wad)
+			D_AddFile (allwads, wad);
+		wad = BaseFileSearch ("lights.pk3", NULL);
+		if (wad)
+			D_AddFile (allwads, wad);
+
 		// [RH] Add any .wad files in the skins directory
 #ifdef __unix__
 		file = SHARE_DIR;
