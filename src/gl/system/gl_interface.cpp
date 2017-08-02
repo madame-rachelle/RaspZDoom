@@ -43,6 +43,7 @@
 #include "version.h"
 #include "i_system.h"
 #include "gl/system/gl_cvars.h"
+#include "doomerrors.h"
 
 #if defined (unix) || defined (__APPLE__)
 #include <SDL.h>
@@ -70,6 +71,7 @@ RenderContext * gl;
 
 int occlusion_type=0;
 
+EXTERN_CVAR(Int, vid_renderer);
 
 //==========================================================================
 //
@@ -633,7 +635,8 @@ static bool SetupPixelFormat(HDC hDC, bool allowsoftware, bool nostencil, int mu
 						if (stencil==0)
 						{
 							// not accelerated!
-							Printf("R_OPENGL: OpenGL driver not accelerated!  Falling back to software renderer.\n");
+							vid_renderer = 0;
+							I_Error("R_OPENGL: OpenGL driver not accelerated!  Falling back to software renderer.\n");
 							return false;
 						}
 						else
@@ -679,7 +682,8 @@ static bool SetupPixelFormat(HDC hDC, bool allowsoftware, bool nostencil, int mu
 		{
 			if (!allowsoftware)
 			{
-				Printf("R_OPENGL: OpenGL driver not accelerated! Falling back to software renderer.\n");
+				vid_renderer = 0;
+				I_Error("R_OPENGL: OpenGL driver not accelerated! Falling back to software renderer.\n");
 				return false;
 			}
 		}
@@ -754,7 +758,8 @@ static bool APIENTRY InitHardware (HWND Window, bool allowsoftware, bool nostenc
 
 	if (!SetupPixelFormat(m_hDC, allowsoftware, nostencil, multisample))
 	{
-		Printf ("R_OPENGL: Reverting to software mode...\n");
+		vid_renderer = 0;
+		I_Error ("R_OPENGL: Reverting to software mode...\n");
 		return false;
 	}
 
@@ -778,7 +783,8 @@ static bool APIENTRY InitHardware (HWND Window, bool allowsoftware, bool nostenc
 
 	if (m_hRC == NULL)
 	{
-		Printf ("R_OPENGL: Couldn't create render context. Reverting to software mode...\n");
+		vid_renderer = 0;
+		I_Error ("R_OPENGL: Couldn't create render context. Reverting to software mode...\n");
 		return false;
 	}
 
@@ -791,7 +797,8 @@ static bool APIENTRY InitHardware (bool allowsoftware, bool nostencil, int multi
 {
 	if (!SetupPixelFormat(allowsoftware, nostencil, multisample))
 	{
-		Printf ("R_OPENGL: Reverting to software mode...\n");
+		vid_renderer = 0;
+		I_Error ("R_OPENGL: Reverting to software mode...\n");
 		return false;
 	}
 	return true;
