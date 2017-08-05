@@ -311,12 +311,12 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FTexture *inputTexture, u
 		case 7:
 		case 8:
 		case 9:
-			return xbrzHelper(xbrz::scale, type - 8, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+			return xbrzHelper(xbrz::scale, type - 5, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 			
 		case 10:
 		case 11:
 		case 12:
-			return xbrzoldHelper(xbrz_old::scale, type - 11, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+			return xbrzoldHelper(xbrz_old::scale, type - 8, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 			
 		}
 	}
