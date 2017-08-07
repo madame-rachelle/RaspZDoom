@@ -41,7 +41,7 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "2.8.1a LE"
+#define VERSIONSTR "2.8.1a (GL 1.8.4a)"
 
 // The version as seen in the Windows resource
 #define RC_FILEVERSION 2,8,1,1
@@ -85,11 +85,11 @@ const char *GetVersionString();
 #define DYNLIGHT
 
 // This is so that derivates can use the same savegame versions without worrying about engine compatibility
-#define GAMESIG "GZDOOM"
+#define GAMESIG "ZDOOM LE"
 #define BASEWAD "zdoom.pk3"
 
 // More stuff that needs to be different for derivatives.
-#define GAMENAME "ZDoom"
+#define GAMENAME "ZDoom LE"
 #define GAMENAMELOWERCASE "zdoomle"
 #define FORUM_URL "http://forum.zdoom.org"
 #define BUGS_FORUM_URL	"http://forum.zdoom.org/index.php?c=3"
