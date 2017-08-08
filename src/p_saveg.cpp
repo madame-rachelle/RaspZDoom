@@ -886,6 +886,9 @@ void G_SerializeLevel(FSerializer &arc, bool hubload)
 	if (arc.isWriting())
 	{
 		arc.Array("checksum", level.md5, 16);
+		// begin of GZDoom additions
+		arc << sec->reflect[sector_t::ceiling] << sec->reflect[sector_t::floor];
+		// end of GZDoom additions
 	}
 	else
 	{
@@ -901,6 +904,31 @@ void G_SerializeLevel(FSerializer &arc, bool hubload)
 			memcmp(chk, level.md5, 16))
 		{
 			I_Error("Savegame is from a different level");
+		}
+		else
+		{
+			arc << li->args[0];
+		}
+		arc << li->args[1] << li->args[2] << li->args[3] << li->args[4];
+
+			arc << li->portalindex;
+			arc << li->portaltransferred;	// GZDoom addition.
+
+		for (j = 0; j < 2; j++)
+		{
+			if (li->sidedef[j] == NULL)
+				continue;
+
+			side_t *si = li->sidedef[j];
+			arc << si->textures[side_t::top]
+				<< si->textures[side_t::mid]
+				<< si->textures[side_t::bottom]
+				<< si->Light
+				<< si->Flags
+				<< si->LeftSide
+				<< si->RightSide
+				<< si->Index;
+			DBaseDecal::SerializeChain (arc, &si->AttachedDecals);
 		}
 	}
 	arc("saveversion", SaveVersion);

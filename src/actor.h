@@ -1415,6 +1415,14 @@ public:
 
 	int ApplyDamageFactor(FName damagetype, int damage) const;
 
+
+	// begin of GZDoom specific additions
+	TArray<TObjPtr<AActor> >		dynamiclights;
+	void *				lightassociations;
+	bool				hasmodel;
+	// end of GZDoom specific additions
+
+	size_t PropagateMark();
 };
 
 class FActorIterator
