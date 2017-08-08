@@ -155,7 +155,6 @@ void ADynamicLight::PostSerialize()
 	Super::PostSerialize();
 	// The default constructor which is used for creating objects before deserialization will not set this variable.
 	// It needs to be true for all placed lights.
-	visibletoplayer = true;
 	LinkLight();
 }
 
