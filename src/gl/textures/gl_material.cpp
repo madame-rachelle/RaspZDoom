@@ -217,7 +217,7 @@ BYTE *FGLTexture::WarpBuffer(BYTE *buffer, int Width, int Height, int warp)
 
 		for (x = xsize-1; x >= 0; x--)
 		{
-			int yt, yf = (finesine[(timebase+(x+17)*128)&FINEMASK]>>13) & ymask;
+			int yt, yf = (TexMan.sintable[((timebase+(x+17)*128) >> 2)&TexMan.SINMASK] >> 11) & ymask;
 			const DWORD *source = in + x;
 			DWORD *dest = out + x;
 			for (yt = ysize; yt; yt--, yf = (yf+1)&ymask, dest += xsize)
@@ -229,7 +229,7 @@ BYTE *FGLTexture::WarpBuffer(BYTE *buffer, int Width, int Height, int warp)
 		int y;
 		for (y = ysize-1; y >= 0; y--)
 		{
-			int xt, xf = (finesine[(timebase+y*128)&FINEMASK]>>13) & xmask;
+			int xt, xf = (TexMan.sintable[((timebase+y*128) >> 2)&TexMan.SINMASK] >> 11) & xmask;
 			DWORD *source = out + (y<<ds_xbits);
 			DWORD *dest = linebuffer;
 			for (xt = xsize; xt; xt--, xf = (xf+1)&xmask)
@@ -250,11 +250,11 @@ BYTE *FGLTexture::WarpBuffer(BYTE *buffer, int Width, int Height, int warp)
 			for (int y = ysize-1; y >= 0; y--)
 			{
 				int xt = (x + 128
-					+ ((finesine[(y*128 + timebase*5 + 900) & 8191]*2)>>FRACBITS)
-					+ ((finesine[(x*256 + timebase*4 + 300) & 8191]*2)>>FRACBITS)) & xmask;
+					+ ((TexMan.sintable[(y*128 + timebase*5 + 900) & 8191]*2)>>FRACBITS)
+					+ ((TexMan.sintable[(x*256 + timebase*4 + 300) & 8191]*2)>>FRACBITS)) & xmask;
 				int yt = (y + 128
-					+ ((finesine[(y*128 + timebase*3 + 700) & 8191]*2)>>FRACBITS)
-					+ ((finesine[(x*256 + timebase*4 + 1200) & 8191]*2)>>FRACBITS)) & ymask;
+					+ ((TexMan.sintable[(y*128 + timebase*3 + 700) & 8191]*2)>>FRACBITS)
+					+ ((TexMan.sintable[(x*256 + timebase*4 + 1200) & 8191]*2)>>FRACBITS)) & ymask;
 				const DWORD *source = in + (xt << ybits) + yt;
 				DWORD *dest = out + (x << ybits) + y;
 				*dest = *source;
