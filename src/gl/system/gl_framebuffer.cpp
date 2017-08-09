@@ -128,9 +128,9 @@ void OpenGLFrameBuffer::InitializeState()
 	{
 		first=false;
 		// [BB] For some reason this crashes, if compiled with MinGW and optimization. Has to be investigated.
-#if defined _MSC_VER || defined __APPLE__
+//#if defined _MSC_VER || defined __APPLE__
 		gl_PrintStartupLog();
-#endif
+//#endif
 
 	}
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
