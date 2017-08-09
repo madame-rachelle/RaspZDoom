@@ -732,14 +732,16 @@ bool Win32GLVideo::SetupPixelFormat(int multisample)
 
 		if (pfd.dwFlags & PFD_GENERIC_FORMAT)
 		{
-			I_Error("R_OPENGL: OpenGL driver not accelerated!");
+			vid_renderer = 0;
+			I_Error("R_OPENGL: OpenGL driver not accelerated! Falling back to software renderer.\n");
 			return false;
 		}
 	}
 
 	if (!::SetPixelFormat(m_hDC, pixelFormat, NULL))
 	{
-		I_Error("R_OPENGL: Couldn't set pixel format.\n");
+		vid_renderer = 0;
+		I_Error("R_OPENGL: Couldn't set pixel format. Reverting to software mode...\n");
 		return false;
 	}
 	return true;
