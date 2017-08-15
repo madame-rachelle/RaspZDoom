@@ -732,14 +732,13 @@ FMaterial::~FMaterial()
 {
 	for(unsigned i=0;i<mMaterials.Size();i++)
 	{
-		if (mMaterials[i]==this) 
+		if (mMaterials[i]==this)
 		{
 			mMaterials.Delete(i);
-			mMaterials = NULL;
 			break;
 		}
 	}
-
+//	mMaterials = NULL;
 }
 
 
