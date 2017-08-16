@@ -744,7 +744,8 @@ FMaterial::~FMaterial()
 	if (exiting) // hack hack
 	{
 		mMaterials.Clear();
-		mMaterials = NULL;
+		TArray<FMaterial *> null;
+		mMaterials = null;
 	}
 }
 
