@@ -75,6 +75,8 @@
 extern FILE *Logfile;
 extern bool insave;
 
+extern bool exiting;
+
 CVAR (Bool, sv_cheats, false, CVAR_SERVERINFO | CVAR_LATCH)
 CVAR (Bool, sv_unlimited_pickup, false, CVAR_SERVERINFO)
 
@@ -98,11 +100,13 @@ bool CheckCheatmode (bool printmsg)
 
 CCMD (quit)
 {
+	exiting = true;
 	if (!insave) exit (0);
 }
 
 CCMD (exit)
 {
+	exiting = true;
 	if (!insave) exit (0);
 }
 

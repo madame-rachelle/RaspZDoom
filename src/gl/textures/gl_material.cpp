@@ -59,6 +59,8 @@
 #include "gl/textures/gl_material.h"
 #include "gl/shaders/gl_shader.h"
 
+extern bool exiting;
+
 EXTERN_CVAR(Bool, gl_render_precise)
 EXTERN_CVAR(Int, gl_lightmode)
 EXTERN_CVAR(Bool, gl_precache)
@@ -734,13 +736,18 @@ FMaterial::~FMaterial()
 {
 	for(unsigned i=0;i<mMaterials.Size();i++)
 	{
-		if (mMaterials[i]==this) 
+		if (mMaterials[i]==this)
 		{
 			mMaterials.Delete(i);
 			break;
 		}
 	}
 
+	if (exiting) // hack hack
+	{
+		mMaterials.Clear();
+		mMaterials = NULL;
+	}
 }
 
 

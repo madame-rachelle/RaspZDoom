@@ -118,6 +118,8 @@
 
 // TYPES -------------------------------------------------------------------
 
+extern bool exiting = false;
+
 class FBasicStartupScreen : public FStartupScreen
 {
 public:
@@ -1089,6 +1091,8 @@ void FStrifeStartupScreen::DrawStuff(int old_laser, int new_laser)
 
 void ST_Endoom()
 {
+	exiting = true;
+
 	if (showendoom == 0) exit(0);
 
 	if (gameinfo.Endoom.Len() == 0) 
