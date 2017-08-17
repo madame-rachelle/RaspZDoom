@@ -744,8 +744,7 @@ FMaterial::~FMaterial()
 	if (exiting) // hack hack
 	{
 		mMaterials.Clear();
-		TArray<FMaterial *> null;
-		mMaterials = null;
+		mMaterials.ShrinkToFit();
 	}
 }
 
