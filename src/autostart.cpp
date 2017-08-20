@@ -101,11 +101,11 @@ void **GRegHead;
 void **SRegHead;
 
 #endif
-
+/*
 #elif
 
 #error Please fix autostart.cpp for your compiler
-
+*/
 #endif
 
 

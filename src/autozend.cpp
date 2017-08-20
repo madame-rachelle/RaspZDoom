@@ -72,9 +72,9 @@ void **CRegTail;
 void **GRegTail;
 void **SRegTail;
 #endif
-
+/*
 #elif
 
 #error Please fix autozend.cpp for your compiler
-
+*/
 #endif
