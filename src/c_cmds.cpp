@@ -1320,7 +1320,7 @@ CCMD(angleconvtest)
 EXTERN_CVAR(Float, r_spritedistancecull)
 EXTERN_CVAR(Float, r_linedistancecull)
 
-CCMD(nocull)
+CCMD(culloff)
 {
 		r_spritedistancecull = 0.0;
 		r_linedistancecull = 0.0;
