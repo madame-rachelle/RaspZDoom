@@ -40,21 +40,21 @@
 
 /** Lots of different version numbers **/
 
-#define DOTVERSIONSTR_NOREV "1.0.16 - 2.1.1"
+#define DOTVERSIONSTR_NOREV "1.0.17a - 2.1.3"
 
 // The version string the user actually sees.
 #define DOTVERSIONSTR DOTVERSIONSTR_NOREV " (r" SVN_REVISION_STRING ")"
 
 // The version as seen in the Windows resource
-#define RC_FILEVERSION 1,0,16,SVN_REVISION_NUMBER
-#define RC_PRODUCTVERSION 1,0,16,0
+#define RC_FILEVERSION 1,0,17,SVN_REVISION_NUMBER
+#define RC_PRODUCTVERSION 1,0,17,0
 #define RC_FILEVERSION2 DOTVERSIONSTR
 #define RC_PRODUCTVERSION2 "1.0"
 
 // Version identifier for network games.
 // Bump it every time you do a release unless you're certain you
 // didn't change anything that will affect sync.
-#define NETGAMEVERSION 207
+#define NETGAMEVERSION 208
 
 // Version stored in the ini's [LastRun] section.
 // Bump it if you made some configuration change that you want to
@@ -73,8 +73,8 @@
 // SAVEVER is the version of the information stored in level snapshots.
 // Note that SAVEVER is not directly comparable to VERSION.
 // SAVESIG should match SAVEVER.
-#define SAVEVER 232
-#define SAVESIG "ZDOOMSAVE232"
+#define SAVEVER 234
+#define SAVESIG "ZDOOMSAVE234"
 
 // This is so that derivates can use the same savegame versions without worrying about engine compatibility
 #define GAMESIG "GZDOOM"
@@ -89,7 +89,7 @@
 #endif
 
 // MINSAVEVER is the minimum level snapshot version that can be loaded.
-#define MINSAVEVER 232	// Used by 2.1.0
+#define MINSAVEVER 234	// Used by 2.1.0
 
 // The maximum length of one save game description for the menus.
 #define SAVESTRINGSIZE		24
