@@ -191,14 +191,17 @@ bool FShader::Bind()
 
 void gl_ClearShaders()
 {
-	gl.UseProgramObjectARB(0);
-	if (shader_Null) delete shader_Null;
-	if (shader_InverseMap) delete shader_InverseMap;
-	if (shader_GoldMap) delete shader_GoldMap;
-	if (shader_Warp1) delete shader_Warp1;
-	if (shader_Warp1_NoFog) delete shader_Warp1_NoFog;
-	if (shader_Warp2) delete shader_Warp2;
-	if (shader_Warp2_NoFog) delete shader_Warp2_NoFog;
+	if (gl.flags & RFL_GLSL)
+	{
+		gl.UseProgramObjectARB(0);
+		if (shader_Null) delete shader_Null;
+		if (shader_InverseMap) delete shader_InverseMap;
+		if (shader_GoldMap) delete shader_GoldMap;
+		if (shader_Warp1) delete shader_Warp1;
+		if (shader_Warp1_NoFog) delete shader_Warp1_NoFog;
+		if (shader_Warp2) delete shader_Warp2;
+		if (shader_Warp2_NoFog) delete shader_Warp2_NoFog;
+	}
 }
 
 void gl_InitShaders() 
