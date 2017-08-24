@@ -468,6 +468,7 @@ EXTERN_CVAR (Int,  screenblocks)
 EXTERN_CVAR (Bool, vid_vsync)
 EXTERN_CVAR (Bool, cl_capfps)
 EXTERN_CVAR (Int, vid_displaybits)
+EXTERN_CVAR (Bool, vid_nowidescreen)
 
 static value_t Crosshairs[] =
 {
@@ -538,6 +539,7 @@ static menuitem_t VideoItems[] = {
 	{ slider,	"Wall Cull Distance",	{&r_linedistancecull},{4000.0}, {16000.0},	{1000.0}, {NULL} },
 	{ more,		"Disable Render Culling", {NULL},			{0.0}, {0.0},	{0.0}, {(value_t *)DisableCulling} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
+	{ discrete, "Widescreen aspect ratio",{&vid_nowidescreen},	{2.0}, {0.0},	{0.0}, {NoYes} },
 	{ discrete, "Stretch short skies",	{&r_stretchsky},	   	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Stretch status bar",	{&st_scale},			{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Alternative HUD",		{&hud_althud},			{2.0}, {0.0},	{0.0}, {OnOff} },
@@ -856,7 +858,6 @@ EXTERN_CVAR (Bool, fullscreen)
 static value_t Depths[22];
 
 EXTERN_CVAR (Bool, vid_tft)		// Defined below
-EXTERN_CVAR (Bool, vid_nowidescreen)
 
 CUSTOM_CVAR (Int, menu_screenratios, 0, CVAR_ARCHIVE)
 {
@@ -899,7 +900,6 @@ static menuitem_t ModesItems[] = {
 	{ discrete,	"Renderer",				{&vid_renderer},		{2.0}, {0.0},	{0.0}, {Renderers} }, // [ZDoomGL]
 	{ discrete, "Fullscreen",			{&fullscreen},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Enable 5:4 aspect ratio",{&vid_tft},			{2.0}, {0.0},	{0.0}, {YesNo} },
-	{ discrete, "Widescreen aspect ratio",{&vid_nowidescreen},	{2.0}, {0.0},	{0.0}, {NoYes} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ screenres,NULL,					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ screenres,NULL,					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },

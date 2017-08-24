@@ -190,10 +190,10 @@ void DCanvas::Clear (int left, int top, int right, int bottom, int color) const
 {
 	int x, y;
 	byte *dest;
-
+/*
 	assert (left < right);
 	assert (top < bottom);
-
+*/
 	dest = Buffer + top * Pitch + left;
 	x = right - left;
 	for (y = top; y < bottom; y++)
