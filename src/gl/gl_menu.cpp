@@ -13,7 +13,7 @@ void StartGLLightMenu (void);
 void StartDisableGL();
 void ReturnToMainMenu();
 
-CUSTOM_CVAR(Bool, gl_nogl, false, CVAR_GLOBALCONFIG|CVAR_ARCHIVE|CVAR_NOINITCALL)
+CUSTOM_CVAR(Bool, gl_nogl, true, CVAR_GLOBALCONFIG|CVAR_ARCHIVE|CVAR_NOINITCALL)
 {
 	Printf("This won't take effect until ZDoom is restarted.\n");
 }
