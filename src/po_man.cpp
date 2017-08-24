@@ -1464,7 +1464,7 @@ static void TranslateToStartSpot (int tag, int originX, int originY)
 	}
 	avg.x /= po->numsegs;
 	avg.y /= po->numsegs;
-	sub = R_PointInSubsector (avg.x<<FRACBITS, avg.y<<FRACBITS);
+	sub = R_PointInSubsector2 (avg.x<<FRACBITS, avg.y<<FRACBITS);
 	if (sub->poly != NULL)
 	{
 		I_Error ("PO_TranslateToStartSpot: Multiple polyobjs in a single subsector.\n");

@@ -28,6 +28,7 @@
 #include "r_state.h"
 #include "v_video.h"
 
+class FCanvasTexture;
 
 // A texture that doesn't really exist
 class FDummyTexture : public FTexture
@@ -82,6 +83,9 @@ public:
 	const BYTE *GetPixels ();
 	void Unload ();
 	virtual void SetFrontSkyLayer ();
+
+	// [OpenGL]
+	void CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_height, int x, int y, intptr_t cm, int translation);
 
 protected:
 	BYTE *Pixels;
@@ -193,6 +197,9 @@ public:
 	const BYTE *GetPixels ();
 	void Unload ();
 
+	// [OpenGL]
+	void CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_height, int x, int y, intptr_t cm, int translation);
+
 protected:
 	int SourceLump;
 	BYTE *Pixels;
@@ -215,6 +222,7 @@ protected:
 // A texture that returns a wiggly version of another texture.
 class FWarpTexture : public FTexture
 {
+	friend class FGLTexture;
 public:
 	FWarpTexture (FTexture *source);
 	~FWarpTexture ();
@@ -223,6 +231,9 @@ public:
 	const BYTE *GetPixels ();
 	void Unload ();
 	bool CheckModified ();
+
+	// [OpenGL]
+	void CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_height, int x, int y, intptr_t cm, int translation);
 
 protected:
 	FTexture *SourcePic;
@@ -238,6 +249,9 @@ class FWarp2Texture : public FWarpTexture
 {
 public:
 	FWarp2Texture (FTexture *source);
+
+	// [OpenGL]
+	void CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_height, int x, int y, intptr_t cm, int translation);
 
 protected:
 	void MakeTexture (DWORD time);
@@ -256,6 +270,7 @@ public:
 	void Unload ();
 	bool CheckModified ();
 	void RenderView (AActor *viewpoint, int fov);
+	void NeedUpdate() { bNeedsUpdate=true; }
 
 protected:
 	DSimpleCanvas *Canvas;

@@ -50,6 +50,9 @@
 #include "cmdlib.h"
 #include "sc_man.h"
 
+#include "gl/gl_texture.h"
+
+
 // This is a font character that loads a texture and recolors it.
 class FFontChar1 : public FTexture
 {
@@ -419,7 +422,8 @@ void FFont::BuildTranslations (const double *luminosity, const BYTE *identity)
 	byte *base;
 	byte *range;
 
-	range = Ranges = new byte[NUM_TEXT_COLORS * ActiveColors];
+	range = Ranges = new byte[NUM_TEXT_COLORS * ActiveColors * 4 + 768 ];	// palette map + true color map + padding
+	byte * range2=Ranges + NUM_TEXT_COLORS * ActiveColors;					// true color map
 
 	// Create different translations for different color ranges
 	for (i = 0; i < CR_UNTRANSLATED; i++)
@@ -465,6 +469,10 @@ void FFont::BuildTranslations (const double *luminosity, const BYTE *identity)
 
 		*range++ = 0;
 
+		*range2++ = 0;
+		*range2++ = 0;
+		*range2++ = 0;
+
 		for (j = 1; j < ActiveColors; j++)
 		{
 			double p1 = luminosity[j];
@@ -488,10 +496,23 @@ void FFont::BuildTranslations (const double *luminosity, const BYTE *identity)
 				g = colors[3*16+1];
 				b = colors[3*16+2];
 			}
+
 			*range++ = ColorMatcher.Pick (r, g, b);
+
+			*range2++=r;
+			*range2++=g;
+			*range2++=b;
 		}
 	}
 	memcpy (range, identity, ActiveColors);
+
+	for (j = 0; j < ActiveColors; j++)
+	{
+		PalEntry pe = GPalette.BaseColors[identity[j]];
+		*range2++ =  pe.r;
+		*range2++ =  pe.g;
+		*range2++ =  pe.b;
+	}
 }
 
 byte *FFont::GetColorTranslation (EColorRange range) const
@@ -854,7 +875,9 @@ void FSingleLumpFont::BuildTranslations2 ()
 	};
 
 	byte *range;
-	range = Ranges = new byte[NUM_TEXT_COLORS * ActiveColors];
+	range = Ranges = new byte[NUM_TEXT_COLORS * ActiveColors * 4 + 768 ];	// palette map + true color map + padding
+	byte * range2=Ranges + NUM_TEXT_COLORS * ActiveColors;					// true color map
+
 	int i, j, r, g, b;
 
 	for (i = 0; i < CR_UNTRANSLATED; i++)
@@ -868,6 +891,9 @@ void FSingleLumpFont::BuildTranslations2 ()
 			g = j * parm[1].mul / 255 + parm[1].add;
 			b = j * parm[2].mul / 255 + parm[2].add;
 			*range++ = ColorMatcher.Pick (r, g, b);
+			*range2++=r;
+			*range2++=g;
+			*range2++=b;
 		}
 
 		parm = &transParmHi[i][0];
@@ -877,10 +903,14 @@ void FSingleLumpFont::BuildTranslations2 ()
 			g = MIN (j * parm[1].mul / 127 + parm[1].add, 255);
 			b = j * parm[2].mul / 127 + parm[2].add;
 			*range++ = ColorMatcher.Pick (r, g, b);
+			*range2++=r;
+			*range2++=g;
+			*range2++=b;
 		}
 	}
 	// Make CR_UNTRANSLATED a valid translation!
 	memcpy(range, range-ActiveColors, ActiveColors);
+	memcpy(range2, range2-ActiveColors*3, ActiveColors*3);
 }
 
 FFontChar1::FFontChar1 (int sourcelump, const BYTE *sourceremap)
@@ -1208,20 +1238,26 @@ FSpecialFont::FSpecialFont (const char *name, int first, int count, int *lumplis
 	// add the untranslated colors to the Ranges table
 	if (ActiveColors < TotalColors)
 	{
-		int factor = 1;
-		byte *oldranges = Ranges;
-		Ranges = new byte[NUM_TEXT_COLORS * TotalColors * factor];
+		byte * oldranges=Ranges;
+
+		Ranges = new byte[NUM_TEXT_COLORS * TotalColors * 4 + 768 ];	// palette map + true color map + padding
+		byte * ranges2=Ranges + NUM_TEXT_COLORS * TotalColors;					// true color map
+		byte * oldranges2=oldranges + NUM_TEXT_COLORS * ActiveColors;			// old true color map
 
 		for (i = 0; i < CR_UNTRANSLATED; i++)
 		{
-			memcpy (&Ranges[i * TotalColors * factor], &oldranges[i * ActiveColors * factor], ActiveColors * factor);
+			memcpy(&Ranges [i * TotalColors    ], &oldranges [i * ActiveColors    ], ActiveColors);
+			memcpy(&ranges2[i * TotalColors * 3], &oldranges2[i * ActiveColors * 3], ActiveColors*3);
 
-			for (j = ActiveColors; j < TotalColors; j++)
+			for(j=ActiveColors;j<TotalColors;j++)
 			{
-				Ranges[TotalColors*i + j] = identity[j];
+				Ranges[TotalColors*i + j]=identity[j];
+				ranges2[(TotalColors*i + j)*3 + 0]=GPalette.BaseColors[identity[j]].r;
+				ranges2[(TotalColors*i + j)*3 + 1]=GPalette.BaseColors[identity[j]].g;
+				ranges2[(TotalColors*i + j)*3 + 2]=GPalette.BaseColors[identity[j]].b;
 			}
 		}
-		delete[] oldranges;
+		delete [] oldranges;
 	}
 	ActiveColors=TotalColors;
 

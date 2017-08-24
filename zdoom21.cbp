@@ -2,7 +2,7 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="zdoom" />
+		<Option title=" zdoom" />
 		<Option pch_mode="2" />
 		<Option compiler="old_gnu_gcc_compiler" />
 		<Build>
@@ -58,12 +58,15 @@
 					<Add library="fmodvc" />
 					<Add library="setupapi" />
 					<Add library="ws2_32" />
+					<Add library="opengl32" />
+					<Add library="glu32" />
+					<Add library="devil" />
 					<Add library="libflac.a" />
 					<Add library="libz.a" />
 				</Linker>
 			</Target>
 			<Target title="Debug Win32">
-				<Option output="Release/zdoomd" prefix_auto="1" extension_auto="1" />
+				<Option output="Debug/zdoomd" prefix_auto="1" extension_auto="1" />
 				<Option object_output="Debug" />
 				<Option type="0" />
 				<Option compiler="old_gnu_gcc_compiler" />
@@ -113,6 +116,9 @@
 					<Add library="fmodvc" />
 					<Add library="setupapi" />
 					<Add library="ws2_32" />
+					<Add library="opengl32" />
+					<Add library="glu32" />
+					<Add library="devil" />
 					<Add library="libflac.a" />
 					<Add library="libz.a" />
 				</Linker>
@@ -122,6 +128,7 @@
 			<Add option="-DWIN32 -D_WIN32 -D_WINDOWS -DHAVE_STRUPR -DHAVE_FILELENGTH -DI_DO_NOT_LIKE_BIG_DOWNLOADS -D__forceinline=inline -MMD -Izlib -IFLAC -Isrc -Isrc/win32 -Isrc/g_doom -Isrc/g_heretic -I src/g_hexen -Isrc/g_raven -Isrc/g_strife -Isrc/g_shared -Isrc/oplsynth -Isrc/sound" />
 			<Add directory="C:/DEV/dx80_mgw/include" />
 			<Add directory="C:/DEV/fmodapi375win/api/inc" />
+			<Add directory="C:/DEV/DevIL-Windows-SDK-1.8.0/DevIL Windows SDK/include" />
 		</Compiler>
 		<Linker>
 			<Add option="-Wl,--subsystem,windows" />
@@ -129,6 +136,7 @@
 			<Add directory="C:/DEV/fmodapi375win/api/lib" />
 			<Add directory="FLAC" />
 			<Add directory="zlib" />
+			<Add directory="C:/DEV/DevIL-Windows-SDK-1.8.0/DevIL Windows SDK/lib/x86/Release" />
 		</Linker>
 		<Unit filename="docs/BUILDLIC.TXT" />
 		<Unit filename="docs/classes.txt" />
@@ -218,6 +226,24 @@
 		<Unit filename="src/farchive.h" />
 		<Unit filename="src/files.cpp" />
 		<Unit filename="src/files.h" />
+		<Unit filename="src/fragglescript/t_cmd.cpp" />
+		<Unit filename="src/fragglescript/t_fspic.cpp" />
+		<Unit filename="src/fragglescript/t_func.cpp" />
+		<Unit filename="src/fragglescript/t_func.h" />
+		<Unit filename="src/fragglescript/t_load.cpp" />
+		<Unit filename="src/fragglescript/t_oper.cpp" />
+		<Unit filename="src/fragglescript/t_oper.h" />
+		<Unit filename="src/fragglescript/t_parse.cpp" />
+		<Unit filename="src/fragglescript/t_parse.h" />
+		<Unit filename="src/fragglescript/t_prepro.cpp" />
+		<Unit filename="src/fragglescript/t_prepro.h" />
+		<Unit filename="src/fragglescript/t_saveg.cpp" />
+		<Unit filename="src/fragglescript/t_script.cpp" />
+		<Unit filename="src/fragglescript/t_script.h" />
+		<Unit filename="src/fragglescript/t_spec.cpp" />
+		<Unit filename="src/fragglescript/t_spec.h" />
+		<Unit filename="src/fragglescript/t_vari.cpp" />
+		<Unit filename="src/fragglescript/t_vari.h" />
 		<Unit filename="src/g_doom/a_arachnotron.cpp" />
 		<Unit filename="src/g_doom/a_archvile.cpp" />
 		<Unit filename="src/g_doom/a_bossbrain.cpp" />
@@ -344,6 +370,7 @@
 		<Unit filename="src/g_shared/a_weapons.cpp" />
 		<Unit filename="src/g_shared/hudmessages.cpp" />
 		<Unit filename="src/g_shared/sbar.h" />
+		<Unit filename="src/g_shared/shared_hud.cpp" />
 		<Unit filename="src/g_shared/shared_sbar.cpp" />
 		<Unit filename="src/g_strife/a_acolyte.cpp" />
 		<Unit filename="src/g_strife/a_alienspectres.cpp" />
@@ -374,13 +401,73 @@
 		<Unit filename="src/gccinlines.h" />
 		<Unit filename="src/gi.cpp" />
 		<Unit filename="src/gi.h" />
+		<Unit filename="src/gl/a_dynlight.cpp" />
+		<Unit filename="src/gl/gfxfuncs.cpp" />
+		<Unit filename="src/gl/gl_basic.h" />
+		<Unit filename="src/gl/gl_bsp.cpp" />
+		<Unit filename="src/gl/gl_clipper.cpp" />
+		<Unit filename="src/gl/gl_clipper.h" />
+		<Unit filename="src/gl/gl_cycler.cpp" />
+		<Unit filename="src/gl/gl_cycler.h" />
+		<Unit filename="src/gl/gl_data.cpp" />
+		<Unit filename="src/gl/gl_data.h" />
+		<Unit filename="src/gl/gl_decal.cpp" />
+		<Unit filename="src/gl/gl_draw.cpp" />
+		<Unit filename="src/gl/gl_drawinfo.cpp" />
+		<Unit filename="src/gl/gl_dynlight.cpp" />
+		<Unit filename="src/gl/gl_fakeflat.cpp" />
+		<Unit filename="src/gl/gl_flats.cpp" />
+		<Unit filename="src/gl/gl_functions.h" />
+		<Unit filename="src/gl/gl_geometric.cpp" />
+		<Unit filename="src/gl/gl_geometric.h" />
+		<Unit filename="src/gl/gl_glow.cpp" />
+		<Unit filename="src/gl/gl_glow.h" />
+		<Unit filename="src/gl/gl_hirestex.cpp" />
+		<Unit filename="src/gl/gl_intern.h" />
+		<Unit filename="src/gl/gl_light.cpp" />
+		<Unit filename="src/gl/gl_lights.h" />
+		<Unit filename="src/gl/gl_menu.cpp" />
+		<Unit filename="src/gl/gl_missinglines.cpp" />
+		<Unit filename="src/gl/gl_missingtexture.cpp" />
+		<Unit filename="src/gl/gl_models.cpp" />
+		<Unit filename="src/gl/gl_models.h" />
+		<Unit filename="src/gl/gl_models_md2.cpp" />
+		<Unit filename="src/gl/gl_models_md3.cpp" />
+		<Unit filename="src/gl/gl_nodes.cpp" />
+		<Unit filename="src/gl/gl_pch.cpp" />
+		<Unit filename="src/gl/gl_pch.h" />
+		<Unit filename="src/gl/gl_portal.cpp" />
+		<Unit filename="src/gl/gl_portal.h" />
+		<Unit filename="src/gl/gl_renderstruct.h" />
+		<Unit filename="src/gl/gl_scene.cpp" />
+		<Unit filename="src/gl/gl_shader.cpp" />
+		<Unit filename="src/gl/gl_shader.h" />
+		<Unit filename="src/gl/gl_sky.cpp" />
+		<Unit filename="src/gl/gl_skydome.cpp" />
+		<Unit filename="src/gl/gl_sprite.cpp" />
+		<Unit filename="src/gl/gl_struct.h" />
+		<Unit filename="src/gl/gl_swshaders.cpp" />
+		<Unit filename="src/gl/gl_swshaders.h" />
+		<Unit filename="src/gl/gl_system.h" />
+		<Unit filename="src/gl/gl_texture.cpp" />
+		<Unit filename="src/gl/gl_texture.h" />
+		<Unit filename="src/gl/gl_values.h" />
+		<Unit filename="src/gl/gl_vertex.cpp" />
+		<Unit filename="src/gl/gl_walls.cpp" />
+		<Unit filename="src/gl/gl_walls_draw.cpp" />
+		<Unit filename="src/gl/gl_weapon.cpp" />
+		<Unit filename="src/gl/gltexture.cpp" />
+		<Unit filename="src/gl/gltexture.h" />
+		<Unit filename="src/gl/r_render/r_opengl.cpp" />
+		<Unit filename="src/gl/r_render/r_render.h" />
+		<Unit filename="src/gl/tab_anorms.h" />
+		<Unit filename="src/gl/win32gliface.cpp" />
+		<Unit filename="src/gl/win32gliface.h" />
 		<Unit filename="src/gstrings.h" />
 		<Unit filename="src/hu_scores.cpp" />
 		<Unit filename="src/hu_stuff.h" />
 		<Unit filename="src/i_cd.h" />
 		<Unit filename="src/i_movie.h" />
-		<Unit filename="src/i_net.cpp" />
-		<Unit filename="src/i_net.h" />
 		<Unit filename="src/i_video.h" />
 		<Unit filename="src/info.cpp" />
 		<Unit filename="src/info.h" />
@@ -436,6 +523,8 @@
 		<Unit filename="src/oplsynth/muslib.h" />
 		<Unit filename="src/oplsynth/opl_mus_player.cpp" />
 		<Unit filename="src/oplsynth/opl_mus_player.h" />
+		<Unit filename="src/p_3dfloors.cpp" />
+		<Unit filename="src/p_3dfloors.h" />
 		<Unit filename="src/p_acs.cpp" />
 		<Unit filename="src/p_acs.h" />
 		<Unit filename="src/p_buildmap.cpp" />
@@ -514,13 +603,14 @@
 		<Unit filename="src/s_sound.h" />
 		<Unit filename="src/sc_man.cpp" />
 		<Unit filename="src/sc_man.h" />
-		<Unit filename="src/sc_man_scanner.h" />
-		<Unit filename="src/sc_man_scanner.re" />
 		<Unit filename="src/sdl/crashcatcher.c">
 			<Option compilerVar="CC" />
 			<Option target="&lt;{~None~}&gt;" />
 		</Unit>
 		<Unit filename="src/sdl/dikeys.h">
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="src/sdl/glstubs.cpp">
 			<Option target="&lt;{~None~}&gt;" />
 		</Unit>
 		<Unit filename="src/sdl/hardware.cpp">
@@ -542,6 +632,12 @@
 			<Option target="&lt;{~None~}&gt;" />
 		</Unit>
 		<Unit filename="src/sdl/i_movie.cpp">
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="src/sdl/i_net.cpp">
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="src/sdl/i_net.h">
 			<Option target="&lt;{~None~}&gt;" />
 		</Unit>
 		<Unit filename="src/sdl/i_system.cpp">
@@ -655,6 +751,8 @@
 		<Unit filename="src/win32/i_input.h" />
 		<Unit filename="src/win32/i_main.cpp" />
 		<Unit filename="src/win32/i_movie.cpp" />
+		<Unit filename="src/i_net.cpp" />
+		<Unit filename="src/i_net.h" />
 		<Unit filename="src/win32/i_system.cpp" />
 		<Unit filename="src/win32/i_system.h" />
 		<Unit filename="src/win32/icon1.ico" />

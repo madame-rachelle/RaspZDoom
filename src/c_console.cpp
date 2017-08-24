@@ -1135,12 +1135,24 @@ void C_DrawConsole ()
 		visheight = ConBottom;
 		realheight = (visheight * conpic->GetHeight()) / SCREENHEIGHT;
 
-		screen->DrawTexture (conpic, 0, visheight - screen->GetHeight(),
-			DTA_DestWidth, screen->GetWidth(),
-			DTA_DestHeight, screen->GetHeight(),
-			DTA_Translation, conshade,
-			DTA_Masked, false,
-			TAG_DONE);
+		if (currentrenderer==1)	// take advantage of hardware rendering here!
+		{
+			bool fullconsole = visheight==screen->GetHeight();
+			screen->DrawTexture (conpic, 0, visheight - screen->GetHeight(),
+				DTA_DestWidth, screen->GetWidth(),
+				DTA_DestHeight, screen->GetHeight(),
+				DTA_Alpha, (fixed_t)(FRACUNIT*(fullconsole? 1.0f : 0.75f)),
+				DTA_FillColor, fullconsole? ColorMatcher.Pick(0x4c,0x4c,0x4c) : ColorMatcher.Pick(0x1a,0x1a,0x1a),
+				DTA_Masked, false,
+				TAG_DONE);
+		}
+		else
+			screen->DrawTexture (conpic, 0, visheight - screen->GetHeight(),
+				DTA_DestWidth, screen->GetWidth(),
+				DTA_DestHeight, screen->GetHeight(),
+				DTA_Translation, conshade,
+				DTA_Masked, false,
+				TAG_DONE);
 		if (conline && visheight < screen->GetHeight())
 		{
 			screen->Clear (0, visheight, screen->GetWidth(), visheight+1, 0);

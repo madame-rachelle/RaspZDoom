@@ -79,7 +79,17 @@
 // Data.
 #include "m_menu.h"
 
+void StartGLMenu (void);
+EXTERN_CVAR(Int, vid_renderer)
 EXTERN_CVAR(Bool, nomonsterinterpolation)
+
+static value_t Renderers[] = {
+	{ 0.0, "Software" },
+	{ 1.0, "OpenGL" },
+};
+EXTERN_CVAR(Bool, hud_althud)
+extern bool gl_disabled;
+
 //
 // defaulted values
 //
@@ -511,10 +521,13 @@ static value_t Bits[] = {
 
 static menuitem_t VideoItems[] = {
 	{ more,		"Message Options",		{NULL},					{0.0}, {0.0},	{0.0}, {(value_t *)StartMessagesMenu} },
+	{ more,     "OpenGL Options",		{NULL},					{0.0}, {0.0},	{0.0}, {(value_t *)StartGLMenu} },
 	{ more,		"Automap Options",		{NULL},					{0.0}, {0.0},	{0.0}, {(value_t *)StartAutomapMenu} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ slider,	"Screen size",			{&screenblocks},	   	{3.0}, {12.0},	{1.0}, {NULL} },
+	{ slider,	"Gamma correction",		{&Gamma},			   	{0.1}, {3.0},	{0.1}, {NULL} },
 	{ slider,	"Brightness",			{&Gamma},			   	{1.0}, {3.0},	{0.1}, {NULL} },
+	{ slider,	"Contrast",				{&vid_contrast},	   	{0.1}, {3.0},	{0.1}, {NULL} },
 	{ discrete,	"Crosshair",			{&crosshair},		   	{8.0}, {0.0},	{0.0}, {Crosshairs} },
 	{ discrete, "Vertical Sync",		{&vid_vsync},	   		{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Rendering Interpolation",	{&cl_capfps},	   	{2.0}, {0.0},	{0.0}, {NoYes} },	
@@ -527,6 +540,7 @@ static menuitem_t VideoItems[] = {
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ discrete, "Stretch short skies",	{&r_stretchsky},	   	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Stretch status bar",	{&st_scale},			{2.0}, {0.0},	{0.0}, {OnOff} },
+	{ discrete, "Alternative HUD",		{&hud_althud},			{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Screen wipe style",	{&wipetype},			{4.0}, {0.0},	{0.0}, {Wipes} },
 	{ discrete, "Fullscreen display bits", {&vid_displaybits},	{3.0}, {0.0},	{0.0}, {Bits} },
 #ifdef _WIN32
@@ -882,6 +896,7 @@ static char VMTestText[] = "T to test mode for 5 seconds";
 static menuitem_t ModesItems[] = {
 //	{ discrete, "Screen mode",			{&DummyDepthCvar},		{0.0}, {0.0},	{0.0}, {Depths} },
 	{ discrete, "Aspect ratio",			{&menu_screenratios},	{4.0}, {0.0},	{0.0}, {Ratios} },
+	{ discrete,	"Renderer",				{&vid_renderer},		{2.0}, {0.0},	{0.0}, {Renderers} }, // [ZDoomGL]
 	{ discrete, "Fullscreen",			{&fullscreen},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Enable 5:4 aspect ratio",{&vid_tft},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Widescreen aspect ratio",{&vid_nowidescreen},	{2.0}, {0.0},	{0.0}, {NoYes} },
@@ -1256,6 +1271,13 @@ void M_OptInit (void)
 		LabelColor = CR_RED;
 		ValueColor = CR_UNTRANSLATED;
 		MoreColor = CR_UNTRANSLATED;
+	}
+
+	if (gl_disabled)
+	{
+		// If the GL system is permanently disabled change the GL menu items.
+		VideoItems[1].label = "Enable OpenGL system";
+		ModesItems[1].type = nochoice;
 	}
 }
 

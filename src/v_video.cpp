@@ -59,6 +59,9 @@
 #include "templates.h"
 #include "sbar.h"
 
+extern bool gl_disabled;
+EXTERN_CVAR(Bool, gl_vid_compatibility)
+
 IMPLEMENT_ABSTRACT_CLASS (DCanvas)
 IMPLEMENT_ABSTRACT_CLASS (DFrameBuffer)
 
@@ -652,7 +655,7 @@ void DFrameBuffer::DrawRateStuff ()
 	}
 
 	// draws the palette for debugging
-	if (vid_showpalette)
+	if (vid_showpalette && currentrenderer!=1)
 	{
 		int i, j, k, l;
 
@@ -921,7 +924,11 @@ void V_Init (void)
 
 	if (bits == 0)
 	{
-		bits = vid_defbits;
+		if (currentrenderer==1)
+		{
+			bits = gl_vid_compatibility? 16:32;
+		}
+		else bits = 8;//vid_defbits;
 	}
 
 	I_ClosestResolution (&width, &height, bits);

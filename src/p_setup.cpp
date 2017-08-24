@@ -59,6 +59,10 @@
 #include "sbar.h"
 #include "p_setup.h"
 
+#include "gl/gl_functions.h"
+
+#include "fragglescript/t_script.h"
+
 extern void P_SpawnMapThing (mapthing2_t *mthing, int position);
 extern bool P_LoadBuildMap (BYTE *mapdata, size_t len, mapthing2_t **things, int *numthings);
 
@@ -401,26 +405,63 @@ static void SetTexture (short *texture, DWORD *blend, char *name8)
 	}
 }
 
-static void SetTextureNoErr (short *texture, DWORD *color, char *name8, bool *validcolor)
+static void SetTextureNoErr (short *texture, DWORD *color, char *name8, bool *validcolor, bool isfog)
 {
 	char name[9];
 	strncpy (name, name8, 8);
 	name[8] = 0;
+	*validcolor = false;
 	if ((*texture = TexMan.CheckForTexture (name, FTexture::TEX_Wall,
 		FTextureManager::TEXMAN_Overridable|FTextureManager::TEXMAN_TryAny)
 		) == -1)
 	{
 		char name2[9];
 		char *stop;
-		strncpy (name2, name, 8);
-		name2[8] = 0;
-		*color = strtoul (name2, &stop, 16);
+		strncpy (name2, name+1, 7);
+		name2[7] = 0;
+		if (*name != '#')
+		{
+			*color = strtoul (name, &stop, 16);
+			*texture = 0;
+			*validcolor = (*stop == 0) && (stop == name + 6);
+			return;
+		}
+		else	// Support for Legacy's color format!
+		{
+			int l=(int)strlen(name);
+			*texture = 0;
+			*validcolor = false;
+			if (l>=7) 
+			{
+				for(stop=name2;stop<name2+6;stop++) if (!isxdigit(*stop)) *stop='0';
+
+				int factor = l==7? 0 : clamp<int> ((name2[6]&223)-'A', 0, 25);
+
+				name2[6]=0; int blue=strtol(name2+4,NULL,16);
+				name2[4]=0; int green=strtol(name2+2,NULL,16);
+				name2[2]=0; int red=strtol(name2,NULL,16);
+
+				if (!isfog) 
+				{
+					if (factor==0) 
+					{
+						*validcolor=false;
+						return;
+					}
+					factor = factor * 255 / 25;
+				}
+				else
+				{
+					factor=0;
+				}
+
+				*color=MAKEARGB(factor, red, green, blue);
+				*texture = 0;
+				*validcolor = true;
+				return;
+			}
+		}
 		*texture = 0;
-		*validcolor = (*stop == 0) && (stop == name2 + 6);
-	}
-	else
-	{
-		*validcolor = false;
 	}
 }
 
@@ -852,6 +893,14 @@ void P_LoadSegs (MapData * map)
 			dis = 0;
 			delta_angle = (abs(ptp_angle-(segangle<<16))>>ANGLETOFINESHIFT)*360/FINEANGLES;
 
+			vnum1 = li->v1 - vertexes;
+			vnum2 = li->v2 - vertexes;
+
+			if (vnum1 >= numvertexes || vnum2 >= numvertexes)
+			{
+				throw i * 4;
+			}
+
 			if (delta_angle != 0)
 			{
 				segangle >>= (ANGLETOFINESHIFT-16);
@@ -1088,6 +1137,7 @@ void P_LoadSectors (MapData * map)
 		ss->friction = ORIG_FRICTION;
 		ss->movefactor = ORIG_FRICTION_FACTOR;
 	}
+	P_CreateExtSectors();
 	delete[] msp;
 }
 
@@ -2172,8 +2222,8 @@ void P_LoadSideDefs2 (MapData * map)
 				DWORD color, fog;
 				bool colorgood, foggood;
 
-				SetTextureNoErr (&sd->bottomtexture, &fog, msd->bottomtexture, &foggood);
-				SetTextureNoErr (&sd->toptexture, &color, msd->toptexture, &colorgood);
+				SetTextureNoErr (&sd->bottomtexture, &fog, msd->bottomtexture, &foggood, true);
+				SetTextureNoErr (&sd->toptexture, &color, msd->toptexture, &colorgood, false);
 				strncpy (name, msd->midtexture, 8);
 				sd->midtexture = TexMan.GetTexture (name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
 
@@ -2199,6 +2249,26 @@ void P_LoadSideDefs2 (MapData * map)
 					}
 				}
 			}
+			break;
+
+		case Sector_Set3DFloor:
+			if (msd->toptexture[0]=='#')
+			{
+				strncpy (name, msd->toptexture, 8);
+				sd->toptexture = -strtol(name+1, NULL, 10);	// store the alpha as a negative texture index
+															// This will be sorted out by the 3D-floor code later.
+			}
+			else
+			{
+				strncpy (name, msd->toptexture, 8);
+				sd->toptexture = TexMan.GetTexture (name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
+			}
+
+			strncpy (name, msd->midtexture, 8);
+			sd->midtexture = TexMan.GetTexture (name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
+
+			strncpy (name, msd->bottomtexture, 8);
+			sd->bottomtexture = TexMan.GetTexture (name, FTexture::TEX_Wall, FTextureManager::TEXMAN_Overridable);
 			break;
 
 		case TranslucentLine:	// killough 4/11/98: apply translucency to 2s normal texture
@@ -3215,11 +3285,13 @@ extern polyblock_t **PolyBlockMap;
 
 void P_FreeLevelData ()
 {
+	gl_CleanLevelData();
 	SN_StopAllSequences ();
 	DThinker::DestroyAllThinkers ();
 	level.total_monsters = level.total_items = level.total_secrets =
 		level.killed_monsters = level.found_items = level.found_secrets =
 		wminfo.maxfrags = 0;
+	P_CleanExtSectors();
 	FBehavior::StaticUnloadModules ();
 	if (vertexes != NULL)
 	{
@@ -3446,6 +3518,8 @@ void P_SetupLevel (char *lumpname, int position)
 
 	if (!buildmap)
 	{
+		T_LoadLevelInfo (map);    
+
 		// note: most of this ordering is important 
 		ForceNodeBuild = gennodes;
 		// [RH] Load in the BEHAVIOR lump
@@ -3508,7 +3582,7 @@ void P_SetupLevel (char *lumpname, int position)
 		ForceNodeBuild = true;
 	}
 
-	UsingGLNodes = false;
+	UsingGLNodes = true;	// There really is no point in building non-GL nodes
 	if (!ForceNodeBuild)
 	{
 		// Check for compressed nodes first, then uncompressed nodes
@@ -3571,6 +3645,12 @@ void P_SetupLevel (char *lumpname, int position)
 			unclock (times[9]);
 		}
 
+
+		// If loading the regular nodes failed try GL nodes before considering a rebuild
+		if (ForceNodeBuild)
+		{
+			 if (gl_LoadGLNodes(map)) ForceNodeBuild=false;
+		}
 	}
 	if (ForceNodeBuild)
 	{
@@ -3594,8 +3674,12 @@ void P_SetupLevel (char *lumpname, int position)
 			subsectors, numsubsectors,
 			vertexes, numvertexes);
 		endTime = I_MSTime ();
-		Printf ("BSP generation took %.3f sec (%d segs)\n", (endTime - startTime) * 0.001, numsegs);
+		DPrintf ("BSP generation took %.3f sec (%d segs)\n", (endTime - startTime) * 0.001, numsegs);
 	}
+
+	// If the nodes being loaded are not GL nodes the GL renderer needs to create a second set of nodes.
+	// The originals have to be kept for use by R_PointInSubsector.
+	gl_CheckNodes(map);
 
 	clock (times[10]);
 	P_LoadBlockMap (map);
@@ -3651,6 +3735,18 @@ void P_SetupLevel (char *lumpname, int position)
 	}
 	delete map;
 
+	// Reordered the spawning of specials due to the needs of the 
+	// OpenGL renderer!
+
+	// set up world state
+	P_SpawnSpecials ();
+
+	// Spawn extended specials
+	P_SpawnSpecials2();
+
+	// This must be done BEFORE the PolyObj Spawn!!!
+	gl_PreprocessLevel();
+
 	clock (times[16]);
 	PO_Init ();	// Initialize the polyobjs
 	unclock (times[16]);
@@ -3668,8 +3764,7 @@ void P_SetupLevel (char *lumpname, int position)
 		}
 	}
 
-	// set up world state
-	P_SpawnSpecials ();
+	T_PreprocessScripts();        // preprocess FraggleScript scripts
 
 	// build subsector connect matrix
 	//	UNUSED P_ConnectSubsectors ();

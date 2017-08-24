@@ -75,6 +75,8 @@
 
 #include "gameconfigfile.h"
 
+#include "gl/gl_functions.h"
+
 FGameConfigFile *GameConfig;
 
 CVAR(Bool, screenshot_quiet, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG);
@@ -541,7 +543,7 @@ void M_ScreenShot (char *filename)
 {
 	FILE *file;
 	FString autoname;
-	bool writepcx = (stricmp (screenshot_type, "pcx") == 0);	// PNG is the default
+	bool writepcx = (currentrenderer==0 && stricmp (screenshot_type, "pcx") == 0);	// PNG is the default
 
 	// find a file name to save it to
 	if (filename == NULL)
@@ -582,30 +584,37 @@ void M_ScreenShot (char *filename)
 	CreatePath(screenshot_dir);
 
 	// save the screenshot
-	screen->Lock (true);
-	//D_Display (true);
-
-	PalEntry palette[256];
-	screen->GetFlashedPalette (palette);
-
-	file = fopen (autoname.GetChars(), "wb");
-	if (file == NULL)
+	if (currentrenderer == 1)
 	{
-		Printf ("Could not open %s\n", autoname.GetChars());
-		screen->Unlock ();
-		return;
-	}
-
-	if (writepcx)
-	{
-		WritePCXfile (file, screen, palette);
+		gl_ScreenShot(autoname.GetChars());
 	}
 	else
 	{
-		WritePNGfile (file, screen, palette);
+		screen->Lock (true);
+		//D_Display (true);
+
+		PalEntry palette[256];
+		screen->GetFlashedPalette (palette);
+
+		file = fopen (autoname.GetChars(), "wb");
+		if (file == NULL)
+		{
+			Printf ("Could not open %s\n", autoname.GetChars());
+			screen->Unlock ();
+			return;
+		}
+
+		if (writepcx)
+		{
+			WritePCXfile (file, screen, palette);
+		}
+		else
+		{
+			WritePNGfile (file, screen, palette);
+		}
+		fclose (file);
+		screen->Unlock ();
 	}
-	fclose (file);
-	screen->Unlock ();
 
 	if (!screenshot_quiet)
 	{

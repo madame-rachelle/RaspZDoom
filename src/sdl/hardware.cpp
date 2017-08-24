@@ -49,6 +49,62 @@ EXTERN_CVAR (Float, vid_winscale)
 
 IVideo *Video;
 
+int currentrenderer=0;
+bool changerenderer;
+bool gl_disabled;
+EXTERN_CVAR(Bool, gl_nogl)
+
+// [ZDoomGL]
+CUSTOM_CVAR (Int, vid_renderer, 1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)// | CVAR_NOINITCALL)
+{
+	// 0: Software renderer
+	// 1: OpenGL renderer
+	if (gl_disabled)
+	{
+		return;
+	}
+
+	if (self != currentrenderer)
+	{
+		switch (self)
+		{
+		case 0:
+			Printf("Switching to software renderer...\n");
+			break;
+		case 1:
+			Printf("Switching to OpenGL renderer...\n");
+			break;
+		default:
+			Printf("Unknown renderer (%d).  Falling back to software renderer...\n", (int) vid_renderer);
+			self = 0; // make sure to actually switch to the software renderer
+			break;
+		}
+		changerenderer = true;
+	}
+}
+
+CCMD (vid_restart)
+{
+	if (!gl_disabled) changerenderer = true;
+}
+
+void I_CheckRestartRenderer()
+{
+	if (gl_disabled) return;
+
+	/*while (changerenderer)
+	{
+		currentrenderer = vid_renderer;
+		I_RestartRenderer();
+		if (currentrenderer == vid_renderer) changerenderer = false;
+	}*/
+}
+
+void I_RestartRenderer()
+{
+	// FIXME:write me
+}
+
 void I_ShutdownHardware ()
 {
 	if (screen)

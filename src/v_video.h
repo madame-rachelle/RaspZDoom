@@ -235,6 +235,8 @@ public:
 	// gamma changing. (Always true for now, since palettes can always be
 	// gamma adjusted.)
 	virtual bool SetGamma (float gamma) = 0;
+	virtual bool SetBrightness (float bright) = 0;
+	virtual bool SetContrast (float contrast) = 0;
 
 	// Sets a color flash. RGB is the color, and amount is 0-256, with 256
 	// being all flash and 0 being no flash. Returns false if the hardware
@@ -274,6 +276,8 @@ extern DFrameBuffer *screen;
 #define SCREENPITCH (screen->GetPitch ())
 
 EXTERN_CVAR (Float, Gamma)
+EXTERN_CVAR (Float, vid_brightness)
+EXTERN_CVAR (Float, vid_contrast)
 
 // Translucency tables
 extern "C" DWORD Col2RGB8[65][256];
@@ -305,5 +309,7 @@ extern "C" void ASM_PatchPitch (void);
 
 int CheckRatio (int width, int height);
 extern const int BaseRatioSizes[5][4];
+
+extern int currentrenderer;
 
 #endif // __V_VIDEO_H__

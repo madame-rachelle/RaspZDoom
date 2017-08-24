@@ -51,6 +51,8 @@
 #include "am_map.h"
 #include "a_artifacts.h"
 
+#include "gl/gl_functions.h"
+
 static int Background, YourColor, WallColor, TSWallColor,
 		   FDWallColor, CDWallColor, ThingColor,
 		   ThingColor_Item, ThingColor_Monster, ThingColor_Friend,
@@ -1268,6 +1270,12 @@ void AM_drawFline (fline_t *fl, int color)
 	fl->a.y += f_y;
 	fl->b.y += f_y;
 
+	if (currentrenderer == 1)
+	{
+		gl_DrawLine(fl->a.x, fl->a.y, fl->b.x, fl->b.y, color);
+		return;
+	}
+
 	switch (color)
 	{
 		case WALLCOLORS:
@@ -1883,7 +1891,8 @@ void AM_drawWalls (bool allmap)
 
 						if (color > 0)
 						{
-							color = ColorMatcher.Pick(RPART(color), GPART(color), BPART(color));
+							if (currentrenderer == 1) color |= 0xff000000;
+							else color = ColorMatcher.Pick(RPART(color), GPART(color), BPART(color));
 						}
 						else color = LockedColor;
 
@@ -2146,7 +2155,15 @@ void AM_drawMarks ()
 
 void AM_drawCrosshair (int color)
 {
-	fb[f_p*((f_h+1)/2)+(f_w/2)] = (byte)color; // single point for now
+	if (currentrenderer==0) 
+	{
+		fb[f_p*((f_h+1)/2)+(f_w/2)] = (byte)color; // single point for now
+	}
+	else
+	{
+		gl_DrawLine((f_w/2)-1, (f_h/2), (f_w/2)+1, (f_h/2), color);
+		gl_DrawLine((f_w/2), (f_h/2)-1, (f_w/2), (f_h/2)+1, color);
+	}
 }
 
 void AM_Drawer ()

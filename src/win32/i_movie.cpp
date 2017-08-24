@@ -48,6 +48,11 @@ CUSTOM_CVAR (Float, snd_movievolume, 1.f, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 		self = 1.f;
 }
 
+// The movie player has serious issues with portability and doesn't
+// work without an initialized software renderer.
+// Unless that is fixed in ZDoom I won't make it operable!
+#define I_DO_NOT_LIKE_BIG_DOWNLOADS
+
 #ifdef I_DO_NOT_LIKE_BIG_DOWNLOADS
 
 #include "i_movie.h"
@@ -61,15 +66,18 @@ int I_PlayMovie (const char *movie)
 
 #define WIN32_LEAN_AND_MEAN
 
-#include <windows.h>
+//#include <windows.h>
 #include <dshow.h>
 
 #include "i_movie.h"
+#define control _control_
+
 #include "i_sound.h"
 #include "v_video.h"
 #include "c_console.h"
 #include "win32iface.h"
 #include "sbar.h"
+
 
 EXTERN_CVAR (String, language)
 
@@ -293,9 +301,11 @@ int I_PlayMovie (const char *name)
 		{
 			// Try to avoid nasty palette flashes by clearing the screen to black.
 			// Does not always work. :-(
+			/*
 			static_cast<Win32Video *> (Video)->BlankForGDI ();
 			static_cast<Win32Video *> (Video)->GoFullscreen (false);
 			static_cast<BaseWinFB *> (screen)->ReleaseResources ();
+			*/
 			if (FAILED (drainhr) || FAILED(vidwin->put_FullScreenMode (OATRUE)))
 			{
 				SizeWindowForVideo ();

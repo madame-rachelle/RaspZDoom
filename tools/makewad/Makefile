@@ -2,13 +2,13 @@ ifeq (Windows_NT,$(OS))
   EXE = makewad.exe
   CCDV = @../../ccdv
   CFLAGS = -Os -Wall -fomit-frame-pointer
-  LDFLAGS = -s -L../../zlib/ -lz
+  LDFLAGS = -L../../zlib/ -lz
   ZLIB = ../../zlib/libz.a
 else
   EXE = makewad
-  CCDV = @../../ccdv
+  CCDV = 
   CFLAGS = -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -Os -Wall -fomit-frame-pointer
-  LDFLAGS = -s -lz
+  LDFLAGS = -lz
   ZLIB =
 endif
 

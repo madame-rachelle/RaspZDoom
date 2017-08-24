@@ -61,6 +61,9 @@
 #include "cmdlib.h"
 #include "templates.h"
 
+#include "gl/gl_texture.h"
+#include "gl/gl_functions.h"
+
 extern float LastFOV;
 
 static void R_InitPatches ();
@@ -228,9 +231,10 @@ int FTextureManager::AddTexture (FTexture *texture)
 	return trans;
 }
 
-// Examines the lump contents to decide what type of texture to create,
-// creates the texture, and adds it to the manager.
-int FTextureManager::CreateTexture (int lumpnum, int usetype)
+
+// Examines the lump contents to decide what type of texture to create
+// and creates the texture.
+FTexture * FTextureManager::DoCreateTexture (int lumpnum, int usetype)
 {
 	FTexture *out = NULL;
     enum { t_patch, t_raw, t_imgz, t_png } type = t_patch;
@@ -244,7 +248,7 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 	// 13 is the minimum length of anything valid (i.e a 1x1 pixel Doom patch.)
 	if (lumpnum < 0 || Wads.LumpLength(lumpnum)<13)
 	{
-		return -1;
+		return NULL;
 	}
 	else
 	{
@@ -264,11 +268,11 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 			// first 4 bytes match, but later bytes don't, we assume it's
 			// a corrupt PNG.)
 			data >> first4bytes.dw;
-			if (first4bytes.dw != MAKE_ID(13,10,26,10))		return -1;
+			if (first4bytes.dw != MAKE_ID(13,10,26,10))		return NULL;
 			data >> first4bytes.dw;
-			if (first4bytes.dw != MAKE_ID(0,0,0,13))		return -1;
+			if (first4bytes.dw != MAKE_ID(0,0,0,13))		return NULL;
 			data >> first4bytes.dw;
-			if (first4bytes.dw != MAKE_ID('I','H','D','R'))	return -1;
+			if (first4bytes.dw != MAKE_ID('I','H','D','R'))	return NULL;
 
 			// The PNG looks valid so far. Check the IHDR to make sure it's a
 			// type of PNG we support.
@@ -277,11 +281,13 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 
 			if (compression != 0 || filter != 0 || interlace != 0)
 			{
-				return -1;
+				goto check_generic;	// give DevIL a try on this texture!
+				//return -1;
 			}
 			if (colortype != 0 && colortype != 3)
 			{
-				return -1;
+				goto check_generic;	// give DevIL a try on this texture!
+				//return -1;
 			}
 
 			// Just for completeness, make sure the PNG has something more than an
@@ -292,7 +298,7 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 				data >> first4bytes.dw;
 				if (first4bytes.dw == MAKE_ID('I','E','N','D'))
 				{
-					return -1;
+					return NULL;
 				}
 			}
 
@@ -300,73 +306,82 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 			out = new FPNGTexture (lumpnum, BigLong((int)width), BigLong((int)height),
 				bitdepth, colortype, interlace);
 		}
-		else if (usetype == FTexture::TEX_Flat)
-		{
-			// allow PNGs as flats but not Doom patches.
-			return -1;
-		}
-		else if ((gameinfo.flags & GI_PAGESARERAW) && data.GetLength() == 64000)
-		{
-			// This is probably a raw page graphic, but do some checking to be sure
-			patch_t *foo;
-			int height;
-			int width;
-
-			foo = (patch_t *)M_Malloc (data.GetLength());
-			data.Seek (-4, SEEK_CUR);
-			data.Read (foo, data.GetLength());
-
-			height = LittleShort(foo->height);
-			width = LittleShort(foo->width);
-
-			if (height > 0 && height < 510 && width > 0 && width < 15997)
+		else 
+		{	
+			check_generic:
+			// give DevIL a try to load this lump
+			if (out = FHiresTexture::TryLoad(lumpnum))
 			{
-				// The dimensions seem like they might be valid for a patch, so
-				// check the column directory for extra security. At least one
-				// column must begin exactly at the end of the column directory,
-				// and none of them must point past the end of the patch.
-				bool gapAtStart = true;
-				int x;
+				// Success! Setting type to t_png means to skip all further checks and add the texture as is.
+				type = t_png;
+			}
+			else if ((gameinfo.flags & GI_PAGESARERAW) && data.GetLength() == 64000)
+			{
+				// This is probably a raw page graphic, but do some checking to be sure
+				patch_t *foo;
+				int height;
+				int width;
 
-				for (x = 0; x < width; ++x)
+				foo = (patch_t *)M_Malloc (data.GetLength());
+				data.Seek (-4, SEEK_CUR);
+				data.Read (foo, data.GetLength());
+
+				height = LittleShort(foo->height);
+				width = LittleShort(foo->width);
+
+				if (height > 0 && height < 510 && width > 0 && width < 15997)
 				{
-					DWORD ofs = LittleLong(foo->columnofs[x]);
-					if (ofs == (DWORD)width * 4 + 8)
+					// The dimensions seem like they might be valid for a patch, so
+					// check the column directory for extra security. At least one
+					// column must begin exactly at the end of the column directory,
+					// and none of them must point past the end of the patch.
+					bool gapAtStart = true;
+					int x;
+
+					for (x = 0; x < width; ++x)
 					{
-						gapAtStart = false;
-					}
-					else if (ofs >= 64000-1)	// Need one byte for an empty column
-					{
-						break;
-					}
-					else
-					{
-						// Ensure this column does not extend beyond the end of the patch
-						const BYTE *foo2 = (const BYTE *)foo;
-						while (ofs < 64000)
+						DWORD ofs = LittleLong(foo->columnofs[x]);
+						if (ofs == (DWORD)width * 4 + 8)
 						{
-							if (foo2[ofs] == 255)
-							{
-								break;
-							}
-							ofs += foo2[ofs+1] + 4;
+							gapAtStart = false;
 						}
-						if (ofs >= 64000)
+						else if (ofs >= 64000-1)	// Need one byte for an empty column
 						{
 							break;
 						}
+						else
+						{
+							// Ensure this column does not extend beyond the end of the patch
+							const BYTE *foo2 = (const BYTE *)foo;
+							while (ofs < 64000)
+							{
+								if (foo2[ofs] == 255)
+								{
+									break;
+								}
+								ofs += foo2[ofs+1] + 4;
+							}
+							if (ofs >= 64000)
+							{
+								break;
+							}
+						}
+					}
+					if (gapAtStart || (x != width))
+					{
+						type = t_raw;
 					}
 				}
-				if (gapAtStart || (x != width))
+				else
 				{
 					type = t_raw;
 				}
+				free (foo);
 			}
-			else
+			else if (usetype==FTexture::TEX_Flat)
 			{
-				type = t_raw;
+				return NULL;
 			}
-			free (foo);
 		}
 	}
 	switch (type)
@@ -386,14 +401,23 @@ int FTextureManager::CreateTexture (int lumpnum, int usetype)
 	case t_imgz:	out = new FIMGZTexture (lumpnum); break;
 	case t_png:		break;
 	}
+
 	if (out != NULL)
 	{
 		if (usetype != FTexture::TEX_Any)
 		{
 			out->UseType = usetype;
 		}
-		return AddTexture (out);
 	}
+	return out;
+}
+
+// Calls DoCreateTexture and adds the texture to the manager.
+int FTextureManager::CreateTexture (int lumpnum, int usetype)
+{
+	FTexture *out = DoCreateTexture(lumpnum, usetype);
+
+	if (out != NULL) return AddTexture (out);
 	return -1;
 }
 
@@ -588,6 +612,59 @@ void FTextureManager::AddExtraTextures ()
 	DefaultTexture = CheckForTexture ("-NOFLAT-", FTexture::TEX_Override, 0);
 }
 
+void FTextureManager::AddHiresTextures ()
+{
+	int firsttx = Wads.CheckNumForName ("HI_START");
+	int lasttx = Wads.CheckNumForName ("HI_END");
+	char name[9];
+
+	if (firsttx == -1 || lasttx == -1)
+	{
+		return;
+	}
+
+	name[8] = 0;
+
+	for (firsttx += 1; firsttx < lasttx; ++firsttx)
+	{
+		Wads.GetLumpName (name, firsttx);
+
+		if (Wads.CheckNumForName (name, ns_hires) == firsttx)
+		{
+			FTexture * newtex = DoCreateTexture (firsttx);
+			int oldtexno = CheckForTexture(name, FTexture::TEX_Wall, TEXMAN_Overridable|TEXMAN_TryAny);
+
+			if (oldtexno<0)
+			{
+				// A texture with this name does not yet exist
+				newtex->UseType=FTexture::TEX_Override;
+				AddTexture(newtex);
+			}
+			else
+			{
+				FTexture * oldtex = Textures[oldtexno].Texture;
+				if (newtex->gltex && newtex->gltex->HiresLump)
+				{
+					// If this is a generic texture jusr replace the HiresLump in the original
+					FGLTexture * oldgltex=FGLTexture::ValidateTexture(oldtex);
+					oldgltex->HiresLump = newtex->gltex->HiresLump;
+					delete newtex;
+				}
+				else
+				{
+					// Replace the entire texture and adjust the scaling and offset factors.
+					newtex->ScaleX = 8 * newtex->GetWidth() / oldtex->GetWidth();
+					newtex->ScaleY = 8 * newtex->GetHeight() / oldtex->GetHeight();
+					newtex->LeftOffset = Scale(oldtex->LeftOffset, newtex->ScaleX, 8);
+					newtex->TopOffset = Scale(oldtex->TopOffset, newtex->ScaleY, 8);
+					ReplaceTexture(oldtexno, newtex, true);
+				}
+			}
+		}
+	}
+}
+
+
 void FTextureManager::AddPatches (int lumpnum)
 {
 	FWadLump *file = Wads.ReopenLumpNum (lumpnum);
@@ -769,14 +846,16 @@ FTexture::FTexture ()
 : LeftOffset(0), TopOffset(0),
   WidthBits(0), HeightBits(0), ScaleX(8), ScaleY(8),
   UseType(TEX_Any), bNoDecals(false), bNoRemap0(false), bWorldPanning(false),
-  bMasked(true), bAlphaTexture(false), bHasCanvas(false), bWarped(0),
+  bMasked(true), bAlphaTexture(false), bHasCanvas(false), bWarped(0), bAlphaChannel(0),
   Rotations(0xFFFF), Width(0xFFFF), Height(0), WidthMask(0)
 {
+	gltex=NULL;
 	*Name=0;
 }
 
 FTexture::~FTexture ()
 {
+	if (gltex) delete gltex;
 }
 
 bool FTexture::CheckModified ()
@@ -1864,6 +1943,10 @@ FPNGTexture::FPNGTexture (int lumpnum, int width, int height,
 				bMasked = true;
 				PaletteMap[i] = 0;
 			}
+			else if (trans[i] < 255)
+			{
+				bAlphaChannel = true;
+			}
 		}
 	}
 	else if (colortype == 0)
@@ -2680,16 +2763,23 @@ void FCanvasTexture::RenderView (AActor *viewpoint, int fov)
 		MakeTexture ();
 	}
 	float savedfov = LastFOV;
-	R_SetFOV (fov);
-	R_RenderViewToCanvas (viewpoint, Canvas, 0, 0, Width, Height, bFirstUpdate);
-	R_SetFOV (savedfov);
-	if (Pixels == Canvas->GetBuffer())
+	if (currentrenderer==0)
 	{
-		FlipSquareBlock (Pixels, Width, Height);
+		R_SetFOV (fov);
+		R_RenderViewToCanvas (viewpoint, Canvas, 0, 0, Width, Height, bFirstUpdate);
+		R_SetFOV (savedfov);
+		if (Pixels == Canvas->GetBuffer())
+		{
+			FlipSquareBlock (Pixels, Width, Height);
+		}
+		else
+		{
+			FlipNonSquareBlock (Pixels, Canvas->GetBuffer(), Width, Height, Canvas->GetPitch());
+		}
 	}
 	else
 	{
-		FlipNonSquareBlock (Pixels, Canvas->GetBuffer(), Width, Height, Canvas->GetPitch());
+		gl_RenderTextureView(this, viewpoint, fov);
 	}
 	bNeedsUpdate = false;
 	bDidUpdate = true;
@@ -3034,6 +3124,8 @@ void R_InitData ()
 	TexMan.AddFlats ();
 	R_InitBuildTiles ();
 	TexMan.AddExtraTextures ();
+	TexMan.AddHiresTextures ();
+	gl_ParseDefs();
 
 	R_InitColormaps ();
 	C_InitConsole (SCREENWIDTH, SCREENHEIGHT, true);
@@ -3148,11 +3240,24 @@ void R_PrecacheLevel (void)
 		{
 			if (hitlist[i])
 			{
-				tex->GetPixels ();
+				if (currentrenderer != 1) tex->GetPixels ();
+				else if (gl_precache)
+				{
+					FGLTexture * gltex = FGLTexture::ValidateTexture(tex);
+					if (gltex) 
+					{
+						if (tex->UseType==FTexture::TEX_Sprite) gltex->BindPatch(CM_DEFAULT);
+						else gltex->Bind (CM_DEFAULT);
+					}
+				}
 			}
 			else
 			{
 				tex->Unload ();
+				if (tex->gltex)
+				{
+					tex->gltex->Clean (true);
+				}
 			}
 		}
 	}

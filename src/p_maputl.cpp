@@ -353,6 +353,7 @@ void AActor::LinkToWorld (sector_t *sec)
 		return;
 	}
 	Sector = sec;
+	subsector = R_PointInSubsector2(x, y);	// this is from the rendering nodes, not the gameplay nodes!
 
 	if ( !(flags & MF_NOSECTOR) )
 	{
@@ -488,7 +489,7 @@ static int R_PointOnSideSlow (fixed_t x, fixed_t y, node_t *node)
 
 sector_t *AActor::LinkToWorldForMapThing ()
 {
-	node_t *node = nodes + numnodes - 1;
+	node_t *node = gamenodes + numgamenodes - 1;
 
 	do
 	{

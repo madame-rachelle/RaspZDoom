@@ -46,6 +46,9 @@
 #include "i_video.h"
 #include "templates.h"
 
+#include "gl/gl_functions.h"
+
+
 // [RH] Stretch values to make a 320x200 image best fit the screen
 // without using fractional steppings
 int CleanXfac, CleanYfac;
@@ -397,6 +400,25 @@ void STACK_ARGS DCanvas::DrawTexture (FTexture *img, int x0, int y0, DWORD tags_
 
 	x0 -= Scale (left, destwidth, img->GetWidth());
 	y0 -= Scale (top, destheight, img->GetHeight());
+
+	if (currentrenderer == 1)
+	{
+		FTexInfo texInfo;
+		texInfo.tex = img;
+		texInfo.font = Font;
+		texInfo.x = x0 / (float)FRACUNIT; texInfo.y = y0 / (float)FRACUNIT;
+		texInfo.width = destwidth / (float)FRACUNIT; texInfo.height = destheight / (float)FRACUNIT;
+		texInfo.translation = translation;
+		texInfo.loadAlpha = alphaChannel == 1;
+		texInfo.clipLeft = lclip; texInfo.clipRight = rclip;
+		texInfo.clipTop = uclip; texInfo.clipBottom = dclip;
+		texInfo.fillColor = fillcolor; texInfo.alpha = alpha / (float)FRACUNIT;
+		texInfo.windowLeft = windowleft; texInfo.windowRight = windowright;
+		texInfo.flipX = flipX == 1;
+		texInfo.masked = spanptr != NULL;
+		gl_DrawTexture(&texInfo);
+		return;
+	}
 
 	if (mode != DontDraw)
 	{

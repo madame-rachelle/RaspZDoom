@@ -33,8 +33,10 @@
 // to handle sound origins in sectors.
 // SECTORS do store MObjs anyway.
 #include "actor.h"
+struct FLightNode;
 
 #include "dthinker.h"
+#include "vectors.h"
 
 
 
@@ -211,6 +213,9 @@ inline FArchive &operator<< (FArchive &arc, secplane_t &plane)
 	return arc;
 }
 
+#include "p_3dfloors.h"
+struct subsector_s;
+
 // Ceiling/floor flags
 enum
 {
@@ -367,6 +372,16 @@ struct sector_t
 
 	vertex_t *Triangle[3];	// Three points that can define a plane
 	short						oldspecial;			//jff 2/16/98 remembers if sector WAS secret (automap)
+
+	extsector_t	*				e;
+	float						ceiling_reflect, floor_reflect;
+	int							sectornum;			// for comparing sector copies
+
+	bool						transdoor;			// For transparent door hacks
+	fixed_t						transdoorheight;	// for transparent door hacks
+	int							subsectorcount;		// list of subsectors
+	subsector_s **				subsectors;
+
 };
 
 struct ReverbContainer;
@@ -404,6 +419,9 @@ struct side_s
 	BYTE		Flags;
 
 	int GetLightLevel (bool foggy, int baselight) const;
+
+	//For GL
+	FLightNode * lighthead[2];				// all blended lights that may affect this wall
 };
 typedef struct side_s side_t;
 
@@ -481,6 +499,17 @@ typedef struct subsector_s
 	FPolyObj	*poly;
 	int			validcount;
 	fixed_t		CenterX, CenterY;
+
+	// subsector related GL data
+	FLightNode *	lighthead[2];	// Light nodes (blended and additive)
+	sector_t *		render_sector;	// The sector this belongs to for rendering
+	int				firstvertex;	// index into the gl_vertices array
+	int				numvertices;
+	int				validcount2;	// Second v
+	fixed_t			bbox[4];		// Bounding box
+	bool			degenerate;
+	char			hacked;			// 1: is part of a render hack
+									// 2: has one-sided walls
 } subsector_t;
 
 //
@@ -586,6 +615,9 @@ struct patch_t
 	// the [0] is &columnofs[width] 
 };
 
+
+class FGLTexture;
+
 // Base texture class
 class FTexture
 {
@@ -596,6 +628,7 @@ public:
 	SWORD LeftOffset, TopOffset;
 
 	BYTE WidthBits, HeightBits;
+	//Vector2 Scale;
 	BYTE ScaleX, ScaleY;
 
 	char Name[9];
@@ -608,6 +641,7 @@ public:
 	BYTE bAlphaTexture:1;	// Texture is an alpha channel without color information
 	BYTE bHasCanvas:1;		// Texture is based off FCanvasTexture
 	BYTE bWarped:2;			// This is a warped texture. Used to avoid multiple warps on one texture
+	BYTE bAlphaChannel:1;	// Texture has an alpha channel with translucency values
 
 	WORD Rotations;
 
@@ -638,6 +672,11 @@ public:
 
 	// Returns the whole texture, stored in column-major order
 	virtual const BYTE *GetPixels () = 0;
+	
+	// [OpenGL]
+	virtual void CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_height, int x, int y, intptr_t cm, int translation);
+	FGLTexture * gltex;
+						
 
 	virtual void Unload () = 0;
 
@@ -730,7 +769,9 @@ public:
 	void AddPatches (int lumpnum);
 	void AddTiles (void *tileFile);
 	void AddExtraTextures ();	// Adds patches in the ns_newtextures namespace
+	void AddHiresTextures ();
 
+	FTexture * DoCreateTexture (int lumpnum, int usetype=FTexture::TEX_Any);	// Also calls AddTexture
 	int CreateTexture (int lumpnum, int usetype=FTexture::TEX_Any);	// Also calls AddTexture
 	int AddTexture (FTexture *texture);
 	int AddPatch (const char *patchname, int namespc=0);

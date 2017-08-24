@@ -1600,6 +1600,8 @@ void FBaseStatusBar::GetCurrentAmmo (AAmmo *&ammo1, AAmmo *&ammo2, int &ammocoun
 
 CCMD (showpop)
 {
+void HUD_ShowPop(int pop);
+
 	if (argv.argc() != 2)
 	{
 		Printf ("Usage: showpop <popnumber>\n");
@@ -1612,5 +1614,6 @@ CCMD (showpop)
 			popnum = 0;
 		}
 		StatusBar->ShowPop (popnum);
+		HUD_ShowPop(popnum);	// for the alt hud
 	}
 }

@@ -65,6 +65,8 @@
 #include "gi.h"
 #include "p_tick.h"
 
+#include "gl/gl_functions.h"
+
 // MACROS ------------------------------------------------------------------
 
 #define SKULLXOFF			-32
@@ -1050,8 +1052,21 @@ static void M_DrawSaveLoadCommon ()
 	M_DrawFrame (savepicLeft, savepicTop, savepicWidth, savepicHeight);
 	if (SavePic != NULL)
 	{
-		SavePic->Blit (0, 0, SavePic->GetWidth(), SavePic->GetHeight(),
-			screen, savepicLeft, savepicTop, savepicWidth, savepicHeight);
+		if (currentrenderer==0)
+		{
+			// The most important question here is:
+			// Why the fuck is it necessary to do this in a way that
+			// requires making this distinction here and not by virtually
+			// calling an appropriate Blit method for the destination?
+			// 
+			// Making Blit part of the source buffer is just stupid!
+			SavePic->Blit (0, 0, SavePic->GetWidth(), SavePic->GetHeight(),
+				screen, savepicLeft, savepicTop, savepicWidth, savepicHeight);
+		}
+		else
+		{
+			gl_DrawSavePic(SavePic, SelSaveGame->Filename.GetChars(), savepicLeft, savepicTop, savepicWidth, savepicHeight);
+		}
 	}
 	else
 	{
@@ -2404,6 +2419,24 @@ static void M_DrawPlayerBackdrop (int x, int y)
 	const fixed_t fracystep = FRACUNIT*2 / CleanYfac;
 	fixed_t fracx, fracy = 0;
 
+	if (currentrenderer == 1)
+	{
+		// Why? :(
+		int srcW, srcH;
+		srcW = src->GetWidth();
+		srcH = src->GetHeight();
+		byte *img = new byte[srcW * srcH];
+		byte *srcImg = src->GetBuffer();
+		for (y = 0; y < srcH; y++)
+		{
+			for (x = 0; x < srcW; x++)
+			{
+				img[x + (y * srcW)] = FireRemap[srcImg[x + (y * srcW)]];
+			}
+		}
+		gl_DrawBuffer(img, srcW, srcH, destx, desty, destwidth, destheight, NULL);
+		return;
+	}
 
 	if (fracxstep == FRACUNIT)
 	{

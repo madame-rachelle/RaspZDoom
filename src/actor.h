@@ -41,6 +41,7 @@
 
 #include "doomdef.h"
 
+struct subsector_s;
 //
 // NOTES: AActor
 //
@@ -744,12 +745,19 @@ public:
 	int GetTics(FState * newstate);
 	bool SetState (FState *newstate);
 	bool SetStateNF (FState *newstate);
-	bool UpdateWaterLevel (fixed_t oldz);
+	bool UpdateWaterLevel (fixed_t oldz, bool splash=true);
 
 	static FState States[];
 
 	enum { S_NULL = 2, S_GENERICFREEZEDEATH = 3 };
+
+	byte				boomwaterlevel;	// splash information for non-swimmable water sectors
+	TArray<AActor*>		dynamiclights;
+	void *				lightassociations;
+	bool				hasmodel;
+	subsector_s *		subsector;
 };
+
 
 class FActorIterator
 {

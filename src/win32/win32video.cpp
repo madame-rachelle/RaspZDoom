@@ -56,6 +56,8 @@
 
 #include "win32iface.h"
 
+void gl_SetVSync(bool self);
+
 // MACROS ------------------------------------------------------------------
 
 #define true TRUE
@@ -124,6 +126,8 @@ CUSTOM_CVAR (Bool, vid_vsync, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
 	LOG1 ("vid_vsync set to %d\n", *self);
 	FlipFlags = self ? DDFLIP_WAIT : DDFLIP_WAIT|DDFLIP_NOVSYNC;
+	// wouldn't it be better to make this a virtual method of the video class?
+	gl_SetVSync(self);
 }
 CUSTOM_CVAR (Float, rgamma, 1.f, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
@@ -1685,6 +1689,24 @@ bool DDrawFB::SetGamma (float gamma)
 	LOG1 ("SetGamma %g\n", gamma);
 	Gamma = gamma;
 	NeedGammaUpdate = true;
+	return true;
+}
+
+bool DDrawFB::SetBrightness (float bright)
+{
+	/*
+	Brightness = bright;
+	NeedGammaUpdate = true;
+	*/
+	return true;
+}
+
+bool DDrawFB::SetContrast (float contrast)
+{
+	/*
+	Contrast = contrast;
+	NeedGammaUpdate = true;
+	*/
 	return true;
 }
 

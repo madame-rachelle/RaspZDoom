@@ -281,7 +281,7 @@ bool	P_TestMobjZ (AActor *mobj);
 BOOL	P_CheckPosition (AActor *thing, fixed_t x, fixed_t y);
 AActor	*P_CheckOnmobj (AActor *thing);
 void	P_FakeZMovement (AActor *mo);
-BOOL	P_TryMove (AActor* thing, fixed_t x, fixed_t y, BOOL dropoff, bool onfloor = false);
+BOOL	P_TryMove (AActor* thing, fixed_t x, fixed_t y, BOOL dropoff, const secplane_t * onfloor = NULL);
 BOOL	P_TeleportMove (AActor* thing, fixed_t x, fixed_t y, fixed_t z, BOOL telefrag);	// [RH] Added z and telefrag parameters
 void	P_PlayerStartStomp (AActor *actor);		// [RH] Stomp on things for a newly spawned player
 void	P_SlideMove (AActor* mo, fixed_t tryx, fixed_t tryy, int numsteps);
@@ -306,7 +306,7 @@ void	P_TraceBleed (int damage, AActor *target, AActor *missile);		// missile ver
 void	P_TraceBleed (int damage, AActor *target);		// random direction version
 void	P_RailAttack (AActor *source, int damage, int offset, int color1 = 0, int color2 = 0, float maxdiff = 0, bool silent = false);	// [RH] Shoot a railgun
 bool	P_HitFloor (AActor *thing);
-bool	P_HitWater (AActor *thing, sector_t *sec);
+bool	P_HitWater (AActor *thing, sector_t *sec, fixed_t splashz=FIXED_MIN);
 bool	P_CheckMissileSpawn (AActor *missile);
 
 // [RH] Position the chasecam
@@ -325,7 +325,7 @@ int		P_GetFriction(const AActor *mo, int *frictionfactor);
 BOOL	Check_Sides(AActor *, int, int);					// phares
 
 // [RH] 
-bool	P_CheckSlopeWalk (AActor *actor, fixed_t &xmove, fixed_t &ymove);
+const secplane_t * P_CheckSlopeWalk (AActor *actor, fixed_t &xmove, fixed_t &ymove);
 
 //
 // P_SETUP

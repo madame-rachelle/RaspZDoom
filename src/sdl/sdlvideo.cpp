@@ -34,6 +34,8 @@ public:
 	void GetFlashedPalette (PalEntry pal[256]);
 	void UpdatePalette ();
 	bool SetGamma (float gamma);
+	bool SetBrightness(float);
+	bool SetContrast(float);
 	bool SetFlash (PalEntry rgb, int amount);
 	void GetFlash (PalEntry &rgb, int &amount);
 	int GetPageCount ();
@@ -465,6 +467,16 @@ bool SDLFB::SetGamma (float gamma)
 {
 	Gamma = gamma;
 	NeedGammaUpdate = true;
+	return true;
+}
+
+bool SDLFB::SetBrightness (float)
+{
+	return true;
+}
+
+bool SDLFB::SetContrast (float)
+{
 	return true;
 }
 

@@ -47,6 +47,10 @@
 #include "vectors.h"
 #include "a_sharedglobal.h"
 
+#include "gl/gl_data.h"
+#include "gl/gl_texture.h"
+#include "gl/gl_functions.h"
+
 // MACROS ------------------------------------------------------------------
 
 #if 0
@@ -230,6 +234,10 @@ static bool NoInterpolateView;
 
 angle_t R_PointToAngle2 (fixed_t x1, fixed_t y1, fixed_t x, fixed_t y)
 {
+#if 1
+	// The precision of the code below is abysmal so use the CRT atan2 function instead!
+	return quickertoint((float)atan2f(y-y1, x-x1) * ANGLE_180/M_PI);
+#else
 	x -= x1;
 	y -= y1;
 
@@ -300,6 +308,7 @@ angle_t R_PointToAngle2 (fixed_t x1, fixed_t y1, fixed_t x, fixed_t y)
 			}
 		}
 	}
+#endif
 }
 
 //==========================================================================
@@ -598,11 +607,13 @@ CUSTOM_CVAR (Int, r_detail, 0, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 void R_SetDetail (int detail)
 {
-	if (detail < 4) {
+	if (detail < 4)
+	{
 		detailxshift = detail & 1;
 		detailyshift = (detail >> 1) & 1;
 	}
-	else {
+	else
+	{
 		detailxshift = 1;
 		detailyshift = 1;
 	}
@@ -740,7 +751,7 @@ void R_ExecuteSetViewSize ()
 //
 //==========================================================================
 
-CUSTOM_CVAR (Int, screenblocks, 9, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+CUSTOM_CVAR (Int, screenblocks, 10, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
 	if (self > 12)
 		self = 12;
@@ -802,6 +813,8 @@ void R_Init ()
 	hcolfunc_post4 = rt_map4cols;
 
 	framecount = 0;
+
+	setsizeneeded=true;
 }
 
 //==========================================================================
@@ -819,11 +832,52 @@ static void R_Shutdown ()
 
 //==========================================================================
 //
+// I am keeping both the original nodes from the WAD and the ones
+// created for the GL renderer. THe original set is only being used
+// to get the sector for in-game positioning of actors but not for rendering.
+//
+// Unfortunately this is necessary because ZDBSP is much more sensitive
+// to sloppy mapping practices that produce overlapping sectors.
+// The crane in P:AR E1M3 is a good example that would be broken If
+// I didn't do this.
+//
+//==========================================================================
+
+
+//==========================================================================
+//
 // R_PointInSubsector
 //
 //==========================================================================
 
 subsector_t *R_PointInSubsector (fixed_t x, fixed_t y)
+{
+	node_t *node;
+	int side;
+
+	// single subsector is a special case
+	if (numgamenodes == 0)
+		return gamesubsectors;
+				
+	node = gamenodes + numgamenodes - 1;
+
+	do
+	{
+		side = R_PointOnSide (x, y, node);
+		node = (node_t *)node->children[side];
+	}
+	while (!((size_t)node & 1));
+		
+	return (subsector_t *)((BYTE *)node - 1);
+}
+
+//==========================================================================
+//
+// R_PointInSubsector2
+//
+//==========================================================================
+
+subsector_t *R_PointInSubsector2 (fixed_t x, fixed_t y)
 {
 	node_t *node;
 	int side;
@@ -892,7 +946,7 @@ void R_InterpolateView (player_t *player, fixed_t frac, InterpolationViewer *ivi
 	}
 	
 	// Due to interpolation this is not necessarily the same as the sector the camera is in.
-	viewsector = R_PointInSubsector(viewx, viewy)->sector;
+	viewsector = R_PointInSubsector2(viewx, viewy)->sector;
 }
 
 //==========================================================================
@@ -1533,6 +1587,12 @@ void R_RenderActorView (AActor *actor, bool dontmaplines)
 void R_RenderViewToCanvas (AActor *actor, DCanvas *canvas,
 	int x, int y, int width, int height, bool dontmaplines)
 {
+	if (currentrenderer==1)
+	{
+		gl_RenderViewToCanvas(canvas, x, y, width, height);
+		return;
+	}
+
 	const int saveddetail = detailxshift | (detailyshift << 1);
 	const bool savedviewactive = viewactive;
 
@@ -1753,10 +1813,12 @@ void FActiveInterpolation::CopyBakToInterp ()
 	case INTERP_SectorFloor:
 		((sector_t*)Address)->floorplane.d = bakipos[0];
 		((sector_t*)Address)->floortexz = bakipos[1];
+		P_RecalculateAttached3DFloors((sector_t*)Address);
 		break;
 	case INTERP_SectorCeiling:
 		((sector_t*)Address)->ceilingplane.d = bakipos[0];
 		((sector_t*)Address)->ceilingtexz = bakipos[1];
+		P_RecalculateAttached3DFloors((sector_t*)Address);
 		break;
 	case INTERP_Vertex:
 		((vertex_t*)Address)->x = bakipos[0];
@@ -1780,16 +1842,19 @@ void FActiveInterpolation::CopyBakToInterp ()
 void FActiveInterpolation::DoAnInterpolation (fixed_t smoothratio)
 {
 	fixed_t *adr1, *adr2, pos;
+	bool recalc=false;
 
 	switch (Type)
 	{
 	case INTERP_SectorFloor:
 		adr1 = &((sector_t*)Address)->floorplane.d;
 		adr2 = &((sector_t*)Address)->floortexz;
+		recalc=true;
 		break;
 	case INTERP_SectorCeiling:
 		adr1 = &((sector_t*)Address)->ceilingplane.d;
 		adr2 = &((sector_t*)Address)->ceilingtexz;
+		recalc=true;
 		break;
 	case INTERP_Vertex:
 		adr1 = &((vertex_t*)Address)->x;
@@ -1816,6 +1881,8 @@ void FActiveInterpolation::DoAnInterpolation (fixed_t smoothratio)
 
 	pos = bakipos[1] = *adr2;
 	*adr2 = oldipos[1] + FixedMul (pos - oldipos[1], smoothratio);
+
+	if (recalc) P_RecalculateAttached3DFloors((sector_t*)Address);
 }
 
 size_t FActiveInterpolation::HashKey (EInterpType type, void *interptr)

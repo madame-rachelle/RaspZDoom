@@ -87,6 +87,13 @@
 #include "version.h"
 #include "v_text.h"
 
+#include "gl/gl_functions.h"
+
+// comment this out if you only want ZDoom's original.
+#define ALTERNATIVE_HUD
+EXTERN_CVAR(Bool, hud_althud)
+void DrawHUD();
+
 // MACROS ------------------------------------------------------------------
 
 // TYPES -------------------------------------------------------------------
@@ -429,13 +436,32 @@ void D_Display (bool screenshot)
 	}
 
 	// [RH] change the screen mode if needed
+	I_CheckRestartRenderer();
 	if (setmodeneeded)
 	{
-		// Change screen mode.
-		if (V_SetResolution (NewWidth, NewHeight, NewBits))
+		switch(currentrenderer)
 		{
-			// Recalculate various view parameters.
-			setsizeneeded = true;
+		case 0:
+			// Change screen mode.
+			if (V_SetResolution (NewWidth, NewHeight, NewBits))
+			{
+				// Recalculate various view parameters.
+				setsizeneeded = true;
+				// Let the status bar know the screen size changed
+				if (StatusBar != NULL)
+				{
+					StatusBar->ScreenSizeChanged ();
+				}
+				// Refresh the console.
+				C_NewModeAdjust ();
+				// Reload crosshair if transitioned to a different size
+				crosshair.Callback ();
+				setmodeneeded = false;
+			}
+			break;
+
+		case 1:
+			I_RestartRenderer();
 			// Let the status bar know the screen size changed
 			if (StatusBar != NULL)
 			{
@@ -445,6 +471,7 @@ void D_Display (bool screenshot)
 			C_NewModeAdjust ();
 			// Reload crosshair if transitioned to a different size
 			crosshair.Callback ();
+			break;
 		}
 	}
 
@@ -464,10 +491,10 @@ void D_Display (bool screenshot)
 	}
 
 	// [RH] Allow temporarily disabling wipes
-	if (NoWipe)
+	if (NoWipe || currentrenderer == 1)
 	{
 		BorderNeedRefresh = screen->GetPageCount ();
-		NoWipe--;
+		if (currentrenderer==0) NoWipe--;
 		wipe = false;
 		wipegamestate = gamestate;
 	}
@@ -514,14 +541,35 @@ void D_Display (bool screenshot)
 
 			R_RefreshViewBorder ();
 			P_CheckPlayerSprites();
-			R_RenderActorView (players[consoleplayer].mo);
-			R_DetailDouble ();		// [RH] Apply detail mode expansion
-			// [RH] Let cameras draw onto textures that were visible this frame.
-			FCanvasTextureInfo::UpdateAll ();
+			if (currentrenderer==0)
+			{
+				R_RenderActorView (players[consoleplayer].mo);
+				R_DetailDouble ();		// [RH] Apply detail mode expansion
+				// [RH] Let cameras draw onto textures that were visible this frame.
+				FCanvasTextureInfo::UpdateAll ();
+			}
+			else
+			{
+				gl_RenderPlayerView (&players[consoleplayer]);
+			}
+
 			if (automapactive)
 			{
+				int saved_ST_Y=ST_Y;
+				if (hud_althud && realviewheight == SCREENHEIGHT) ST_Y=realviewheight;
 				AM_Drawer ();
+				ST_Y = saved_ST_Y;
 			}
+
+	#ifdef ALTERNATIVE_HUD
+
+			if (hud_althud && realviewheight == SCREENHEIGHT)
+			{
+				if (DrawFSHUD || automapactive) DrawHUD();
+				StatusBar->DrawTopStuff (DrawFSHUD ? HUD_Fullscreen : HUD_None);
+			}
+			else 
+	#endif
 			if (realviewheight == SCREENHEIGHT && viewactive)
 			{
 				StatusBar->Draw (DrawFSHUD ? HUD_Fullscreen : HUD_None);
@@ -584,7 +632,7 @@ void D_Display (bool screenshot)
 
 	NetUpdate ();			// send out any new accumulation
 
-	if (!wipe || screenshot)
+	if (!wipe || screenshot || currentrenderer==1)
 	{
 		// normal update
 		C_DrawConsole ();	// draw console

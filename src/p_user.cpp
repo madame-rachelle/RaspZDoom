@@ -54,7 +54,13 @@
 
 static FRandom pr_healradius ("HealRadius");
 
+CUSTOM_CVAR(Float, maxviewpitch, 90.f, CVAR_ARCHIVE|CVAR_SERVERINFO)
+{
+	if (self>90.f) self=90.f;
+	else if (self<-90.f) self=-90.f;
+}
 // [RH] # of ticks to complete a turn180
+
 #define TURN180_TICKS	((TICRATE / 4) + 1)
 
 // Variables for prediction
@@ -1882,6 +1888,7 @@ void P_PlayerThink (player_t *player)
 
 	if (!(player->cheats & CF_PREDICTING))
 	{
+		P_PlayerOnSpecial3DFloor (player);
 		if (player->mo->Sector->special || player->mo->Sector->damage)
 		{
 			P_PlayerInSpecialSector (player);

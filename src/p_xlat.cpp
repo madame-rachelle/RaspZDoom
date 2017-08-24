@@ -46,6 +46,7 @@
 #include "a_sharedglobal.h"
 #include "gi.h"
 #include "w_wad.h"
+#include "fragglescript/t_script.h"
 
 // define names for the TriggerType field of the general linedefs
 
@@ -70,6 +71,11 @@ void P_TranslateLineDef (line_t *ld, maplinedef_t *mld)
 	DWORD flags = LittleShort(mld->flags);
 	BOOL passthrough;
 	int i;
+
+	// Legacy compatibility hack:
+	// Line type 272 is a sky transfer in ZDoom but a script activator in Legacy
+	// So if there are FraggleScripts I am swapping the 2 types.
+	if (HasScripts && (special==272 || special==270)) special=542-special;
 
 	if (flags & ML_TRANSLUCENT_STRIFE)
 	{
@@ -100,8 +106,9 @@ void P_TranslateLineDef (line_t *ld, maplinedef_t *mld)
 			}
 		}
 		passthrough = (flags & ML_PASSUSE_BOOM);
+		if (flags&0x400) flags|=0x4000;	// 3DMIDTEX
 	}
-	flags = flags & 0xFFFF01FF;	// Ignore flags unknown to DOOM
+	flags = flags & 0xFFFFC1FF;	// Ignore flags unknown to DOOM
 
 	// For purposes of maintaining BOOM compatibility, each
 	// line also needs to have its ID set to the same as its tag.

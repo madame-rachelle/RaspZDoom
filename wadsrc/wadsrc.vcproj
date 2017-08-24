@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="8,00"
 	Name="wadsrc"
 	ProjectGUID="{1D179D4B-F008-431B-8C72-111F8372584F}"
-	RootNamespace="wadsrc"
 	Keyword="MakeFileProj"
 	>
 	<Platforms>
 		<Platform
 			Name="Win32"
-		/>
-		<Platform
-			Name="x64"
 		/>
 	</Platforms>
 	<ToolFiles>
@@ -29,29 +25,8 @@
 				Name="VCNMakeTool"
 				BuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp NOLOGO=/nologo andcopy"
 				ReBuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad NOLOGO=/nologo XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp nrebuild"
-				CleanCommandLine="del wadmake zdoom.pk3"
-				Output="zdoom.pk3"
-				PreprocessorDefinitions=""
-				IncludeSearchPath=""
-				ForcedIncludes=""
-				AssemblySearchPath=""
-				ForcedUsingAssemblies=""
-				CompileAsManaged=""
-			/>
-		</Configuration>
-		<Configuration
-			Name="Debug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
-			ConfigurationType="0"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
-			>
-			<Tool
-				Name="VCNMakeTool"
-				BuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp NOLOGO=/nologo andcopy"
-				ReBuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad NOLOGO=/nologo XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp nrebuild"
-				CleanCommandLine="del wadmake zdoom.pk3"
-				Output="zdoom.pk3"
+				CleanCommandLine="del wadmake gzdoom.pk3"
+				Output="gzdoom.pk3"
 				PreprocessorDefinitions=""
 				IncludeSearchPath=""
 				ForcedIncludes=""
@@ -71,29 +46,8 @@
 				Name="VCNMakeTool"
 				BuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp NOLOGO=/nologo"
 				ReBuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad NOLOGO=/nologo XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp nrebuild"
-				CleanCommandLine="del wadmake zdoom.pk3"
-				Output="zdoom.pk3"
-				PreprocessorDefinitions=""
-				IncludeSearchPath=""
-				ForcedIncludes=""
-				AssemblySearchPath=""
-				ForcedUsingAssemblies=""
-				CompileAsManaged=""
-			/>
-		</Configuration>
-		<Configuration
-			Name="Release|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
-			ConfigurationType="0"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
-			>
-			<Tool
-				Name="VCNMakeTool"
-				BuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp NOLOGO=/nologo"
-				ReBuildCommandLine="nmake /nologo MAKEWAD=..\tools\makewad\makewad NOLOGO=/nologo XLATCC=..\tools\xlatcc\xlatcc DEHSUPP=..\tools\dehsupp\dehsupp nrebuild"
-				CleanCommandLine="del wadmake zdoom.pk3"
-				Output="zdoom.pk3"
+				CleanCommandLine="del wadmake gzdoom.pk3"
+				Output="gzdoom.pk3"
 				PreprocessorDefinitions=""
 				IncludeSearchPath=""
 				ForcedIncludes=""
@@ -368,10 +322,6 @@
 						>
 					</File>
 					<File
-						RelativePath=".\decorate\doom\doomammo.txt"
-						>
-					</File>
-					<File
 						RelativePath=".\decorate\doom\doomarmor.txt"
 						>
 					</File>
@@ -384,25 +334,13 @@
 						>
 					</File>
 					<File
-						RelativePath=".\decorate\doom\doomhealth.txt"
-						>
-					</File>
-					<File
 						RelativePath=".\decorate\doom\doomkeys.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\doom\stealthmonsters.txt"
 						>
 					</File>
 				</Filter>
 				<Filter
 					Name="Heretic"
 					>
-					<File
-						RelativePath=".\decorate\heretic\hereticammo.txt"
-						>
-					</File>
 					<File
 						RelativePath=".\decorate\heretic\hereticarmor.txt"
 						>
@@ -444,10 +382,6 @@
 						>
 					</File>
 					<File
-						RelativePath=".\decorate\hexen\mana.txt"
-						>
-					</File>
-					<File
 						RelativePath=".\decorate\hexen\puzzleitems.txt"
 						>
 					</File>
@@ -463,50 +397,6 @@
 				<Filter
 					Name="Strife"
 					>
-					<File
-						RelativePath=".\decorate\strife\beggars.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\merchants.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\peasants.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\questitems.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\ratbuddy.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\strifeammo.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\strifearmor.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\strifeitems.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\strifekeys.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\strifestuff.txt"
-						>
-					</File>
-					<File
-						RelativePath=".\decorate\strife\zombie.txt"
-						>
-					</File>
 				</Filter>
 				<Filter
 					Name="Raven"

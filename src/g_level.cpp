@@ -75,6 +75,7 @@
 #include "gi.h"
 
 #include "g_hub.h"
+#include "gl/gl_functions.h"
 
 EXTERN_CVAR (Float, sv_gravity)
 EXTERN_CVAR (Float, sv_aircontrol)
@@ -259,9 +260,12 @@ static const char *MapInfoMapLevel[] =
 	"compat_soundtarget",	
 	"compat_dehhealth",	
 	"compat_trace",		
-	"compat_dropoff",
+	"compat_dropoff",		
 	"compat_boomscroll",
-
+	// new
+	"fogdensity",
+	"outsidefogdensity",
+	"skyfog",
 	NULL
 };
 
@@ -392,6 +396,11 @@ MapHandlers[] =
 	{ MITYPE_COMPATFLAG, COMPATF_TRACE},
 	{ MITYPE_COMPATFLAG, COMPATF_DROPOFF},
 	{ MITYPE_COMPATFLAG, COMPATF_BOOMSCROLL},
+	// new
+	{ MITYPE_INT,		lioffset(fogdensity), 0 },
+	{ MITYPE_INT,		lioffset(outsidefogdensity), 0 },
+	{ MITYPE_INT,		lioffset(skyfog), 0 },
+
 };
 
 static const char *MapInfoClusterLevel[] =
@@ -469,6 +478,9 @@ static void SetLevelDefaults (level_info_t *levelinfo)
 		levelinfo->flags |= LEVEL_MONSTERFALLINGDAMAGE;
 	}
 	levelinfo->airsupply = 10;
+
+	// new
+	levelinfo->airsupply = 20;
 }
 
 //
@@ -1594,6 +1606,7 @@ static void goOn (int position, bool keepFacing, bool secret)
 		D_DrawIcon = "TELEICON";
 	}
 
+	// un-crouch all players here
 	for(int i = 0;i < MAXPLAYERS;i++)
 	{
 		if (playeringame[i])
@@ -1619,6 +1632,7 @@ static void goOn (int position, bool keepFacing, bool secret)
 			}
 		}
 	}
+	gl_DeleteAllAttachedLights();
 }
 
 void G_ExitLevel (int position, bool keepFacing)
@@ -2253,6 +2267,9 @@ void G_InitLevelLocals ()
 	compatflags.Callback();
 
 	NormalLight.ChangeFade (level.fadeto);
+
+	// new stuff
+	gl_SetFogParams(info->fogdensity, info->outsidefog, info->outsidefogdensity, info->skyfog);
 }
 
 char *CalcMapName (int episode, int level)
@@ -2494,6 +2511,8 @@ void G_AirControlChanged ()
 void G_SerializeLevel (FArchive &arc, bool hubLoad)
 {
 	int i = level.totaltime;
+	
+	gl_DeleteAllAttachedLights();
 
 	arc << level.flags
 		<< level.fadeto
@@ -2603,6 +2622,12 @@ void G_SerializeLevel (FArchive &arc, bool hubLoad)
 	{
 		P_SerializePlayers (arc);
 	}
+
+	if (arc.IsLoading()) for(i=0;i<numsectors;i++)
+	{
+		P_Recalculate3DFloors(&sectors[i]);
+	}
+	gl_RecreateAllAttachedLights();
 }
 
 // Archives the current level

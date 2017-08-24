@@ -48,12 +48,98 @@ EXTERN_CVAR (Bool, ticker)
 EXTERN_CVAR (Bool, fullscreen)
 EXTERN_CVAR (Float, vid_winscale)
 
+
+#include "gl/win32gliface.h"
+#include "gl/gl_texture.h"
+#include "il/il.h"
+
 bool ForceWindowed;
 
 IVideo *Video;
 //static IKeyboard *Keyboard;
 //static IMouse *Mouse;
 //static IJoystick *Joystick;
+
+
+extern int NewWidth, NewHeight, NewBits, DisplayBits;
+bool V_DoModeSetup (int width, int height, int bits);
+void I_RestartRenderer();
+void RebuildAllLights();
+int currentrenderer=1;
+bool changerenderer;
+bool gl_disabled;
+EXTERN_CVAR(Bool, gl_nogl)
+
+// [ZDoomGL]
+CUSTOM_CVAR (Int, vid_renderer, 1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)// | CVAR_NOINITCALL)
+{
+	// 0: Software renderer
+	// 1: OpenGL renderer
+
+	if (gl_disabled) 
+	{
+		return;
+	}
+
+	if (self != currentrenderer)
+	{
+		switch (self)
+		{
+		case 0:
+			Printf("Switching to software renderer...\n");
+			break;
+		case 1:
+			Printf("Switching to OpenGL renderer...\n");
+			break;
+		default:
+			Printf("Unknown renderer (%d).  Falling back to software renderer...\n", (int)vid_renderer);
+			self = 0; // make sure to actually switch to the software renderer
+			break;
+		}
+		changerenderer = true;
+	}
+}
+
+CCMD (vid_restart)
+{
+	if (!gl_disabled) changerenderer = true;
+}
+
+void I_CheckRestartRenderer()
+{
+	if (gl_disabled) return;
+	
+	while (changerenderer)
+	{
+		currentrenderer = vid_renderer;
+		I_RestartRenderer();
+		if (currentrenderer == vid_renderer) changerenderer = false;
+	}
+}
+
+void I_RestartRenderer()
+{
+	FFont *font;
+	int bits;
+	
+	FGLTexture::FlushAll();
+	font = screen->Font;
+	I_ShutdownHardware();
+	RebuildAllLights();	// Build the lightmaps for all colormaps. If the hardware renderer is active 
+						// this time consuming step is skipped.
+	
+	changerenderer=false;
+	if (gl_disabled) currentrenderer=0;
+	if (currentrenderer==1) Video = new Win32GLVideo(0);
+	else Video = new Win32Video (0);
+	if (Video == NULL) I_FatalError ("Failed to initialize display");
+	
+	if (currentrenderer==0) bits=8;
+	else bits=32;
+	
+	V_DoModeSetup(NewWidth, NewHeight, bits);
+	screen->SetFont(font);
+}
 
 void I_ShutdownHardware ()
 {
@@ -67,14 +153,23 @@ void I_InitHardware ()
 {
 	UCVarValue val;
 
+	ilInit();
+	ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
+	ilEnable(IL_ORIGIN_SET);
+	
+	gl_disabled = gl_nogl;
 	val.Bool = !!Args.CheckParm ("-devparm");
 	ticker.SetGenericRepDefault (val, CVAR_Bool);
-	Video = new Win32Video (0);
+
+	if (gl_disabled) currentrenderer=0;
+	if (currentrenderer==1) Video = new Win32GLVideo(0);
+	else Video = new Win32Video (0);
+
 	if (Video == NULL)
 		I_FatalError ("Failed to initialize display");
-
+	
 	atterm (I_ShutdownHardware);
-
+	
 	Video->SetWindowedScale (vid_winscale);
 }
 
@@ -111,12 +206,12 @@ DFrameBuffer *I_SetMode (int &width, int &height, DFrameBuffer *old)
 	}
 	DFrameBuffer *res = Video->CreateFrameBuffer (width, height, fs, old);
 
-	/* Right now, CreateFrameBuffer cannot return NULL
+	//* Right now, CreateFrameBuffer cannot return NULL
 	if (res == NULL)
 	{
 		I_FatalError ("Mode %dx%d is unavailable\n", width, height);
 	}
-	*/
+	//*/
 	return res;
 }
 
@@ -212,7 +307,7 @@ CUSTOM_CVAR (Float, vid_winscale, 1.f, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 		NewWidth = screen->GetWidth();
 		NewHeight = screen->GetHeight();
 		NewBits = DisplayBits;
-		setmodeneeded = true;
+		//setmodeneeded = true;	// This CVAR doesn't do anything and only causes problems!
 	}
 }
 
