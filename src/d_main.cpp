@@ -1967,6 +1967,10 @@ void D_DoomMain (void)
 	if (wad)
 		D_AddFile (wad);
 
+	wad = BaseFileSearch ("lights.wad", NULL);
+	if (wad)
+		D_AddFile (wad);
+
 	// [RH] Add any .wad files in the skins directory
 #ifdef unix
 	sprintf (file, "%sskins", SHARE_DIR);
