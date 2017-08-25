@@ -431,6 +431,12 @@
 		<Unit filename="src/gl/hqnx/hq4x.cpp" />
 		<Unit filename="src/gl/hqnx/common.h" />
 		<Unit filename="src/gl/hqnx/hqx.h" />
+		<Unit filename="src/gl/xbr/xbrz.cpp" />
+		<Unit filename="src/gl/xbr/xbrz_old.cpp" />
+		<Unit filename="src/gl/xbr/xbrz.h" />
+		<Unit filename="src/gl/xbr/xbrz_old.h" />
+		<Unit filename="src/gl/xbr/xbrz_config.h" />
+		<Unit filename="src/gl/xbr/xbrz_config_old.h" />
 		<Unit filename="src/gl/gl_intern.h" />
 		<Unit filename="src/gl/gl_light.cpp" />
 		<Unit filename="src/gl/gl_lights.h" />

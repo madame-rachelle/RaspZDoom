@@ -114,6 +114,12 @@ static value_t HqResizeModes[] =
    { 4.0, "hq2x" },
    { 5.0, "hq3x" },
    { 6.0, "hq4x" },
+   { 7.0, "xBRZ 2x" },
+   { 8.0, "xBRZ 3x" },
+   { 9.0, "xBRZ 4x" },
+   { 10.0, "xBRZ_old 2x" },
+   { 11.0, "xBRZ_old 3x" },
+   { 12.0, "xBRZ_old 4x" },
 };
  
 static value_t HqResizeTargets[] =
@@ -146,7 +152,7 @@ menuitem_t OpenGLItems[] = {
 	{ discrete, "Anisotropic filter",		{&gl_texture_filter_anisotropic},{5.0},{0.0}, {0.0}, {Anisotropy} },
 	{ discrete, "Texture Format",			{&gl_texture_format},			{8.0}, {0.0}, {0.0}, {TextureFormats} },
 	{ discrete, "Enable hires textures",	{&gl_texture_usehires},			{2.0}, {0.0}, {0.0}, {YesNo} },
-	{ discrete, "High Quality Resize mode",	{&gl_texture_hqresize},			{7.0}, {0.0}, {0.0}, {HqResizeModes} },
+	{ discrete, "High Quality Resize mode",	{&gl_texture_hqresize},			{13.0}, {0.0}, {0.0}, {HqResizeModes} },
 	{ discrete, "Resize textures",			{&gl_texture_hqresize_textures},{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Resize sprites",			{&gl_texture_hqresize_sprites},	{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Resize fonts",				{&gl_texture_hqresize_fonts},	{2.0}, {0.0}, {0.0}, {OnOff} },

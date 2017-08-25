@@ -37,10 +37,12 @@
 #include "gl_hqresize.h"
 #include "c_cvars.h"
 #include "gl/hqnx/hqx.h"
+#include "gl/xbr/xbrz.h"
+#include "gl/xbr/xbrz_old.h"
 
 CUSTOM_CVAR(Int, gl_texture_hqresize, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
-	if (self < 0 || self > 6) self = 0;
+	if (self < 0 || self > 12) self = 0;
 	FGLTexture::FlushAll();
 }
 
@@ -199,6 +201,40 @@ static unsigned char *hqNxHelper( void (*hqNxFunction) ( unsigned*, unsigned*, i
 	delete[] inputBuffer;
 	return newBuffer;
 }
+			
+static unsigned char *xbrzHelper( void (*xbrzFunction) ( size_t, const uint32_t*, uint32_t*, int, int, xbrz::ColorFormat, const xbrz::ScalerCfg&, int, int ),
+							  const int N,
+							  unsigned char *inputBuffer,
+							  const int inWidth,
+							  const int inHeight,
+							  int &outWidth,
+							  int &outHeight )
+{
+	outWidth = N * inWidth;
+	outHeight = N *inHeight;
+
+	unsigned char * newBuffer = new unsigned char[outWidth*outHeight*4];
+	xbrzFunction(N, reinterpret_cast<uint32_t*>(inputBuffer), reinterpret_cast<uint32_t*>(newBuffer), inWidth, inHeight, xbrz::ARGB, xbrz::ScalerCfg(), 0, std::numeric_limits<int>::max());
+	delete[] inputBuffer;
+	return newBuffer;
+}
+
+static unsigned char *xbrzoldHelper( void (*xbrzFunction) ( size_t factor, const uint32_t* src, uint32_t* trg, int srcWidth, int srcHeight, const xbrz_old::ScalerCfg& cfg, int yFirst, int yLast ),
+							  const int N,
+							  unsigned char *inputBuffer,
+							  const int inWidth,
+							  const int inHeight,
+							  int &outWidth,
+							  int &outHeight )
+{
+	outWidth = N * inWidth;
+	outHeight = N *inHeight;
+
+	unsigned char * newBuffer = new unsigned char[outWidth*outHeight*4];
+	xbrzFunction(N, reinterpret_cast<uint32_t*>(inputBuffer), reinterpret_cast<uint32_t*>(newBuffer), inWidth, inHeight, xbrz_old::ScalerCfg(), 0, std::numeric_limits<int>::max());
+	delete[] inputBuffer;
+	return newBuffer;
+}
 
 //===========================================================================
 // 
@@ -251,6 +287,14 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FGLTexture *inputGLTextur
 			return hqNxHelper( &hq3x_32, 3, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		case 6:
 			return hqNxHelper( &hq4x_32, 4, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+		case 7:
+		case 8:
+		case 9:
+			return xbrzHelper(xbrz::scale, type - 5, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+		case 10:
+		case 11:
+		case 12:
+			return xbrzoldHelper(xbrz_old::scale, type - 8, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		}
 	}
 	return inputBuffer;
