@@ -34,7 +34,9 @@
 **
 */
 
+#include "gl_pch.h"
 #include "gl_hqresize.h"
+#include "gl_intern.h"
 #include "c_cvars.h"
 #include "gl/hqnx/hqx.h"
 #include "gl/xbr/xbrz.h"
@@ -254,6 +256,10 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FGLTexture *inputGLTextur
 
 	// [BB] Don't try to upsample textures based off FCanvasTexture.
 	if ( inputGLTexture->tex->bHasCanvas )
+		return inputBuffer;
+
+	// [BB] Don't upsample non-shader handled warped textures. Needs too much memory.
+	if ( (!(gl.flags & RFL_GLSL) || !gl_warp_shader) && inputGLTexture->tex->bWarped )
 		return inputBuffer;
 
 	switch (inputGLTexture->tex->UseType)
