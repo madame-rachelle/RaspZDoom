@@ -49,6 +49,7 @@
 #include "gl/gl_struct.h"
 #include "gl/gl_texture.h"
 #include "gl/gl_functions.h"
+#include "gl/gl_hqresize.h"
 
 #include <il/il.h>
 #include <il/ilu.h>
@@ -994,6 +995,9 @@ unsigned char * FGLTexture::CreateTexBuffer(int _cm, int translation, const byte
 		tex->FTexture::CopyTrueColorPixels(buffer, Width, Height, LeftOffset - tex->LeftOffset, 
 											TopOffset - tex->TopOffset,	cm, translation);
 	}
+
+	// [BB] Potentially upsample the buffer.
+	buffer = gl_CreateUpsampledTextureBuffer ( this, buffer, Width, Height, w, h );
 
 	return buffer;
 }

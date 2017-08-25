@@ -423,6 +423,8 @@
 		<Unit filename="src/gl/gl_glow.cpp" />
 		<Unit filename="src/gl/gl_glow.h" />
 		<Unit filename="src/gl/gl_hirestex.cpp" />
+		<Unit filename="src/gl/gl_hqresize.cpp" />
+		<Unit filename="src/gl/gl_hqresize.h" />
 		<Unit filename="src/gl/gl_intern.h" />
 		<Unit filename="src/gl/gl_light.cpp" />
 		<Unit filename="src/gl/gl_lights.h" />
