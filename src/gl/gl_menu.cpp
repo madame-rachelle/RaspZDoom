@@ -30,6 +30,7 @@ EXTERN_CVAR(Bool, gl_fakecontrast)
 EXTERN_CVAR (Bool, gl_lights_additive)
 EXTERN_CVAR(Bool, gl_warp_shader)
 EXTERN_CVAR (Float, gl_light_ambient)
+EXTERN_CVAR(Int, gl_billboard_mode)
 EXTERN_CVAR(Int, gl_texture_hqresize)
 EXTERN_CVAR(Flag, gl_texture_hqresize_textures)
 EXTERN_CVAR(Flag, gl_texture_hqresize_sprites)
@@ -105,6 +106,12 @@ static value_t Hz[] =
 	{ 100.0, "100" }
 };
 
+static value_t BillboardModes[] =
+{
+	{ 0.0, "Y Axis" },
+	{ 1.0, "X/Y Axis" },
+};
+
 static value_t HqResizeModes[] =
 {
    { 0.0, "Off" },
@@ -139,6 +146,7 @@ menuitem_t OpenGLItems[] = {
 	{ discrete, "Environment map on mirrors",{&gl_mirror_envmap},			{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Enhanced night vision mode",{&gl_enhanced_lightamp},		{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Sector light mode",		{&gl_lightmode},				{4.0}, {0.0}, {0.0}, {LightingModes} },
+	{ discrete, "Sprite billboard",			{&gl_billboard_mode},			{2.0}, {0.0}, {0.0}, {BillboardModes} },
 	{ discrete, "Adjust sprite clipping",	{&gl_spriteclip},				{3.0}, {0.0}, {0.0}, {SpriteclipModes} },
 	{ discrete, "Smooth sprite edges",		{&gl_sprite_blend},				{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Shaders for texture warp",	{&gl_warp_shader},				{2.0}, {0.0}, {0.0}, {OnOff} },

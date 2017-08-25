@@ -51,11 +51,18 @@ CVAR(Bool, gl_usecolorblending, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR(Bool, gl_sprite_blend, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG);
 CVAR(Bool, gl_nocoloredspritelighting, false, 0)
 CVAR(Int, gl_spriteclip, 1, CVAR_ARCHIVE)
+CVAR(Int, gl_billboard_mode, 1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 extern bool r_showviewer;
 EXTERN_CVAR (Float, transsouls)
 
 const BYTE SF_FRAMEMASK  = 0x1f;
+
+enum
+{
+	RF_FORCEYBILLBOARD		= 0x10000,	// [BB] OpenGL only: draw with y axis billboard, i.e. anchored to the floor (overrides gl_billboard_mode setting)
+	RF_FORCEXYBILLBOARD		= 0x20000,	// [BB] OpenGL only: draw with xy axis billboard, i.e. unanchored (overrides gl_billboard_mode setting)
+};
 
 //==========================================================================
 //
@@ -156,6 +163,26 @@ void GLSprite::Draw(int pass)
 
 	if (!modelframe)
 	{
+		// [BB] Billboard stuff
+		const bool drawWithXYBillboard = ( !(actor && actor->renderflags & RF_FORCEYBILLBOARD)
+		                                   && players[consoleplayer].camera
+		                                   && (gl_billboard_mode == 1 || (actor && actor->renderflags & RF_FORCEXYBILLBOARD )) );
+		if ( drawWithXYBillboard )
+		{
+			// Save the current view matrix.
+			gl.MatrixMode(GL_MODELVIEW);
+			gl.PushMatrix();
+			// Rotate the sprite about the vector starting at the center of the sprite
+			// triangle strip and with direction orthogonal to where the player is looking
+			// in the x/y plane.
+			float xcenter = (x1+x2)*0.5;
+			float ycenter = (y1+y2)*0.5;
+			float zcenter = (z1+z2)*0.5;
+			float angleRad = ANGLE_TO_FLOAT(players[consoleplayer].camera->angle)/180.*M_PI;
+			gl.Translatef( xcenter, zcenter, ycenter);
+			gl.Rotatef(-ANGLE_TO_FLOAT(players[consoleplayer].camera->pitch), -sin(angleRad), 0, cos(angleRad));
+			gl.Translatef( -xcenter, -zcenter, -ycenter);
+		}
 		gl.Begin(GL_TRIANGLE_STRIP);
 		if (gltexture)
 		{
@@ -172,6 +199,13 @@ void GLSprite::Draw(int pass)
 			gl.Vertex3f(x2, z2, y2);
 		}
 		gl.End();
+		// [BB] Billboard stuff
+		if ( drawWithXYBillboard )
+		{
+			// Restore the view matrix.
+			gl.MatrixMode(GL_MODELVIEW);
+			gl.PopMatrix();
+		}
 	}
 	else
 	{
@@ -578,7 +612,11 @@ void GLSprite::Process(AActor* thing,sector_t * sector)
 	particle=NULL;
 	if (RenderStyle==STYLE_Translucent && trans>=1.0f-FLT_EPSILON) RenderStyle=STYLE_Normal;
 
-	if (thing->Sector->e->lightlist.Size()==0 || gl_fixedcolormap || fullbright) 
+	const bool drawWithXYBillboard = ( !(actor->renderflags & RF_FORCEYBILLBOARD)
+									   && players[consoleplayer].camera
+									   && (gl_billboard_mode == 1 || actor->renderflags & RF_FORCEXYBILLBOARD ) );
+
+	if (thing->Sector->e->lightlist.Size()==0 || gl_fixedcolormap || fullbright || (drawWithXYBillboard && !modelframe)) 
 	{
 		PutSprite(RenderStyle!=STYLE_Normal);
 	}
