@@ -425,6 +425,12 @@
 		<Unit filename="src/gl/gl_hirestex.cpp" />
 		<Unit filename="src/gl/gl_hqresize.cpp" />
 		<Unit filename="src/gl/gl_hqresize.h" />
+		<Unit filename="src/gl/hqnx/init.cpp" />
+		<Unit filename="src/gl/hqnx/hq2x.cpp" />
+		<Unit filename="src/gl/hqnx/hq3x.cpp" />
+		<Unit filename="src/gl/hqnx/hq4x.cpp" />
+		<Unit filename="src/gl/hqnx/common.h" />
+		<Unit filename="src/gl/hqnx/hqx.h" />
 		<Unit filename="src/gl/gl_intern.h" />
 		<Unit filename="src/gl/gl_light.cpp" />
 		<Unit filename="src/gl/gl_lights.h" />

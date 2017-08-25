@@ -36,10 +36,11 @@
 
 #include "gl_hqresize.h"
 #include "c_cvars.h"
+#include "gl/hqnx/hqx.h"
 
 CUSTOM_CVAR(Int, gl_texture_hqresize, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
-	if (self < 0 || self > 3) self = 0;
+	if (self < 0 || self > 6) self = 0;
 	FGLTexture::FlushAll();
 }
 
@@ -175,6 +176,30 @@ static unsigned char *scaleNxHelper( void (*scaleNxFunction) ( uint32* , uint32*
 	return newBuffer;
 }
 
+static unsigned char *hqNxHelper( void (*hqNxFunction) ( unsigned*, unsigned*, int, int ),
+							  const int N,
+							  unsigned char *inputBuffer,
+							  const int inWidth,
+							  const int inHeight,
+							  int &outWidth,
+							  int &outHeight )
+{
+	static int initdone = false;
+
+	if (!initdone)
+	{
+		hqxInit();
+		initdone = true;
+	}
+	outWidth = N * inWidth;
+	outHeight = N *inHeight;
+
+	unsigned char * newBuffer = new unsigned char[outWidth*outHeight*4];
+	hqNxFunction( reinterpret_cast<unsigned*>(inputBuffer), reinterpret_cast<unsigned*>(newBuffer), inWidth, inHeight );
+	delete[] inputBuffer;
+	return newBuffer;
+}
+
 //===========================================================================
 // 
 // [BB] Upsamples the texture in inputBuffer, frees inputBuffer and returns
@@ -220,6 +245,12 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FGLTexture *inputGLTextur
 			return scaleNxHelper( &scale3x, 3, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		case 3:
 			return scaleNxHelper( &scale4x, 4, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+		case 4:
+			return hqNxHelper( &hq2x_32, 2, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+		case 5:
+			return hqNxHelper( &hq3x_32, 3, inputBuffer, inWidth, inHeight, outWidth, outHeight );
+		case 6:
+			return hqNxHelper( &hq4x_32, 4, inputBuffer, inWidth, inHeight, outWidth, outHeight );
 		}
 	}
 	return inputBuffer;
