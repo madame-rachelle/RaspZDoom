@@ -57,6 +57,11 @@ static value_t TextureFormats[] =
 	{ 1.0, "RGB5_A1" },
 	{ 2.0, "RGBA4" },
 	{ 3.0, "RGBA2" },
+	// [BB] Added modes for texture compression.
+	{ 4.0, "COMPR_RGBA" },
+	{ 5.0, "S3TC_DXT1" },
+	{ 6.0, "S3TC_DXT3" },
+	{ 7.0, "S3TC_DXT5" },
 };
 
 static value_t Anisotropy[] =
@@ -136,7 +141,7 @@ menuitem_t OpenGLItems[] = {
 	{ discrete, "Textures enabled",			{&gl_texture},					{2.0}, {0.0}, {0.0}, {YesNo} },
 	{ discrete, "Texture Filter mode",		{&gl_texture_filter},			{5.0}, {0.0}, {0.0}, {FilterModes} },
 	{ discrete, "Anisotropic filter",		{&gl_texture_filter_anisotropic},{5.0},{0.0}, {0.0}, {Anisotropy} },
-	{ discrete, "Texture Format",			{&gl_texture_format},			{4.0}, {0.0}, {0.0}, {TextureFormats} },
+	{ discrete, "Texture Format",			{&gl_texture_format},			{8.0}, {0.0}, {0.0}, {TextureFormats} },
 	{ discrete, "Enable hires textures",	{&gl_texture_usehires},			{2.0}, {0.0}, {0.0}, {YesNo} },
 	{ discrete, "High Quality Resize mode",	{&gl_texture_hqresize},			{4.0}, {0.0}, {0.0}, {HqResizeModes} },
 	{ discrete, "Resize textures",			{&gl_texture_hqresize_textures},{2.0}, {0.0}, {0.0}, {OnOff} },

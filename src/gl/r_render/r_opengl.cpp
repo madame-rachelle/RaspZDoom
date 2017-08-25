@@ -422,6 +422,16 @@ static void APIENTRY LoadExtensions()
         gl->EndQuery               = EndOcclusionQuery;
 		gl->flags|=RFL_OCCLUSION_QUERY;
 	}
+
+	// [BB] Check for the extensions that are necessary for on the fly texture compression.
+	if (CheckExtension("GL_ARB_texture_compression"))
+	{
+		gl->flags|=RFL_TEXTURE_COMPRESSION;
+	}
+	if (CheckExtension("GL_EXT_texture_compression_s3tc"))
+	{
+		gl->flags|=RFL_TEXTURE_COMPRESSION_S3TC;
+	}
 }
 
 //==========================================================================
