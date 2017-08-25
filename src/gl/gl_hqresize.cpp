@@ -252,6 +252,10 @@ unsigned char *gl_CreateUpsampledTextureBuffer ( const FGLTexture *inputGLTextur
 //	if ( inputGLTexture->bIsTransparent == 1 )
 //		return inputBuffer;
 
+	// [BB] Don't try to upsample textures based off FCanvasTexture.
+	if ( inputGLTexture->tex->bHasCanvas )
+		return inputBuffer;
+
 	switch (inputGLTexture->tex->UseType)
 	{
 	case FTexture::TEX_Sprite:
