@@ -50,6 +50,7 @@ typedef enum {
 } os_t;
 
 extern os_t OSPlatform;
+extern const char* OSName;
 
 struct CPUInfo	// 92 bytes
 {

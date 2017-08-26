@@ -517,45 +517,52 @@ FString FGameConfigFile::GetConfigPath (bool tryProg)
 	path = NULL;
 	HRESULT hr;
 
-	TCHAR uname[UNLEN+1];
-	DWORD unamelen = sizeof(uname);
+	FString osname = OSName;
+	long osnumber;
+	osnumber = osname.ToLong();
 
-	// Because people complained, try for a user-specific .ini in the program directory first.
-	// If that is not writeable, use the one in the home directory instead.
-	hr = GetUserName (uname, &unamelen);
-	if (SUCCEEDED(hr) && uname[0] != 0)
+	if (osnumber != 95)
 	{
-		// Is it valid for a user name to have slashes?
-		// Check for them and substitute just in case.
-		char *probe = uname;
-		while (*probe != 0)
-		{
-			if (*probe == '\\' || *probe == '/')
-				*probe = '_';
-			++probe;
-		}
+		TCHAR uname[UNLEN+1];
+		DWORD unamelen = sizeof(uname);
 
-		path = progdir;
-		path += "zdoom-";
-		path += uname;
-		path += ".ini";
-		if (tryProg)
+		// Because people complained, try for a user-specific .ini in the program directory first.
+		// If that is not writeable, use the one in the home directory instead.
+		hr = GetUserName (uname, &unamelen);
+		if (SUCCEEDED(hr) && uname[0] != 0)
 		{
-			if (!FileExists (path.GetChars()))
+			// Is it valid for a user name to have slashes?
+			// Check for them and substitute just in case.
+			char *probe = uname;
+			while (*probe != 0)
 			{
-				path = "";
+				if (*probe == '\\' || *probe == '/')
+					*probe = '_';
+				++probe;
 			}
-		}
-		else
-		{ // check if writeable
-			FILE *checker = fopen (path.GetChars(), "a");
-			if (checker == NULL)
+
+			path = progdir;
+			path += "zdoom-";
+			path += uname;
+			path += ".ini";
+			if (tryProg)
 			{
-				path = "";
+				if (!FileExists (path.GetChars()))
+				{
+					path = "";
+				}
 			}
 			else
-			{
-				fclose (checker);
+			{ // check if writeable
+				FILE *checker = fopen (path.GetChars(), "a");
+				if (checker == NULL)
+				{
+					path = "";
+				}
+				else
+				{
+					fclose (checker);
+				}
 			}
 		}
 	}

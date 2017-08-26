@@ -88,6 +88,7 @@ int (*I_GetTime) (bool saveMS);
 int (*I_WaitForTic) (int);
 
 os_t OSPlatform;
+const char* OSName;
 
 void I_Tactile (int on, int off, int total)
 {
@@ -294,6 +295,7 @@ void I_DetectOS (void)
 		break;
 	}
 
+	OSName = osname;
 	Printf ("OS: Windows %s %lu.%lu (Build %lu)\n",
 			osname,
 			info.dwMajorVersion, info.dwMinorVersion,
