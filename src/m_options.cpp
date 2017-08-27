@@ -1225,7 +1225,7 @@ void M_OptInit (void)
 	size_t currval = 0;
 	char name[24];
 
-	for (unsigned int i = 1; i < 32 && currval < countof(Depths); i++)
+	for (unsigned int i = 1; i <= 32 && currval < countof(Depths); i++)
 	{
 		I_StartModeIterator (i);
 		if (I_NextMode (&dummy1, &dummy2, NULL))
