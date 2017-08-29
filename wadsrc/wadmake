@@ -209,6 +209,7 @@ zdoom.pk3: zdoom.lst \
 	gzd/textures/mirror.png \
 	gzd/decorate.gzd \
 	decorate/decorate.txt \
+	decorate/shared/blood.txt \
 	decorate/shared/debris.txt \
 	decorate/shared/splashes.txt \
 	decorate/doom/deadthings.txt \
