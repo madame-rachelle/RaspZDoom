@@ -323,25 +323,25 @@ FTexture * FTextureManager::DoCreateTexture (int lumpnum, int usetype)
 			{
 				if (data.Read (first4bytes.w, 2) != 2)
 				{
-					return -1;
+					return NULL;
 				}
 				data.Seek (BigShort(first4bytes.w[0]) - 2, SEEK_CUR);
 				if (data.Read (first4bytes.b + 2, 2) != 2 || first4bytes.b[2] != 0xFF)
 				{
-					return -1;
+					return NULL;
 				}
 			}
 			if (data.Read (first4bytes.b, 3) != 3)
 			{
-				return -1;
+				return NULL;
 			}
 			if (BigShort (first4bytes.w[0]) <5)
 			{
-				return -1;
+				return NULL;
 			}
 			if (data.Read (first4bytes.b, 4) != 4)
 			{
-				return -1;
+				return NULL;
 			}
 			type = t_png;
 			out = new FJPEGTexture (lumpnum, BigShort(first4bytes.w[1]), BigShort(first4bytes.w[0]));
