@@ -654,7 +654,7 @@ static void DrawInventory(player_t * CPlayer, int x,int y)
 	int numitems = (hudwidth - 2*x) / 32;
 	int i;
 
-	CPlayer->InvFirst = rover = StatusBar->ValidateInvFirst(numitems);
+	CPlayer->mo->InvFirst = rover = StatusBar->ValidateInvFirst(numitems);
 	if (rover!=NULL)
 	{
 		if(rover->PrevInv())
@@ -672,7 +672,7 @@ static void DrawInventory(player_t * CPlayer, int x,int y)
 
 				if (AltIcon>=0 && (rover->Icon>0 || AltIcon>0) )
 				{
-					int trans = rover==CPlayer->InvSel ? FRACUNIT : 0x6666;
+					int trans = rover==CPlayer->mo->InvSel ? FRACUNIT : 0x6666;
 
 					DrawImageToBox(TexMan[AltIcon? AltIcon : rover->Icon], x, y, 19, 25, trans);
 					if (rover->Amount>1)
