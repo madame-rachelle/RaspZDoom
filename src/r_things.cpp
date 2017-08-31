@@ -1351,22 +1351,31 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 
 	// calculate edges of the shape
 	tx = sx - BASEXCENTER;
-
 	tx -= tex->GetScaledLeftOffset();
-	if (r_detail == 0 || r_detail == 2)
+
+	if (r_detail == 0 || r_detail == 2 || bRenderingToCanvas)
+	{
 		x1 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	}
 	else
+	{
 		x1 = xs_RoundToInt(CenterX + tx * (pspritexscale/2));
+	}
 
 	// off the right side
 	if (x1 > viewwidth)
 		return;
 
 	tx += tex->GetScaledWidth();
-	if (r_detail == 0 || r_detail == 2)
+
+	if (r_detail == 0 || r_detail == 2 || bRenderingToCanvas)
+	{
 		x2 = xs_RoundToInt(CenterX + tx * pspritexscale);
+	}
 	else
+	{
 		x2 = xs_RoundToInt(CenterX + tx * (pspritexscale/2));
+	}
 
 	// off the left side
 	if (x2 <= 0)
@@ -1403,28 +1412,41 @@ void R_DrawPSprite(DPSprite *pspr, AActor *owner, float bobx, float boby, double
 	vis->x1 = x1 < 0 ? 0 : x1;
 	vis->x2 = x2 >= viewwidth ? viewwidth : x2;
 	vis->xscale = FLOAT2FIXED(pspritexscale / tex->Scale.X);
-	if (r_detail == 0 || r_detail == 2)
+
+	if (r_detail == 0 || r_detail == 2 || bRenderingToCanvas)
+	{
 		vis->yscale = float(pspriteyscale / tex->Scale.Y);
+	}
 	else
+	{
 		vis->yscale = float((pspriteyscale/2) / tex->Scale.Y);
+	}
 	vis->Translation = 0;		// [RH] Use default colors
 	vis->pic = tex;
 	vis->Style.ColormapNum = 0;
 
 	if (!(flip) != !(pspr->Flags & PSPF_FLIP))
 	{
-		if (r_detail == 0 || r_detail == 2)
+		if (r_detail == 0 || r_detail == 2 || bRenderingToCanvas)
+		{
 			vis->xiscale = -FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		}
 		else
+		{
 			vis->xiscale = -FLOAT2FIXED(pspritexiscale*2 * tex->Scale.X);
+		}
 		vis->startfrac = (tex->GetWidth() << FRACBITS) - 1;
 	}
 	else
 	{
-		if (r_detail == 0 || r_detail == 2)
+		if (r_detail == 0 || r_detail == 2 || bRenderingToCanvas)
+		{
 			vis->xiscale = FLOAT2FIXED(pspritexiscale * tex->Scale.X);
+		}
 		else
+		{
 			vis->xiscale = FLOAT2FIXED(pspritexiscale*2 * tex->Scale.X);
+		}
 		vis->startfrac = 0;
 	}
 
