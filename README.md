@@ -6,7 +6,7 @@ for Windows 98 and old machines. Now merged with GZDoom 1.8.4a.
  Can compile as well with allegro DX8 libraries but without Direct3D support.
 
  Compiles with CMake 2.8.12, CodeBlocks 16.01 (TDM-GCC 4.9.2) and NASM 2.10.09. You'll need the following libraries:
-dx9mgw.zip, dx80_mgw.zip (optional), fmodapi42636win32-installer.exe and fluidsynth.7z (optional).
+dx9mgw.zip, dx80_mgw.zip (optional), fmodapi43623win-installer.exe and fluidsynth.7z (optional).
  It's better to install TDM-GCC 4.6.1 since it's faster than 4.9.2.
  
  Some notes:
