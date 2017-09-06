@@ -4,10 +4,10 @@
 quadrupled lowres directdraw modes from ZDoom 2.3.
 
  Compiles with CodeBlocks 16.01, TDM-GCC 4.6.1 and NASM 0.99.06. You'll need the following libraries:
-dx80_mgw.zip and fmodapi375win.zip.
+dx9mgw.zip and fmodapi375win.zip.
  A project for CodeBlocks is included, however version 16.01 is very buggy and you'd need to edit the project
  manually. You could try later versions or 12.11. You'll need to use the included makefile in wadsrc to generate
- zdoom.pk3. Lights.wad is also included.
+ zdoom.pk3. Lights.wad is included as well.
  
  Some notes:
  - Compiling with TDM-GCC 4.9.2 the exe would require Windows 98 to run and the compiler is slower.
