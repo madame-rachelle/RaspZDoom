@@ -74,7 +74,7 @@ void gl_SetVSync(bool self);
 
 IMPLEMENT_ABSTRACT_CLASS(BaseWinFB)
 
-typedef IDirect3D9 *(*DIRECT3DCREATE9FUNC)(UINT SDKVersion);
+typedef IDirect3D9 *(WINAPI *DIRECT3DCREATE9FUNC)(UINT SDKVersion);
 
 // PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
 
