@@ -626,6 +626,17 @@ void Win32GLFrameBuffer::Set2DMode()
 //
 //
 //==========================================================================
+
+void Win32GLFrameBuffer::SetVSync (bool vsync)
+{
+	if (gl.SetVSync!=NULL) gl.SetVSync(vsync);
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
 void gl_ClearScreen()
 {
 	gl.MatrixMode(GL_MODELVIEW);
@@ -640,16 +651,3 @@ void gl_ClearScreen()
 	gl.MatrixMode(GL_MODELVIEW);
 	gl.PopMatrix();
 }
-
-
-//==========================================================================
-//
-//
-//
-//==========================================================================
-
-void gl_SetVSync(bool self)
-{
-	if (gl.SetVSync!=NULL) gl.SetVSync(self);
-}
-

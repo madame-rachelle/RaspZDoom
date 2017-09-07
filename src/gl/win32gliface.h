@@ -99,6 +99,8 @@ public:
 	virtual bool CreateResources ();
 	virtual void ReleaseResources ();
 
+	void SetVSync (bool vsync);
+
 	int GetTrueHeight() { return static_cast<Win32GLVideo*>(Video)->GetTrueHeight(); }
 
 	bool Lock(bool buffered);
