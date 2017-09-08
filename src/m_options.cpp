@@ -533,7 +533,7 @@ static menuitem_t VideoItems[] = {
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ slider,	"Screen size",			{&screenblocks},	   	{3.0}, {12.0},	{1.0}, {NULL} },
 	{ slider,	"Gamma correction",		{&Gamma},			   	{0.1}, {3.0},	{0.1}, {NULL} },
-	{ slider,	"Brightness",			{&Gamma},			   	{1.0}, {3.0},	{0.1}, {NULL} },
+	{ slider,	"Brightness",			{&vid_brightness},		{-0.8}, {0.8},	{0.05}, {NULL} },
 	{ slider,	"Contrast",				{&vid_contrast},	   	{0.1}, {3.0},	{0.1}, {NULL} },
 	{ discrete,	"Crosshair",			{&crosshair},		   	{8.0}, {0.0},	{0.0}, {Crosshairs} },
 	{ discrete, "Vertical Sync",		{&vid_vsync},	   		{2.0}, {0.0},	{0.0}, {OnOff} },
