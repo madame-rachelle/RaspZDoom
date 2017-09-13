@@ -815,6 +815,7 @@ void DSimpleCanvas::Resize(int width, int height)
 	}
 	int bytes_per_pixel = Bgra ? 4 : 1;
 	MemBuffer = new BYTE[Pitch * height * bytes_per_pixel];
+	memset(MemBuffer, 0, Pitch * height * bytes_per_pixel);
 }
 
 //==========================================================================
