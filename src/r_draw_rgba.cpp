@@ -2671,7 +2671,6 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	int textureheight0 = bufheight[0];
 	int32_t frac[4] = { (int32_t)vplce[0], (int32_t)vplce[1], (int32_t)vplce[2], (int32_t)vplce[3] };
 	int32_t fracstep[4] = { (int32_t)vince[0], (int32_t)vince[1], (int32_t)vince[2], (int32_t)vince[3] };
-	uint32_t output[4];
 
 	int start_fade = 2; // How fast it should fade out
 
@@ -2681,10 +2680,6 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	int solid_bottom_r = RPART(solid_bottom);
 	int solid_bottom_g = GPART(solid_bottom);
 	int solid_bottom_b = BPART(solid_bottom);
-	uint32_t solid_top_fill = solid_top;
-	uint32_t solid_bottom_fill = solid_bottom;
-	solid_top_fill = (solid_top_fill << 24) | (solid_top_fill << 16) | (solid_top_fill << 8) | solid_top_fill;
-	solid_bottom_fill = (solid_bottom_fill << 24) | (solid_bottom_fill << 16) | (solid_bottom_fill << 8) | solid_bottom_fill;
 
 	// Find bands for top solid color, top fade, center textured, bottom fade, bottom solid color:
 	int fade_length = (1 << (24 - start_fade));
@@ -2707,7 +2702,10 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	// Top solid color:
 	for (int index = 0; index < start_fadetop_y; index++)
 	{
-		*((uint32_t*)dest) = solid_top_fill;
+		dest[0] = solid_top;
+		dest[1] = solid_top;
+		dest[2] = solid_top;
+		dest[3] = solid_top;
 		dest += pitch;
 		for (int col = 0; col < 4; col++)
 			frac[col] += fracstep[col];
@@ -2730,10 +2728,9 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 			c_green = (c_green * alpha_top + solid_top_g * inv_alpha_top) >> 8;
 			c_blue = (c_blue * alpha_top + solid_top_b * inv_alpha_top) >> 8;
 
-			output[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
+			((uint32_t*)dest)[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
 			frac[col] += fracstep[col];
 		}
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
@@ -2743,12 +2740,10 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 		for (int col = 0; col < 4; col++)
 		{
 			uint32_t sample_index = (((((uint32_t)frac[col]) << 8) >> FRACBITS) * textureheight0) >> FRACBITS;
-			output[col] = source0[col][sample_index];
+			((uint32_t*)dest)[col] = source0[col][sample_index];
 
 			frac[col] += fracstep[col];
 		}
-
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
@@ -2768,18 +2763,20 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 			c_red = (c_red * alpha_bottom + solid_bottom_r * inv_alpha_bottom) >> 8;
 			c_green = (c_green * alpha_bottom + solid_bottom_g * inv_alpha_bottom) >> 8;
 			c_blue = (c_blue * alpha_bottom + solid_bottom_b * inv_alpha_bottom) >> 8;
-			output[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
+			((uint32_t*)dest)[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
 
 			frac[col] += fracstep[col];
 		}
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
 	// Bottom solid color:
 	for (int index = end_fadebottom_y; index < count; index++)
 	{
-		*((uint32_t*)dest) = solid_bottom_fill;
+		dest[0] = solid_bottom;
+		dest[1] = solid_bottom;
+		dest[2] = solid_bottom;
+		dest[3] = solid_bottom;
 		dest += pitch;
 	}
 }
@@ -2856,7 +2853,6 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	uint32_t maxtextureheight1 = bufheight[1] - 1;
 	int32_t frac[4] = { (int32_t)vplce[0], (int32_t)vplce[1], (int32_t)vplce[2], (int32_t)vplce[3] };
 	int32_t fracstep[4] = { (int32_t)vince[0], (int32_t)vince[1], (int32_t)vince[2], (int32_t)vince[3] };
-	uint32_t output[4];
 
 	int start_fade = 2; // How fast it should fade out
 
@@ -2866,10 +2862,6 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	int solid_bottom_r = RPART(solid_bottom);
 	int solid_bottom_g = GPART(solid_bottom);
 	int solid_bottom_b = BPART(solid_bottom);
-	uint32_t solid_top_fill = solid_top;
-	uint32_t solid_bottom_fill = solid_bottom;
-	solid_top_fill = (solid_top_fill << 24) | (solid_top_fill << 16) | (solid_top_fill << 8) | solid_top_fill;
-	solid_bottom_fill = (solid_bottom_fill << 24) | (solid_bottom_fill << 16) | (solid_bottom_fill << 8) | solid_bottom_fill;
 
 	// Find bands for top solid color, top fade, center textured, bottom fade, bottom solid color:
 	int fade_length = (1 << (24 - start_fade));
@@ -2892,7 +2884,10 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	// Top solid color:
 	for (int index = 0; index < start_fadetop_y; index++)
 	{
-		*((uint32_t*)dest) = solid_top_fill;
+		dest[0] = solid_top;
+		dest[1] = solid_top;
+		dest[2] = solid_top;
+		dest[3] = solid_top;
 		dest += pitch;
 		for (int col = 0; col < 4; col++)
 			frac[col] += fracstep[col];
@@ -2910,7 +2905,7 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 				uint32_t sample_index2 = MIN(sample_index, maxtextureheight1);
 				fg = source1[col][sample_index2];
 			}
-			output[col] = fg;
+			((uint32_t*)dest)[col] = fg;
 
 			int alpha_top = MAX(MIN(frac[col] >> (16 - start_fade), 256), 0);
 			int inv_alpha_top = 256 - alpha_top;
@@ -2920,11 +2915,10 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 			c_red = (c_red * alpha_top + solid_top_r * inv_alpha_top) >> 8;
 			c_green = (c_green * alpha_top + solid_top_g * inv_alpha_top) >> 8;
 			c_blue = (c_blue * alpha_top + solid_top_b * inv_alpha_top) >> 8;
-			output[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
+			((uint32_t*)dest)[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
 
 			frac[col] += fracstep[col];
 		}
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
@@ -2940,12 +2934,10 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 				uint32_t sample_index2 = MIN(sample_index, maxtextureheight1);
 				fg = source1[col][sample_index2];
 			}
-			output[col] = fg;
+			((uint32_t*)dest)[col] = fg;
 
 			frac[col] += fracstep[col];
 		}
-
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
@@ -2961,7 +2953,7 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 				uint32_t sample_index2 = MIN(sample_index, maxtextureheight1);
 				fg = source1[col][sample_index2];
 			}
-			output[col] = fg;
+			((uint32_t*)dest)[col] = fg;
 
 			int alpha_bottom = MAX(MIN(((2 << 24) - frac[col]) >> (16 - start_fade), 256), 0);
 			int inv_alpha_bottom = 256 - alpha_bottom;
@@ -2971,18 +2963,20 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 			c_red = (c_red * alpha_bottom + solid_bottom_r * inv_alpha_bottom) >> 8;
 			c_green = (c_green * alpha_bottom + solid_bottom_g * inv_alpha_bottom) >> 8;
 			c_blue = (c_blue * alpha_bottom + solid_bottom_b * inv_alpha_bottom) >> 8;
-			output[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
+			((uint32_t*)dest)[col] = 0xff000000 | (c_red << 16) | (c_green << 8) | c_blue;
 
 			frac[col] += fracstep[col];
 		}
-		*((uint32_t*)dest) = *((uint32_t*)output);
 		dest += pitch;
 	}
 
 	// Bottom solid color:
 	for (int index = end_fadebottom_y; index < count; index++)
 	{
-		*((uint32_t*)dest) = solid_bottom_fill;
+		dest[0] = solid_bottom;
+		dest[1] = solid_bottom;
+		dest[2] = solid_bottom;
+		dest[3] = solid_bottom;
 		dest += pitch;
 	}
 }
