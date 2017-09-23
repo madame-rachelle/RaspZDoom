@@ -368,8 +368,6 @@ CUSTOM_CVAR(Bool, r_truecolor, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG|CVAR_NOINIT
 	if (vid_renderer)
 		return;
 
-	if ((r_skymode == 2) && self)
-		r_skymode = 1;
 	if (r_detail && self)
 		r_detail = 0;
 	NewWidth = screen->GetWidth();

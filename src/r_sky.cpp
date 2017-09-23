@@ -59,8 +59,6 @@ CUSTOM_CVAR(Int, testskyoffset, 0, 0)
 // Also now controls capped skies. 0 = normal, 1 = stretched, 2 = capped
 CUSTOM_CVAR (Int, r_skymode, 1, CVAR_ARCHIVE)
 {
-	if ((self == 2) && r_truecolor)
-		self = 1;
 	R_InitSkyMap();
 }
 

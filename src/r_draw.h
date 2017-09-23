@@ -379,6 +379,11 @@ void R_DrawSingleSkyCol4(uint32_t solid_top, uint32_t solid_bottom);
 void R_DrawDoubleSkyCol1(uint32_t solid_top, uint32_t solid_bottom);
 void R_DrawDoubleSkyCol4(uint32_t solid_top, uint32_t solid_bottom);
 
+void R_DrawSingleSkyCol1_rgba(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawDoubleSkyCol1_rgba(uint32_t solid_top, uint32_t solid_bottom);
+void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom);
+
 // Sets dc_colormap and dc_light to their appropriate values depending on the output format (pal vs true color)
 void R_SetColorMapLight(FSWColormap *base_colormap, float light, int shade);
 
