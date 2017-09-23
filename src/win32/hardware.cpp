@@ -320,8 +320,6 @@ CUSTOM_CVAR(Bool, r_truecolor, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG|CVAR_NOINIT
 {
 	// Strictly speaking this doesn't require a mode switch, but it is the easiest
 	// way to force a CreateFramebuffer call without a lot of refactoring.
-	if ((r_skymode == 2) && self)
-		r_skymode = 1;
 	if (r_detail && self)
 		r_detail = 0;
 	NewWidth = screen->GetWidth();
