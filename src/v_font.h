@@ -66,7 +66,11 @@ enum EColorRange
 	CR_PURPLE,
 	CR_DARKGRAY,
 	CR_CYAN,
-	NUM_TEXT_COLORS
+	CR_ICE,
+	CR_FIRE,
+	CR_SAPPHIRE,
+	CR_TEAL,
+	NUM_TEXT_COLORS,
 };
 
 extern int NumTextColors;
