@@ -1711,7 +1711,7 @@ public:
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
 			VEC_SHADE_SIMPLE(fg);
-			_mm_storeu_si128((__m128i*)loop.dest, fg);
+			_mm_store_si128((__m128i*)loop.dest, fg);
 		}
 	};
 
@@ -1727,7 +1727,7 @@ public:
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
 			VEC_SHADE(fg, cmd._shade_constants);
-			_mm_storeu_si128((__m128i*)loop.dest, fg);
+			_mm_store_si128((__m128i*)loop.dest, fg);
 		}
 	};
 
@@ -1742,10 +1742,10 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 			VEC_SHADE_SIMPLE(fg);
 			VEC_ALPHA_BLEND(fg, bg);
-			_mm_storeu_si128((__m128i*)loop.dest, fg);
+			_mm_store_si128((__m128i*)loop.dest, fg);
 		}
 	};
 
@@ -1760,10 +1760,10 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 			VEC_SHADE(fg, cmd._shade_constants);
 			VEC_ALPHA_BLEND(fg, bg);
-			_mm_storeu_si128((__m128i*)loop.dest, fg);
+			_mm_store_si128((__m128i*)loop.dest, fg);
 		}
 	};
 
@@ -1780,7 +1780,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1794,7 +1794,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, fg_alpha_lo), _mm_mullo_epi16(bg_lo, bg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -1811,7 +1811,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1825,7 +1825,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, fg_alpha_lo), _mm_mullo_epi16(bg_lo, bg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -1842,7 +1842,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1856,7 +1856,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(bg_lo, bg_alpha_lo), _mm_mullo_epi16(fg_lo, fg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -1873,7 +1873,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1887,7 +1887,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(bg_lo, bg_alpha_lo), _mm_mullo_epi16(fg_lo, fg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -1904,7 +1904,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1918,7 +1918,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(fg_lo, fg_alpha_lo), _mm_mullo_epi16(bg_lo, bg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -1935,7 +1935,7 @@ public:
 		void Blend(DrawerWall4Command &cmd, LoopIterator &loop)
 		{
 			__m128i fg = Sampler::Sample4(cmd, loop);
-			__m128i bg = _mm_loadu_si128((const __m128i*)loop.dest);
+			__m128i bg = _mm_load_si128((const __m128i*)loop.dest);
 
 			VEC_CALC_BLEND_ALPHA(fg);
 			VEC_SHADE_SIMPLE(fg);
@@ -1949,7 +1949,7 @@ public:
 			__m128i out_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(fg_lo, fg_alpha_lo), _mm_mullo_epi16(bg_lo, bg_alpha_lo)), 8);
 			__m128i out = _mm_packus_epi16(out_lo, out_hi);
 
-			_mm_storeu_si128((__m128i*)loop.dest, out);
+			_mm_store_si128((__m128i*)loop.dest, out);
 		}
 	};
 
@@ -2506,7 +2506,7 @@ void ApplySpecialColormapRGBACommand::Execute(DrawerThread *thread)
 		for (int x = 0; x < sse_length; x++)
 		{
 			// Unpack to integers:
-			__m128i p = _mm_loadu_si128((const __m128i*)pixels);
+			__m128i p = _mm_load_si128((const __m128i*)pixels);
 
 			__m128i p16_0 = _mm_unpacklo_epi8(p, _mm_setzero_si128());
 			__m128i p16_1 = _mm_unpackhi_epi8(p, _mm_setzero_si128());
@@ -2564,7 +2564,7 @@ void ApplySpecialColormapRGBACommand::Execute(DrawerThread *thread)
 			p16_1 = _mm_packs_epi32(p32_2, p32_3);
 			p = _mm_packus_epi16(p16_0, p16_1);
 
-			_mm_storeu_si128((__m128i*)pixels, p);
+			_mm_store_si128((__m128i*)pixels, p);
 			pixels += 16;
 		}
 

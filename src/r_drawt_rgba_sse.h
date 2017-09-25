@@ -72,7 +72,7 @@ public:
 				// shade_pal_index:
 				__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 				VEC_SHADE_SIMPLE(fg);
-				_mm_storeu_si128((__m128i*)dest, fg);
+				_mm_store_si128((__m128i*)dest, fg);
 
 				source += sincr;
 				dest += pitch;
@@ -90,7 +90,7 @@ public:
 
 					__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 					VEC_SHADE_SIMPLE(fg);
-					_mm_storeu_si128((__m128i*)dest, fg);
+					_mm_store_si128((__m128i*)dest, fg);
 				}
 
 				// shade_pal_index 4-7 (pitch)
@@ -102,7 +102,7 @@ public:
 
 					__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 					VEC_SHADE_SIMPLE(fg);
-					_mm_storeu_si128((__m128i*)(dest + pitch), fg);
+					_mm_store_si128((__m128i*)(dest + pitch), fg);
 				}
 
 				source += sincr * 2;
@@ -123,7 +123,7 @@ public:
 				// shade_pal_index:
 				__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 				VEC_SHADE(fg, shade_constants);
-				_mm_storeu_si128((__m128i*)dest, fg);
+				_mm_store_si128((__m128i*)dest, fg);
 
 				source += sincr;
 				dest += pitch;
@@ -141,7 +141,7 @@ public:
 
 					__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 					VEC_SHADE(fg, shade_constants);
-					_mm_storeu_si128((__m128i*)dest, fg);
+					_mm_store_si128((__m128i*)dest, fg);
 				}
 
 				// shade_pal_index 4-7 (pitch)
@@ -153,7 +153,7 @@ public:
 
 					__m128i fg = _mm_set_epi32(palette[p3], palette[p2], palette[p1], palette[p0]);
 					VEC_SHADE(fg, shade_constants);
-					_mm_storeu_si128((__m128i*)(dest + pitch), fg);
+					_mm_store_si128((__m128i*)(dest + pitch), fg);
 				}
 
 				source += sincr * 2;
@@ -240,7 +240,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -249,7 +249,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -277,7 +277,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -286,7 +286,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -354,7 +354,7 @@ public:
 			__m128i inv_alpha_lo = _mm_subs_epu16(alpha_one, alpha_lo);
 
 			// unpack bg:
-			__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+			__m128i bg = _mm_load_si128((const __m128i*)dest);
 			__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 			__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -363,7 +363,7 @@ public:
 			__m128i color_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg, alpha_lo), _mm_mullo_epi16(bg_lo, inv_alpha_lo)), 6);
 
 			__m128i color = _mm_packus_epi16(color_lo, color_hi);
-			_mm_storeu_si128((__m128i*)dest, color);
+			_mm_store_si128((__m128i*)dest, color);
 
 			source += sincr;
 			dest += pitch;
@@ -445,7 +445,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -454,7 +454,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -482,7 +482,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -491,7 +491,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_adds_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -573,7 +573,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -582,7 +582,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(bg_lo, mbg_alpha), _mm_mullo_epi16(fg_lo, mfg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -610,7 +610,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -619,7 +619,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(bg_lo, mbg_alpha), _mm_mullo_epi16(fg_lo, mfg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -701,7 +701,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -710,7 +710,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
@@ -738,7 +738,7 @@ public:
 				__m128i fg_lo = _mm_unpacklo_epi8(fg, _mm_setzero_si128());
 
 				// unpack bg:
-				__m128i bg = _mm_loadu_si128((const __m128i*)dest);
+				__m128i bg = _mm_load_si128((const __m128i*)dest);
 				__m128i bg_hi = _mm_unpackhi_epi8(bg, _mm_setzero_si128());
 				__m128i bg_lo = _mm_unpacklo_epi8(bg, _mm_setzero_si128());
 
@@ -747,7 +747,7 @@ public:
 				__m128i color_lo = _mm_srli_epi16(_mm_subs_epu16(_mm_mullo_epi16(fg_lo, mfg_alpha), _mm_mullo_epi16(bg_lo, mbg_alpha)), 8);
 
 				__m128i color = _mm_packus_epi16(color_lo, color_hi);
-				_mm_storeu_si128((__m128i*)dest, color);
+				_mm_store_si128((__m128i*)dest, color);
 
 				source += sincr;
 				dest += pitch;
