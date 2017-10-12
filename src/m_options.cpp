@@ -142,6 +142,11 @@ value_t OnOff[2] = {
 	{ 1.0, "On" }
 };
 
+value_t OffOn[2] = {
+	{ 0.0, "On" },
+	{ 1.0, "Off" }
+};
+
 menu_t  *CurrentMenu;
 int		CurrentItem;
 static char	   *OldMessage;
@@ -539,7 +544,7 @@ static menuitem_t VideoItems[] = {
 	{ slider,	"Contrast",				{&vid_contrast},	   	{0.1}, {3.0},	{0.1}, {NULL} },
 	{ discrete,	"Crosshair",			{&crosshair},		   	{8.0}, {0.0},	{0.0}, {Crosshairs} },
 	{ discrete, "Vertical Sync",		{&vid_vsync},	   		{2.0}, {0.0},	{0.0}, {OnOff} },
-	{ discrete, "Rendering Interpolation",	{&cl_capfps},	   	{2.0}, {0.0},	{0.0}, {NoYes} },	
+	{ discrete, "Rendering Interpolation",	{&cl_capfps},	   	{2.0}, {0.0},	{0.0}, {OffOn} },	
 	{ discrete, "Column render mode",	{&r_columnmethod},		{2.0}, {0.0},	{0.0}, {ColumnMethods} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ discrete, "Detail mode",			{&r_detail},		   	{7.0}, {0.0},	{0.0}, {DetailModes} },
