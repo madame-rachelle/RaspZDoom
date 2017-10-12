@@ -475,6 +475,7 @@ EXTERN_CVAR (Bool, cl_capfps)
 EXTERN_CVAR (Bool, vid_forceddraw)
 EXTERN_CVAR (Int, vid_displaybits)
 EXTERN_CVAR (Bool, vid_nowidescreen)
+EXTERN_CVAR(Bool, gl_vid_compatibility)
 
 static value_t Crosshairs[] =
 {
@@ -563,6 +564,7 @@ static menuitem_t VideoItems[] = {
 	{ discrete, "DirectDraw palette hack", {&vid_palettehack},	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Use attached surfaces", {&vid_attachedsurfaces},{2.0}, {0.0},	{0.0}, {OnOff} },
 #endif
+	{ discrete, "GL compatibility mode",{&gl_vid_compatibility},{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ redtext,	" ",					{NULL},					{0.0}, {0.0},	{0.0}, {NULL} },
 	{ discrete, "Use fuzz effect",		{&r_drawfuzz},			{2.0}, {0.0},	{0.0}, {YesNo} },
 	{ discrete, "Rocket Trails",		{&cl_rockettrails},		{2.0}, {0.0},	{0.0}, {OnOff} },

@@ -35,7 +35,6 @@ EXTERN_CVAR(Int, gl_texture_hqresize)
 EXTERN_CVAR(Flag, gl_texture_hqresize_textures)
 EXTERN_CVAR(Flag, gl_texture_hqresize_sprites)
 EXTERN_CVAR(Flag, gl_texture_hqresize_fonts)
-EXTERN_CVAR(Bool, gl_vid_compatibility)
 
 static value_t SpriteclipModes[]=
 {
@@ -143,7 +142,6 @@ menuitem_t OpenGLItems[] = {
 	{ discrete, "Vertical Sync",			{&vid_vsync},					{2.0}, {0.0}, {0.0}, {OnOff} },
 //	{ discrete, "Refresh rate",				{&gl_vid_refreshHz},			{7.0}, {0.0}, {0.0}, {Hz} },
 //	{ more,		"Apply Refresh rate setting",{NULL+},						{7.0}, {0.0}, {0.0}, {(value_t *)ApplyRefresh} },
-	{ discrete, "Compatibility mode",		{&gl_vid_compatibility},		{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Rendering quality",		{&gl_render_precise},			{2.0}, {0.0}, {0.0}, {Precision} },
 	{ discrete, "Environment map on mirrors",{&gl_mirror_envmap},			{2.0}, {0.0}, {0.0}, {OnOff} },
 	{ discrete, "Enhanced night vision mode",{&gl_enhanced_lightamp},		{2.0}, {0.0}, {0.0}, {OnOff} },
