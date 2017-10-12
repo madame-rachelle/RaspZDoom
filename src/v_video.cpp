@@ -966,7 +966,18 @@ void V_Init (void)
 	I_ClosestResolution (&width, &height, bits);
 
 	if (!V_SetResolution (width, height, bits))
-		I_FatalError ("Could not set resolution to %d x %d x %d", width, height, bits);
+	{
+		if (currentrenderer==1 && !gl_vid_compatibility)
+		{
+			Printf ("Could not set resolution to %d x %d x %d. Setting GL compatibility mode\n", width, height, bits);
+			gl_vid_compatibility = true;
+			if (!V_SetResolution (width, height, 16))
+				I_FatalError ("Could not set resolution to %d x %d x %d", width, height, bits);
+			Printf ("Resolution: %d x %d\n", SCREENWIDTH, SCREENHEIGHT);
+		}
+		else		
+			I_FatalError ("Could not set resolution to %d x %d x %d", width, height, bits);
+	}
 	else
 		Printf ("Resolution: %d x %d\n", SCREENWIDTH, SCREENHEIGHT);
 
