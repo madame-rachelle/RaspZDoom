@@ -52,6 +52,7 @@ RenderContext gl;
 
 int occlusion_type=0;
 
+EXTERN_CVAR(Int, vid_renderer);
 
 //==========================================================================
 //
@@ -124,10 +125,11 @@ void gl_LoadExtensions()
 
 	const char *version = (const char*)glGetString(GL_VERSION);
 
-	// Don't even start if it's lower than 1.3
+	// Don't even start if it's lower than 2.0
 	if (strcmp(version, "2.0") < 0) 
 	{
-		I_FatalError("Unsupported OpenGL version.\nAt least GL 2.0 is required to run " GAMENAME ".\n");
+		vid_renderer = 0;
+		I_FatalError("Unsupported OpenGL version.\nAt least GL 2.0 is required to run " GAMENAME ".\nFalling back to software renderer.\n");
 	}
 
 	// This loads any function pointers and flags that require a vaild render context to
