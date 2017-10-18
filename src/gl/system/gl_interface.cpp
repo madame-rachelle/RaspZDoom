@@ -272,7 +272,8 @@ static void APIENTRY LoadExtensions()
 	// Don't even start if it's lower than 1.2
 	if (strcmp(version, "1.2") < 0) 
 	{
-		I_FatalError("Unsupported OpenGL version.\nAt least GL 1.2 is required to run "GAMENAME".\n");
+		vid_renderer = 0;
+		I_FatalError("Unsupported OpenGL version.\nAt least GL 1.2 is required to run "GAMENAME".\nFalling back to software renderer.\n");
 	}
 
 	// This loads any function pointers and flags that require a vaild render context to
