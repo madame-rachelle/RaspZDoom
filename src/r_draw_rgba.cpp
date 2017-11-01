@@ -2682,6 +2682,10 @@ void R_DrawSingleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	int solid_bottom_b = BPART(solid_bottom);
 
 	// Find bands for top solid color, top fade, center textured, bottom fade, bottom solid color:
+	if (fracstep[0] == 0)
+	{
+		fracstep[0] = 1;
+	}
 	int fade_length = (1 << (24 - start_fade));
 	int start_fadetop_y = (-frac[0]) / fracstep[0];
 	int end_fadetop_y = (fade_length - frac[0]) / fracstep[0];
@@ -2864,6 +2868,10 @@ void R_DrawDoubleSkyCol4_rgba(uint32_t solid_top, uint32_t solid_bottom)
 	int solid_bottom_b = BPART(solid_bottom);
 
 	// Find bands for top solid color, top fade, center textured, bottom fade, bottom solid color:
+	if (fracstep[0] == 0)
+	{
+		fracstep[0] = 1;
+	}
 	int fade_length = (1 << (24 - start_fade));
 	int start_fadetop_y = (-frac[0]) / fracstep[0];
 	int end_fadetop_y = (fade_length - frac[0]) / fracstep[0];
