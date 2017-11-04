@@ -41,7 +41,8 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "2.8.1a (GL 1.8.4a)"
+#define VERSIONSTR "2.8.1a"
+#define GLVERSIONSTR "1.8.4a"
 
 // The version as seen in the Windows resource
 #define RC_FILEVERSION 2,8,1,1
