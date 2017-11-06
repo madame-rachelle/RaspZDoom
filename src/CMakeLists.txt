@@ -620,6 +620,9 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 
 	if ( USE_SSE2 )
 		set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_SSE2_FLAGS}" )
+		set_source_files_properties(
+			r_data/voxels.cpp
+			PROPERTIES COMPILE_FLAGS "-mno-sse2" )
 	else ()
 		add_definitions( -DNO_SSE )
 	endif()
