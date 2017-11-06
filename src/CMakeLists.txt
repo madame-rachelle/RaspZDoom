@@ -541,8 +541,9 @@ else( X64 )
 	set( CMAKE_CXX_FLAGS ${SAFE_CMAKE_CXX_FLAGS} )
 endif( X64 )
 
-set ( GCC_SSE2_FLAGS "-msse2 -mfpmath=sse")
-option( USE_SSE2 "Use SSE2 instructions, requires P4 or later CPU." OFF)
+if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
+	option( USE_SSE2 "Use SSE2 instructions, requires P4 or later CPU." OFF)
+endif()
 
 # Set up flags for GCC
 
@@ -618,12 +619,7 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s" )
 	endif()
 
-	if ( USE_SSE2 )
-		set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_SSE2_FLAGS}" )
-		set_source_files_properties(
-			r_data/voxels.cpp
-			PROPERTIES COMPILE_FLAGS "-mno-sse2" )
-	else ()
+	if ( NOT USE_SSE2 )
 		add_definitions( -DNO_SSE )
 	endif()
 	
@@ -1083,6 +1079,18 @@ set( FASTMATH_PCH_SOURCES
 	r_data/colormaps.cpp
 	r_data/r_translate.cpp
 )
+
+set( GCC_SSE2_SOURCES
+	r_draw.cpp
+	r_drawt_rgba.cpp
+	r_draw_rgba.cpp
+	r_main.cpp
+	r_plane.cpp
+	r_swrenderer.cpp
+	r_things.cpp
+	v_draw.cpp
+)
+
 # This is disabled for now because I cannot find a way to give the .pch file a different name.
 # Visual C++ 2015 seems hell-bent of only allowing one .pch file with the same name as the executable.
 #enable_precompiled_headers( g_pch2.h FASTMATH_PCH_SOURCES )
@@ -1460,6 +1468,11 @@ add_executable( zdoom WIN32 MACOSX_BUNDLE
 )
 
 set_source_files_properties( ${FASTMATH_SOURCES} PROPERTIES COMPILE_FLAGS ${ZD_FASTMATH_FLAG} )
+if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
+	if (USE_SSE2)
+		set_source_files_properties( ${GCC_SSE2_SOURCES} PROPERTIES COMPILE_FLAGS "${SSE2_ENABLE} ${ZD_FASTMATH_FLAG}" )
+	endif()
+endif()
 set_source_files_properties( xlat/parse_xlat.cpp PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/xlat_parser.c" )
 set_source_files_properties( sc_man.cpp PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/sc_man_scanner.h" )
 set_source_files_properties( ${NOT_COMPILED_SOURCE_FILES} PROPERTIES HEADER_FILE_ONLY TRUE )
