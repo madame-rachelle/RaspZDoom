@@ -1,4 +1,5 @@
-#include "doomtype.h"
+//#include "doomtype.h"
+#include "i_system.h"
 #include "doomdef.h"
 #include "x86.h"
 
@@ -225,6 +226,9 @@ void DumpCPUInfo(const CPUInfo *cpu)
 		if (cpu->b3DNowPlus)	Printf(" 3DNow!+");
 		Printf ("\n");
 	}
+#ifndef NO_SSE
+	if (!cpu->bSSE2)	I_Error ("SSE2 instructions not supported! Use the non SSE2 version");
+#endif
 }
 
 #if 0

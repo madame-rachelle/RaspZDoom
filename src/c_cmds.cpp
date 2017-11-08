@@ -422,6 +422,7 @@ CCMD (take)
 
 CCMD (gameversion)
 {
+#ifdef NO_SSE
 	if (GetGitHash()[0] == '\0')
 	{
 		Printf ("%s : %s\n", GetVersionString(), GetGitTime());
@@ -430,6 +431,16 @@ CCMD (gameversion)
 	{
 		Printf ("%s @ %s\nCommit %s\n", GetVersionString(), GetGitTime(), GetGitHash());
 	}
+#else
+	if (GetGitHash()[0] == '\0')
+	{
+		Printf ("%s (GL %s) SSE2 : %s\n", GetVersionString(), GLVERSIONSTR, GetGitTime());
+	}
+	else
+	{
+		Printf ("%s (GL %s) SSE2 @ %s\nCommit %s\n", GetVersionString(), GLVERSIONSTR, GetGitTime(), GetGitHash());
+	}
+#endif
 }
 
 CCMD (print)
