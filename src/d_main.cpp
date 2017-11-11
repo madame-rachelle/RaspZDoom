@@ -1388,6 +1388,10 @@ void ParseCVarInfo()
 				{
 					cvarflags &= ~CVAR_ARCHIVE;
 				}
+				else if (stricmp(sc.String, "latch") == 0)
+				{
+					cvarflags |= CVAR_LATCH;
+				}
 				else
 				{
 					sc.ScriptError("Unknown cvar attribute '%s'", sc.String);
