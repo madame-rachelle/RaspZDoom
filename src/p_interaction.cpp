@@ -1818,6 +1818,7 @@ CCMD (kill)
 
 			Net_WriteByte (DEM_GENERICCHEAT);
 			Net_WriteByte (CHT_MASSACRE);
+			C_HideConsole ();
 		}
 		else if (!stricmp (argv[1], "baddies"))
 		{
@@ -1842,8 +1843,8 @@ CCMD (kill)
 
 		// Kill the player
 		Net_WriteByte (DEM_SUICIDE);
+		C_HideConsole ();
 	}
-	C_HideConsole ();
 }
 
 CCMD(remove)
