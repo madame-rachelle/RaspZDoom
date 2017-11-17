@@ -470,17 +470,20 @@ void FPNGTexture::CopyTrueColorPixels(BYTE * buffer, int buf_width, int buf_heig
 		lump >> id;
 	}
 
-	BYTE * Pixels = new BYTE[Width*Height];
+	if (ColorType == 0 || ColorType == 3)	/* Grayscale and paletted */
+	{
+		BYTE * Pixels = new BYTE[Width*Height];
 
-	lump.Seek (StartOfIDAT, SEEK_SET);
-	lump >> len >> id;
-	M_ReadIDAT (&lump, Pixels, Width, Height, Width, BitDepth, ColorType, Interlace, BigLong((unsigned int)len));
+		lump.Seek (StartOfIDAT, SEEK_SET);
+		lump >> len >> id;
+		M_ReadIDAT (&lump, Pixels, Width, Height, Width, BitDepth, ColorType, Interlace, BigLong((unsigned int)len));
+		
+		CopyPixelData(buffer, buf_width, buf_height, x, y,
+					  Pixels, Width, Height, 1, Width,
+					  cm, translation, pe);
 
-	CopyPixelData(buffer, buf_width, buf_height, x, y,
-				  Pixels, Width, Height, 1, Width,
-				  cm, translation, pe);
-
-	delete[] Pixels;
+		delete[] Pixels;
+	}
 }
 
 //===========================================================================
