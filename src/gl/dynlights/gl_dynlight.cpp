@@ -243,7 +243,7 @@ extern int ScriptDepth;
 
 inline float gl_ParseFloat(FScanner &sc)
 {
-   sc.GetFloat();
+   sc.MustGetFloat();
 
    return float(sc.Float);
 }
@@ -251,7 +251,7 @@ inline float gl_ParseFloat(FScanner &sc)
 
 inline int gl_ParseInt(FScanner &sc)
 {
-   sc.GetNumber();
+   sc.MustGetNumber();
 
    return sc.Number;
 }
