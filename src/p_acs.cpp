@@ -52,7 +52,7 @@
 #include "c_console.h"
 #include "c_dispatch.h"
 #include "s_sndseq.h"
-#include "i_system.h"
+//#include "i_system.h"
 #include "i_movie.h"
 #include "sbar.h"
 #include "m_swap.h"
@@ -147,7 +147,7 @@ enum
 
 struct CallReturn
 {
-	CallReturn(int pc, ScriptFunction *func, FBehavior *module, SDWORD *locals, ACSLocalArrays *arrays, bool discard, unsigned int runaway)
+	CallReturn(int pc, ScriptFunction *func, FBehavior *module, const ACSLocalVariables &locals, ACSLocalArrays *arrays, bool discard, unsigned int runaway)
 		: ReturnFunction(func),
 		  ReturnModule(module),
 		  ReturnLocals(locals),
@@ -159,7 +159,7 @@ struct CallReturn
 
 	ScriptFunction *ReturnFunction;
 	FBehavior *ReturnModule;
-	SDWORD *ReturnLocals;
+	ACSLocalVariables ReturnLocals;
 	ACSLocalArrays *ReturnArrays;
 	int ReturnAddress;
 	int bDiscardResult;
@@ -6158,7 +6158,7 @@ static bool CharArrayParms(int &capacity, int &offset, int &a, FACSStackMemory& 
 int DLevelScript::RunScript ()
 {
 	DACSThinker *controller = DACSThinker::ActiveThinker;
-	SDWORD *locals = localvars;
+	ACSLocalVariables locals(localvars, numlocalvars);
 	ACSLocalArrays noarrays;
 	ACSLocalArrays *localarrays = &noarrays;
 	ScriptFunction *activeFunction = NULL;
@@ -6506,7 +6506,6 @@ int DLevelScript::RunScript ()
 				int i;
 				ScriptFunction *func;
 				FBehavior *module;
-				SDWORD *mylocals;
 
 				if(pcd == PCD_CALLSTACK)
 				{
@@ -6535,9 +6534,9 @@ int DLevelScript::RunScript ()
 					state = SCRIPT_PleaseRemove;
 					break;
 				}
-				mylocals = locals;
+				const ACSLocalVariables mylocals = locals;
 				// The function's first argument is also its first local variable.
-				locals = &Stack[sp - func->ArgCount];
+				locals.Reset(&Stack[sp - func->ArgCount], func->ArgCount + func->LocalCount);
 				// Make space on the stack for any other variables the function uses.
 				for (i = 0; i < func->LocalCount; ++i)
 				{
@@ -6576,7 +6575,7 @@ int DLevelScript::RunScript ()
 				sp -= sizeof(CallReturn)/sizeof(int);
 				retsp = &Stack[sp];
 				activeBehavior->GetFunctionProfileData(activeFunction)->AddRun(runaway - ret->EntryInstrCount);
-				sp = int(locals - &Stack[0]);
+				sp = int(locals.GetPointer() - &Stack[0]);
 				pc = ret->ReturnModule->Ofs2PC(ret->ReturnAddress);
 				activeFunction = ret->ReturnFunction;
 				activeBehavior = ret->ReturnModule;
