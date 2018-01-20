@@ -725,7 +725,7 @@ ADD_STAT(music)
 //
 //==========================================================================
 
-CCMD (writeopl)
+UNSAFE_CCMD (writeopl)
 {
 	if (argv.argc() == 2)
 	{
@@ -763,7 +763,7 @@ CCMD (writeopl)
 //
 //==========================================================================
 
-CCMD (writewave)
+UNSAFE_CCMD (writewave)
 {
 	if (argv.argc() >= 2 && argv.argc() <= 3)
 	{
@@ -801,7 +801,7 @@ CCMD (writewave)
 //
 //==========================================================================
 
-CCMD (writemidi)
+UNSAFE_CCMD (writemidi)
 {
 	if (argv.argc() != 2)
 	{
