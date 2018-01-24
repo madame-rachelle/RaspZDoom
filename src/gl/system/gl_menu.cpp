@@ -63,8 +63,8 @@ void gl_SetupMenu()
 	{
 		for(int i = (*opt)->mValues.Size()-1; i>=0; i--)
 		{
-			// Delete HQnX resize modes for non MSVC targets
-			if ((*opt)->mValues[i].Value >= 7.0)
+			// Delete HQnX resize modes for non MMX targets
+			if (((*opt)->mValues[i].Value >= 7.0) && ((*opt)->mValues[i].Value <= 9.0))
 			{
 				(*opt)->mValues.Delete(i);
 			}
