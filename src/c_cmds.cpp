@@ -668,7 +668,7 @@ UNSAFE_CCMD (crashout)
 #endif
 
 
-CCMD (dir)
+UNSAFE_CCMD (dir)
 {
 	FString dir, path;
 	char curdir[256];
