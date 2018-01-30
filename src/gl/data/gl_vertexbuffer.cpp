@@ -48,20 +48,25 @@
 #include "gl/data/gl_vertexbuffer.h"
 
 
+EXTERN_CVAR(Int, vid_renderer)
+
 CUSTOM_CVAR(Int, gl_usevbo, -1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
-	if (self < -1 || self > 2 || !(gl.flags&RFL_VBO))
+	if (vid_renderer == 1)
 	{
-		self = 0;
-	}
-	else if (self == -1)
-	{
-		if (!(gl.flags & RFL_NVIDIA)) self = 0;
-		else self = 2;
-	}
-	else if (GLRenderer != NULL && GLRenderer->mVBO != NULL && GLRenderer->mVBO->vbo_arg != self)
-	{
-		Printf("Vertex buffer use will be changed for the next level.\n");
+		if (self < -1 || self > 2 || !(gl.flags&RFL_VBO))
+		{
+			self = 0;
+		}
+		else if (self == -1)
+		{
+			if (!(gl.flags & RFL_NVIDIA)) self = 0;
+			else self = 2;
+		}
+		else if (GLRenderer != NULL && GLRenderer->mVBO != NULL && GLRenderer->mVBO->vbo_arg != self)
+		{
+			Printf("Vertex buffer use will be changed for the next level.\n");
+		}
 	}
 }
 
