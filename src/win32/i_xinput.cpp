@@ -796,7 +796,7 @@ void I_StartupXInput()
 #define USE_WINDOWS_DWORD
 #include "i_input.h"
 
-CVAR(Bool, joy_xinput, true, CVAR_GLOBALCONFIG|CVAR_ARCHIVE|CVAR_NOINITCALL)
+CVAR(Bool, joy_xinput, false, CVAR_GLOBALCONFIG|CVAR_ARCHIVE|CVAR_NOINITCALL)
 
 void I_StartupXInput()
 {
