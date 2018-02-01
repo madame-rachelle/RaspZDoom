@@ -572,7 +572,7 @@ DBaseDecal *DBaseDecal::CloneSelf (const FDecalTemplate *tpl, fixed_t ix, fixed_
 	return decal;
 }
 
-CUSTOM_CVAR (Int, cl_maxdecals, 256, CVAR_ARCHIVE)
+CUSTOM_CVAR (Int, cl_maxdecals, 512, CVAR_ARCHIVE)
 {
 	if (self < 0)
 	{
