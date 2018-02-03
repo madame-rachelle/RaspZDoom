@@ -210,12 +210,12 @@ inline int uallong(const int &foo)
 //============================================================================
 
 // ACS variables with world scope
-SDWORD ACS_WorldVars[NUM_WORLDVARS];
-FWorldGlobalArray ACS_WorldArrays[NUM_WORLDVARS];
+static BoundsCheckingArray<SDWORD, NUM_WORLDVARS> ACS_WorldVars;
+static BoundsCheckingArray<FWorldGlobalArray, NUM_WORLDVARS> ACS_WorldArrays;
 
 // ACS variables with global scope
-SDWORD ACS_GlobalVars[NUM_GLOBALVARS];
-FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
+BoundsCheckingArray<SDWORD, NUM_GLOBALVARS> ACS_GlobalVars;
+BoundsCheckingArray<FWorldGlobalArray, NUM_GLOBALVARS> ACS_GlobalArrays;
 
 //----------------------------------------------------------------------------
 //
@@ -226,21 +226,7 @@ FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
 //
 //----------------------------------------------------------------------------
 
-struct FACSStackMemory
-{
-	SDWORD& operator[](const size_t index)
-	{
-		if (index >= STACK_SIZE)
-		{
-			I_Error("Corrupted stack pointer in ACS VM");
-		}
-
-		return buffer[index];
-	}
-
-private:
-	SDWORD buffer[STACK_SIZE];
-};
+typedef BoundsCheckingArray<SDWORD, STACK_SIZE> FACSStackMemory;
 
 struct FACSStack
 {
@@ -801,10 +787,10 @@ void ACSStringPool::Dump() const
 
 void P_MarkWorldVarStrings()
 {
-	GlobalACSStrings.MarkStringArray(ACS_WorldVars, countof(ACS_WorldVars));
-	for (size_t i = 0; i < countof(ACS_WorldArrays); ++i)
+	GlobalACSStrings.MarkStringArray(ACS_WorldVars.Pointer(), ACS_WorldVars.Size());
+	for (size_t i = 0; i < ACS_WorldArrays.Size(); ++i)
 	{
-		GlobalACSStrings.MarkStringMap(ACS_WorldArrays[i]);
+		GlobalACSStrings.MarkStringMap(ACS_WorldArrays.Pointer()[i]);
 	}
 }
 
@@ -816,10 +802,10 @@ void P_MarkWorldVarStrings()
 
 void P_MarkGlobalVarStrings()
 {
-	GlobalACSStrings.MarkStringArray(ACS_GlobalVars, countof(ACS_GlobalVars));
-	for (size_t i = 0; i < countof(ACS_GlobalArrays); ++i)
+	GlobalACSStrings.MarkStringArray(ACS_GlobalVars.Pointer(), ACS_GlobalVars.Size());
+	for (size_t i = 0; i < ACS_GlobalArrays.Size(); ++i)
 	{
-		GlobalACSStrings.MarkStringMap(ACS_GlobalArrays[i]);
+		GlobalACSStrings.MarkStringMap(ACS_GlobalArrays.Pointer()[i]);
 	}
 }
 
@@ -902,14 +888,14 @@ void P_ClearACSVars(bool alsoglobal)
 {
 	int i;
 
-	memset (ACS_WorldVars, 0, sizeof(ACS_WorldVars));
+	ACS_WorldVars.Fill(0);
 	for (i = 0; i < NUM_WORLDVARS; ++i)
 	{
 		ACS_WorldArrays[i].Clear ();
 	}
 	if (alsoglobal)
 	{
-		memset (ACS_GlobalVars, 0, sizeof(ACS_GlobalVars));
+		ACS_GlobalVars.Fill(0);
 		for (i = 0; i < NUM_GLOBALVARS; ++i)
 		{
 			ACS_GlobalArrays[i].Clear ();
@@ -1083,10 +1069,10 @@ static void ReadArrayVars (PNGHandle *png, FWorldGlobalArray *vars, size_t count
 
 void P_ReadACSVars(PNGHandle *png)
 {
-	ReadVars (png, ACS_WorldVars, NUM_WORLDVARS, MAKE_ID('w','v','A','r'));
-	ReadVars (png, ACS_GlobalVars, NUM_GLOBALVARS, MAKE_ID('g','v','A','r'));
-	ReadArrayVars (png, ACS_WorldArrays, NUM_WORLDVARS, MAKE_ID('w','a','R','r'));
-	ReadArrayVars (png, ACS_GlobalArrays, NUM_GLOBALVARS, MAKE_ID('g','a','R','r'));
+	ReadVars (png, ACS_WorldVars.Pointer(), NUM_WORLDVARS, MAKE_ID('w','v','A','r'));
+	ReadVars (png, ACS_GlobalVars.Pointer(), NUM_GLOBALVARS, MAKE_ID('g','v','A','r'));
+	ReadArrayVars (png, ACS_WorldArrays.Pointer(), NUM_WORLDVARS, MAKE_ID('w','a','R','r'));
+	ReadArrayVars (png, ACS_GlobalArrays.Pointer(), NUM_GLOBALVARS, MAKE_ID('g','a','R','r'));
 	GlobalACSStrings.ReadStrings(png, MAKE_ID('a','s','T','r'));
 }
 
@@ -1098,10 +1084,10 @@ void P_ReadACSVars(PNGHandle *png)
 
 void P_WriteACSVars(FILE *stdfile)
 {
-	WriteVars (stdfile, ACS_WorldVars, NUM_WORLDVARS, MAKE_ID('w','v','A','r'));
-	WriteVars (stdfile, ACS_GlobalVars, NUM_GLOBALVARS, MAKE_ID('g','v','A','r'));
-	WriteArrayVars (stdfile, ACS_WorldArrays, NUM_WORLDVARS, MAKE_ID('w','a','R','r'));
-	WriteArrayVars (stdfile, ACS_GlobalArrays, NUM_GLOBALVARS, MAKE_ID('g','a','R','r'));
+	WriteVars (stdfile, ACS_WorldVars.Pointer(), NUM_WORLDVARS, MAKE_ID('w','v','A','r'));
+	WriteVars (stdfile, ACS_GlobalVars.Pointer(), NUM_GLOBALVARS, MAKE_ID('g','v','A','r'));
+	WriteArrayVars (stdfile, ACS_WorldArrays.Pointer(), NUM_WORLDVARS, MAKE_ID('w','a','R','r'));
+	WriteArrayVars (stdfile, ACS_GlobalArrays.Pointer(), NUM_GLOBALVARS, MAKE_ID('g','a','R','r'));
 	GlobalACSStrings.WriteStrings(stdfile, MAKE_ID('a','s','T','r'));
 }
 
