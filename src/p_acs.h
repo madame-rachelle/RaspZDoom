@@ -35,6 +35,7 @@
 #ifndef __P_ACS_H__
 #define __P_ACS_H__
 
+#include <algorithm>
 #include "dobject.h"
 #include "dthinker.h"
 //#include "doomtype.h"
@@ -63,13 +64,32 @@ struct InitIntToZero
 };
 typedef TMap<SDWORD, SDWORD, THashTraits<SDWORD>, InitIntToZero> FWorldGlobalArray;
 
-// ACS variables with world scope
-extern SDWORD ACS_WorldVars[NUM_WORLDVARS];
-extern FWorldGlobalArray ACS_WorldArrays[NUM_WORLDVARS];
+// Type of elements count is unsigned int instead of size_t to match ACSStringPool interface
+template <typename T, unsigned int N>
+struct BoundsCheckingArray
+{
+	T &operator[](const unsigned int index)
+	{
+		if (index >= N)
+		{
+			I_Error("Out of bounds memory access in ACS VM");
+		}
+
+		return buffer[index];
+	}
+
+	T *Pointer() { return buffer; }
+	unsigned int Size() const { return N; }
+
+	void Fill(const T &value) { std::fill(std::begin(buffer), std::end(buffer), value); }
+
+private:
+	T buffer[N];
+};
 
 // ACS variables with global scope
-extern SDWORD ACS_GlobalVars[NUM_GLOBALVARS];
-extern FWorldGlobalArray ACS_GlobalArrays[NUM_GLOBALVARS];
+extern BoundsCheckingArray<SDWORD, NUM_GLOBALVARS> ACS_GlobalVars;
+extern BoundsCheckingArray<FWorldGlobalArray, NUM_GLOBALVARS> ACS_GlobalArrays;
 
 #define LIBRARYID_MASK			0xFFF00000
 #define LIBRARYID_SHIFT			20
@@ -362,7 +382,7 @@ public:
 	ACSProfileInfo *GetFunctionProfileData(ScriptFunction *func) { return GetFunctionProfileData((int)(func - (ScriptFunction *)Functions)); }
 	const char *LookupString (DWORD index) const;
 
-	SDWORD *MapVars[NUM_MAPVARS];
+	BoundsCheckingArray<SDWORD *, NUM_MAPVARS> MapVars;
 
 	static FBehavior *StaticLoadModule (int lumpnum, FileReader * fr=NULL, int len=0);
 	static void StaticLoadDefaultModules ();
