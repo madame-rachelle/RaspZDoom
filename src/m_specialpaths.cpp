@@ -28,6 +28,15 @@
 #define KF_FLAG_CREATE 0x00008000
 #endif
 
+// Vanilla MinGW does not have folder ids
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
+static const GUID FOLDERID_LocalAppData = { 0xf1b32785, 0x6fba, 0x4fcf, 0x9d, 0x55, 0x7b, 0x8e, 0x7f, 0x15, 0x70, 0x91 };
+static const GUID FOLDERID_RoamingAppData = { 0x3eb685db, 0x65f9, 0x4cf6, 0xa0, 0x3a, 0xe3, 0xef, 0x65, 0x72, 0x9f, 0x3d };
+static const GUID FOLDERID_SavedGames = { 0x4c5c32ff, 0xbb9d, 0x43b0, 0xb5, 0xb4, 0x2d, 0x72, 0xe5, 0x4e, 0xaa, 0xa4 };
+static const GUID FOLDERID_Documents = { 0xfdd39ad0, 0x238f, 0x46af, 0xad, 0xb4, 0x6c, 0x85, 0x48, 0x03, 0x69, 0xc7 };
+static const GUID FOLDERID_Pictures = { 0x33e28130, 0x4e1e, 0x4676, 0x83, 0x5a, 0x98, 0x39, 0x5c, 0x3b, 0xc3, 0xbb };
+#endif
+
 #include "version.h"	// for GAMENAME
 
 #if defined(_WIN32)
@@ -147,10 +156,10 @@ FString M_GetCachePath(bool create)
 {
 	FString path;
 
-//	if (!GetKnownFolder(CSIDL_LOCAL_APPDATA, FOLDERID_LocalAppData, create, path))
-//	{ // Failed (e.g. On Win9x): use program directory
+	if (!GetKnownFolder(CSIDL_LOCAL_APPDATA, FOLDERID_LocalAppData, create, path))
+	{ // Failed (e.g. On Win9x): use program directory
 		path = progdir;
-//	}
+	}
 	// Don't use GAME_DIR and such so that ZDoom and its child ports can
 	// share the node cache.
 	path += "/zdoom/cache";
@@ -207,43 +216,44 @@ FString M_GetConfigPath(bool for_reading)
 	HRESULT hr;
 
 	// Construct a user-specific config name
-/*	if (UseKnownFolders() && GetKnownFolder(CSIDL_APPDATA, FOLDERID_RoamingAppData, true, path))
+	if (UseKnownFolders() && GetKnownFolder(CSIDL_APPDATA, FOLDERID_RoamingAppData, true, path))
 	{
 		path += "/" GAME_DIR;
 		CreatePath(path);
 		path += "/" GAMENAMELOWERCASE ".ini";
 	}
 	else
-	{*/ // construct "$PROGDIR/zdoom-$USER.ini"
-	if (OSPlatform == os_Win2k)
-	{
-		TCHAR uname[UNLEN+1];
-		DWORD unamelen = countof(uname);
-
-		path = progdir;
-		hr = GetUserName(uname, &unamelen);
-		if (SUCCEEDED(hr) && uname[0] != 0)
+	{ // construct "$PROGDIR/zdoom-$USER.ini"
+		if (OSPlatform == os_Win2k)
 		{
-			// Is it valid for a user name to have slashes?
-			// Check for them and substitute just in case.
-			char *probe = uname;
-			while (*probe != 0)
+			TCHAR uname[UNLEN+1];
+			DWORD unamelen = countof(uname);
+
+			path = progdir;
+			hr = GetUserName(uname, &unamelen);
+			if (SUCCEEDED(hr) && uname[0] != 0)
 			{
-				if (*probe == '\\' || *probe == '/')
-					*probe = '_';
-				++probe;
+				// Is it valid for a user name to have slashes?
+				// Check for them and substitute just in case.
+				char *probe = uname;
+				while (*probe != 0)
+				{
+					if (*probe == '\\' || *probe == '/')
+						*probe = '_';
+					++probe;
+				}
+				path << GAMENAMELOWERCASE "-" << uname << ".ini";
 			}
-			path << GAMENAMELOWERCASE "-" << uname << ".ini";
+			else
+			{ // Couldn't get user name, so just use zdoom.ini
+				path += GAMENAMELOWERCASE ".ini";
+			}
 		}
 		else
-		{ // Couldn't get user name, so just use zdoom.ini
+		{
+			path = progdir;
 			path += GAMENAMELOWERCASE ".ini";
 		}
-	}
-	else
-	{
-		path = progdir;
-		path += GAMENAMELOWERCASE ".ini";
 	}
 	
 	// If we are reading the config file, check if it exists. If not, fallback
@@ -275,7 +285,7 @@ static const GUID MyFOLDERID_Screenshots = { 0xb7bede81, 0xdf94, 0x4682, 0xa7, 0
 FString M_GetScreenshotsPath()
 {
 	FString path;
-/*
+
 	if (!UseKnownFolders())
 	{
 		return progdir;
@@ -292,8 +302,9 @@ FString M_GetScreenshotsPath()
 	{
 		return progdir;
 	}
-	CreatePath(path);*/
-	path << progdir << "Screenshots/";
+	CreatePath(path);
+//	path << progdir << "Screenshots/";
+
 	return path;
 }
 
@@ -308,7 +319,7 @@ FString M_GetScreenshotsPath()
 FString M_GetSavegamesPath()
 {
 	FString path;
-/*
+
 	if (!UseKnownFolders())
 	{
 		return progdir;
@@ -327,9 +338,9 @@ FString M_GetSavegamesPath()
 		CreatePath(path);
 	}
 	else
-	{*/
+	{
 		path = progdir;
-//	}
+	}
 	return path;
 }
 
