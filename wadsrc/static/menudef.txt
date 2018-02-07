@@ -647,12 +647,6 @@ OptionValue Endoom
 	2.0, "Only modified"
 }
 
-OptionValue VideoBackend
-{
-	0.0, "Direct3D"
-	1.0, "DirectDraw"
-}
-
 OptionValue Bits
 {
 	8.0, "8"
@@ -698,7 +692,7 @@ OptionMenu "VideoOptions"
 	{
 		Option	"Show ENDOOM screen",	"showendoom", "Endoom"
 		StaticText " "
-		Option "Video backend", 			"vid_forceddraw", "VideoBackend"
+		Option "Use Direct3D if available",	"vid_forceddraw", "NoYes"
 		Option "DirectDraw display bits", 	"vid_displaybits", "Bits"
 		//Option "DirectDraw palette hack", "vid_palettehack", "OnOff"
 		//Option "Use attached surfaces", "vid_attachedsurfaces", "OnOff"

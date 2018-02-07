@@ -246,7 +246,7 @@ OptionMenu "VideoOptions"
 	{
 		Option	"Show ENDOOM screen",	"showendoom", "Endoom"
 		StaticText " "
-		Option "Video backend", 			"vid_forceddraw", "VideoBackend"
+		Option "Use Direct3D if available",	"vid_forceddraw", "NoYes"
 		Option "DirectDraw display bits",	"vid_displaybits", "Bits"
 		StaticText " "
 	}
