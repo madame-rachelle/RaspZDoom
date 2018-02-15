@@ -434,11 +434,11 @@ CCMD (gameversion)
 #else
 	if (GetGitHash()[0] == '\0')
 	{
-		Printf ("%s (GL %s) SSE2 : %s\n", GetVersionString(), GLVERSIONSTR, GetGitTime());
+		Printf ("%s SSE2 : %s\n", GetVersionString(), GetGitTime());
 	}
 	else
 	{
-		Printf ("%s (GL %s) SSE2 @ %s\nCommit %s\n", GetVersionString(), GLVERSIONSTR, GetGitTime(), GetGitHash());
+		Printf ("%s SSE2 @ %s\nCommit %s\n", GetVersionString(), GetGitTime(), GetGitHash());
 	}
 #endif
 }
