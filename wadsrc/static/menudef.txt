@@ -655,12 +655,6 @@ OptionValue Endoom
 	2.0, "$OPTVAL_ONLYMODIFIED"
 }
 
-OptionValue VideoBackend
-{
-	0.0, "Direct3D"
-	1.0, "DirectDraw"
-}
-
 OptionValue Bits
 {
 	8.0, "8"
@@ -728,8 +722,8 @@ OptionMenu "VideoOptions"
 	IfOption(Windows)
 	{
 		Option	"$DSPLYMNU_SHOWENDOOM",			"showendoom", "Endoom"
-		Option "Video backend", 				"vid_forceddraw", "VideoBackend"
-		Option "DirectDraw display bits", 		"vid_displaybits", "Bits"		
+		Option "Use Direct3D if available",		"vid_forceddraw", "NoYes"
+		Option "DirectDraw display bits", 		"vid_displaybits", "Bits"
 		StaticText " "
 		//Option "$DSPLYMNU_PALLETEHACK", 		"vid_palettehack", "OnOff"
 		//Option "$DSPLYMNU_ATTACHEDSURFACES", 	"vid_attachedsurfaces", "OnOff"
