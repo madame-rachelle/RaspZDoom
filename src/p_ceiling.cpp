@@ -571,11 +571,11 @@ bool EV_StopCeiling(int tag)
 	FSectorTagIterator it(tag);
 	while (int sec = it.Next())
 	{
-		if (level.sectors[sec].ceilingdata)
+		if (sectors[sec].ceilingdata)
 		{
-			SN_StopSequence(&level.sectors[sec], CHAN_CEILING);
-			level.sectors[sec].ceilingdata->Destroy();
-			level.sectors[sec].ceilingdata = nullptr;
+			SN_StopSequence(&sectors[sec], CHAN_CEILING);
+			sectors[sec].ceilingdata->Destroy();
+			sectors[sec].ceilingdata = nullptr;
 		}
 	}
 	return true;
