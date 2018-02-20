@@ -551,11 +551,11 @@ bool EV_StopFloor(int tag)
 	FSectorTagIterator it(tag);
 	while (int sec = it.Next())
 	{
-		if (level.sectors[sec].floordata)
+		if (sectors[sec].floordata)
 		{
-			SN_StopSequence(&level.sectors[sec], CHAN_FLOOR);
-			level.sectors[sec].floordata->Destroy();
-			level.sectors[sec].floordata = nullptr;
+			SN_StopSequence(&sectors[sec], CHAN_FLOOR);
+			sectors[sec].floordata->Destroy();
+			sectors[sec].floordata = nullptr;
 		}
 	}
 	return true;
