@@ -24,9 +24,9 @@
 #include <cmath>
 #include <algorithm>
 
-#if __cplusplus > 199711
-#define XBRZ_CXX11
-#endif // __cplusplus > 199711
+//#if __cplusplus > 199711
+//#define XBRZ_CXX11
+//#endif // __cplusplus > 199711
 
 namespace
 {
