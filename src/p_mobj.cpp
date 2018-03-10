@@ -923,7 +923,18 @@ void AActor::ClearInventory()
 		AInventory *inv = *invp;
 		if (!(inv->ItemFlags & IF_UNDROPPABLE))
 		{
-			inv->DepleteOrDestroy();
+			// For the sake of undroppable weapons, never remove ammo once
+			// it has been acquired; just set its amount to 0.
+			if (inv->IsKindOf(RUNTIME_CLASS(AAmmo)))
+			{
+				AAmmo *ammo = static_cast<AAmmo*>(inv);
+				ammo->Amount = 0;
+				invp = &inv->Inventory;
+			}
+			else
+			{
+				inv->Destroy ();
+			}
 		}
 		else if (inv->GetClass() == RUNTIME_CLASS(AHexenArmor))
 		{
