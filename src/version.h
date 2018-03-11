@@ -41,13 +41,13 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "2.8.3"
+#define VERSIONSTR "2.8.4"
 #define GLVERSIONSTR "1.9.1b"
 
 // The version as seen in the Windows resource
-#define RC_FILEVERSION 2,8,3,0
-#define RC_PRODUCTVERSION 2,8,3,0
-#define RC_PRODUCTVERSION2 "2.8.3"
+#define RC_FILEVERSION 2,8,4,0
+#define RC_PRODUCTVERSION 2,8,4,0
+#define RC_PRODUCTVERSION2 "2.8.4"
 
 // Version identifier for network games.
 // Bump it every time you do a release unless you're certain you
