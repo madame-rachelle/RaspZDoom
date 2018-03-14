@@ -523,11 +523,6 @@ static value_t Wipes[] = {
 	{ 3.0, "Crossfade" }
 };
 
-static value_t Backends[] = {
-	{ 0.0, "Direct3D" },
-	{ 1.0, "DirectDraw" },
-};
-
 static value_t Bits[] = {
 	{ 8.0, "8" },
 	{ 16.0, "16" },
@@ -559,7 +554,7 @@ static menuitem_t VideoItems[] = {
 	{ discrete, "Alternative HUD",		{&hud_althud},			{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Screen wipe style",	{&wipetype},			{4.0}, {0.0},	{0.0}, {Wipes} },
 #ifdef _WIN32
-	{ discrete, "Video Backend", 		{&vid_forceddraw},		{2.0}, {0.0},	{0.0}, {Backends} },
+	{ discrete, "Use Direct3D if available",{&vid_forceddraw},	{2.0}, {0.0},	{0.0}, {NoYes} },
 	{ discrete, "DirectDraw display bits", {&vid_displaybits},	{3.0}, {0.0},	{0.0}, {Bits} },
 	{ discrete, "DirectDraw palette hack", {&vid_palettehack},	{2.0}, {0.0},	{0.0}, {OnOff} },
 	{ discrete, "Use attached surfaces", {&vid_attachedsurfaces},{2.0}, {0.0},	{0.0}, {OnOff} },
