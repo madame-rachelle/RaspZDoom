@@ -11,7 +11,6 @@ if( COMMAND cmake_policy )
 endif()
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR} )
-include( CreateLaunchers )
 include( FindPackageHandleStandardArgs )
 
 # Produce a warning if XP support will be missing.
