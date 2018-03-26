@@ -1404,12 +1404,6 @@ void GLWall::DoFFloorBlocks(seg_t * seg,sector_t * frontsector,sector_t * backse
 			ff_topleft=topleft;
 			ff_topright=topright;
 		}
-		if (ff_bottomleft < bottomleft && ff_bottomright < bottomright)
-		{
-			// the new section extends into the floor.
-			ff_bottomleft = bottomleft;
-			ff_bottomright = bottomright;
-		}
 
 		// do all inverse floors above the current one it there is a gap between the
 		// last 3D floor and this one.
