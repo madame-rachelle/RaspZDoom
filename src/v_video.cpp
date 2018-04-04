@@ -1556,7 +1556,6 @@ bool IVideo::SetResolution (int width, int height, int bits)
 
 CCMD (vid_setmode)
 {
-	bool	goodmode = false;
 	int		width = 0, height = SCREENHEIGHT;
 	int		bits = DisplayBits;
 
@@ -1573,13 +1572,8 @@ CCMD (vid_setmode)
 		}
 	}
 
-	if (width && I_CheckResolution (width, height, bits))
-	{
-		goodmode = true;
-	}
-
-	if (!fullscreen)
-		goodmode = true;
+	const bool goodmode = (width > 0 && height > 0)
+		&& (!fullscreen || (Video != nullptr && I_CheckResolution(width, height, bits)));
 
 	if (goodmode)
 	{
