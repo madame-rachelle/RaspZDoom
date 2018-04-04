@@ -10,6 +10,7 @@
 #include "g_level.h"
 #include "r_state.h"
 #include "serializer.h"
+#include "gi.h"
 
 static FRandom pr_lightning ("Lightning");
 
@@ -176,6 +177,36 @@ static DLightningThinker *LocateLightning ()
 
 void P_StartLightning ()
 {
+	int i, j;
+	sector_t *tempSec;
+
+	const bool isOriginalHexen = (gameinfo.gametype == GAME_Hexen)
+		&& (level.flags2 & LEVEL2_HEXENHACK);
+
+	if (isOriginalHexen)
+	{
+		bool hasLightning = false;
+		tempSec = sectors;
+		for (i = numsectors, j = 0; i > 0; --i, ++j, ++tempSec)
+		{
+			int special = tempSec->special;
+			hasLightning = tempSec->GetTexture(sector_t::ceiling) == skyflatnum
+				|| special == Light_IndoorLightning1
+				|| special == Light_IndoorLightning2;
+
+			if (hasLightning)
+			{
+				break;
+			}
+		}
+
+		if (!hasLightning)
+		{
+			level.flags &= ~LEVEL_STARTLIGHTNING;
+			return;
+		}
+	}
+
 	DLightningThinker *lightning = LocateLightning ();
 	if (lightning == NULL)
 	{
