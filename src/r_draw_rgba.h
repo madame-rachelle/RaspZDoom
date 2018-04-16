@@ -473,9 +473,9 @@ public:
 	{
 		uint32_t alpha = APART(fg) + (APART(fg) >> 7); // 255 -> 256
 		uint32_t inv_alpha = 256 - alpha;
-		uint32_t red = MIN<uint32_t>(RPART(fg) * alpha + (RPART(bg) * inv_alpha) / 256, 255);
-		uint32_t green = MIN<uint32_t>(GPART(fg) * alpha + (GPART(bg) * inv_alpha) / 256, 255);
-		uint32_t blue = MIN<uint32_t>(BPART(fg) * alpha + (BPART(bg) * inv_alpha) / 256, 255);
+		uint32_t red = MIN<uint32_t>((RPART(fg) * alpha + RPART(bg) * inv_alpha) >> 8, 255);
+		uint32_t green = MIN<uint32_t>((GPART(fg) * alpha + GPART(bg) * inv_alpha) >> 8, 255);
+		uint32_t blue = MIN<uint32_t>((BPART(fg) * alpha + BPART(bg) * inv_alpha) >> 8, 255);
 		return 0xff000000 | (red << 16) | (green << 8) | blue;
 	}
 };
