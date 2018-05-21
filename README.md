@@ -1,10 +1,14 @@
  Some ZDoom based legacy ports with lower system requirements for Windows 9x or later and older hardware.
- Some branches are mostly discontinued from now on (DEC 31 2017).
+ Some branches are mostly discontinued from now on (MAY 01 2018).
+
+ - g3.3mgw branch:
+ A maintenance branch of GZDoom 3.3 compiling with MinGW and running on older non SSE2 cpus (legacy build) while
+keeping the DDRAW and D3D backends for compatibility.
 
  - gzdoom32 branch:
  ZDoom32 is a fork of truecolor ZDoom by dpJudas and Rachael and ZDoom 2.9pre (https://github.com/rheit/zdoom).
  It's a merge of dpJudas old truecolor branch (SEP 08 2016) and ZDoom master as of DEC 03 2016.
- Later merged with the GZDoom g1.x branch (APR 24 2016).
+ Later merged with the GZDoom g1.x branch (APR 24 2016). Runs on Windows 98.
  
  - glzdoom32 branch:
  A merge of ZDoom32 with a later GZDoom master (roughly 2.2) from NOV 17 2016 with later fixes.
@@ -13,7 +17,7 @@
  Original ZDoom32 branch without the GL renderer.
  
  - gzdoomle branch:
-  ZDoom LE (Legacy Edition) is a fork of the ZDoom 2.8.1 maintenance branch (https://github.com/rheit/zdoom/tree/maint)
+ ZDoom LE (Legacy Edition) is a fork of the ZDoom 2.8.1 maintenance branch (https://github.com/rheit/zdoom/tree/maint)
 for Windows 98 and old machines. Later merged with GZDoom as of august 2013 (1.8.4a).
 
  - zdoomle branch:
@@ -24,8 +28,8 @@ for Windows 98 and old machines. Later merged with GZDoom as of august 2013 (1.8
  Later merged with GZDoom 1.0.17 with later fixes and additions.
 
 
- ZDoom32 compiles with CMake 2.8.12, CodeBlocks 16.01 (TDM-GCC 4.9.2) and NASM 2.10.09.
- You'll need the following libraries: dx9mgw.zip, fmodapi43623win-installer.exe and fluidsynth.7z (optional).
+ ZDoom32 compiles with CMake 2.8.12, CodeBlocks 17.12 (TDM-GCC 5.1.0) and NASM 2.10.09.
+ You'll need the following libraries: dx9mgw.zip (optional), fmodapi43623win-installer.exe and fluidsynth.7z (optional).
  Run CMake to generate a CodeBlocks makefile, you can link directly against the dlls but not for DX (dinput).
 
  Copyright © 1993-1996 id Software, 1998-2016 Randi Heit, 2002-2017 Christoph Oelckers, et al.
