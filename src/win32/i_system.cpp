@@ -1773,7 +1773,7 @@ FString I_GetLongPathName(FString shortpath)
 	return longpath;
 }
 
-#if _MSC_VER == 1900 && defined(_USING_V110_SDK71_)
+#if defined(_MSC_VER) && defined(_USING_V110_SDK71_)
 //==========================================================================
 //
 // VS14Stat
