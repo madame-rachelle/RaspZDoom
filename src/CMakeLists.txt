@@ -552,6 +552,10 @@ if (MSVC)
 	set( CMAKE_CXX_FLAGS "/MP ${CMAKE_CXX_FLAGS}" )
 endif (MSVC)
 
+if (MSVC)
+set( CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO ${CMAKE_EXE_LINKER_FLAGS}" )
+endif (MSVC)
+
 if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 	option( USE_SSE2 "Use SSE2 instructions, requires P4 or later CPU." OFF)
 endif()
