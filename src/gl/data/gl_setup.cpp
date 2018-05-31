@@ -163,7 +163,10 @@ static int MergeMapSections(int num)
 				{
 					if (pair->Value == vsection) pair->Value = section;
 				}
-				sectvalid[vsection-1] = false;
+#if defined(_MSC_VER) && _MSC_VER >= 1910 && _MSC_VER <= 1920
+				if (vsection >= 0 && vsection <= sectvalid.Size())
+#endif
+					sectvalid[vsection-1] = false;
 			}
 		}
 	}
