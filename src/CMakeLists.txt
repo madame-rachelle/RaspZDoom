@@ -522,6 +522,10 @@ else()
 	set( BACKPATCH 0 )
 endif()
 
+if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE OR MSVC )
+	option( TC_USE_SSE2 "Use SSE2 instructions for software truecolor, requires P4 or later CPU." OFF )
+endif()
+
 # Set up flags for MSVC
 if (MSVC)
 	set( CMAKE_CXX_FLAGS "/MP ${CMAKE_CXX_FLAGS}" )
@@ -530,10 +534,6 @@ endif (MSVC)
 if (MSVC)
 set( CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO ${CMAKE_EXE_LINKER_FLAGS}" )
 endif (MSVC)
-
-if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
-	option( TC_USE_SSE2 "Use SSE2 instructions for software truecolor, requires P4 or later CPU." OFF)
-endif()
 
 # Set up flags for GCC
 
@@ -613,13 +613,16 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set (CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -s" )
 		set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s" )
 	endif()
-
-	if ( NOT TC_USE_SSE2 )
-		add_definitions( -DNO_SSE )
-	endif()
 	
 endif()
 
+if ( NOT TC_USE_SSE2 AND NOT ZDOOM_USE_SSE2 )
+	add_definitions( -DNO_SSE )
+	if ( MSVC )
+		set (CMAKE_CXX_FLAGS "/arch:IA32 ${CMAKE_CXX_FLAGS}")
+	endif()
+endif()
+	
 # Check for functions that may or may not exist.
 
 CHECK_FUNCTION_EXISTS( filelength FILELENGTH_EXISTS )
