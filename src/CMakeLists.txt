@@ -532,7 +532,7 @@ set( CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO ${CMAKE_EXE_LINKER_FLAGS}" )
 endif (MSVC)
 
 if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
-	option( USE_SSE2 "Use SSE2 instructions, requires P4 or later CPU." OFF)
+	option( TC_USE_SSE2 "Use SSE2 instructions for software truecolor, requires P4 or later CPU." OFF)
 endif()
 
 # Set up flags for GCC
@@ -614,7 +614,7 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s" )
 	endif()
 
-	if ( NOT USE_SSE2 )
+	if ( NOT TC_USE_SSE2 )
 		add_definitions( -DNO_SSE )
 	endif()
 	
@@ -1364,7 +1364,7 @@ add_executable( zdoom WIN32 MACOSX_BUNDLE
 
 set_source_files_properties( ${FASTMATH_SOURCES} PROPERTIES COMPILE_FLAGS ${ZD_FASTMATH_FLAG} )
 if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
-	if (USE_SSE2)
+	if (SSE_MATTERS AND TC_USE_SSE2)
 		set_source_files_properties( ${GCC_SSE2_SOURCES} PROPERTIES COMPILE_FLAGS "${SSE2_ENABLE} ${ZD_FASTMATH_FLAG}" )
 	endif()
 endif()
