@@ -118,7 +118,7 @@
 
 // TYPES -------------------------------------------------------------------
 
-extern bool exiting = false;
+bool exiting = false;
 
 class FBasicStartupScreen : public FStartupScreen
 {
