@@ -175,35 +175,28 @@ int DLoadSaveMenu::RemoveSaveSlot (int index)
 
 int DLoadSaveMenu::InsertSaveNode (FSaveGameNode *node)
 {
-	if (SaveGames.Size() == 0 || node->bOldVersion)
+	if (SaveGames.Size() == 0)
+	{
+		return SaveGames.Push(node);
+	}
+
+	if (node->bOldVersion)
 	{ // Add node at bottom of list
 		return SaveGames.Push(node);
 	}
 	else
 	{	// Add node at top of list
 		unsigned int i = 0;
-		if (strstr(node->Filename.GetChars(),"save"))
+		if (!strstr(node->Filename.GetChars(),"auto"))
 		{
-			for (i; i < SaveGames.Size(); i++)
+			for (i = 0; i < SaveGames.Size(); i++)
 			{
 				//if (SaveGames[i]->bOldVersion || stricmp (node->Title, SaveGames[i]->Title) <= 0)
-				if (strstr(SaveGames[i]->Filename.GetChars(),"save") && stricmp (node->Filename, SaveGames[i]->Filename) >= 0)
+				if (!strstr(SaveGames[i]->Filename.GetChars(),"auto") && stricmp (node->Filename, SaveGames[i]->Filename) >= 0)
 				{
 					break;
 				}
 			}
-		}
-		else if (!strstr(node->Filename.GetChars(),"auto"))
-		{
-			for (i; strstr(SaveGames[i]->Filename.GetChars(),"auto") && i < SaveGames.Size(); i++)
-			{}
-			for (i; i < SaveGames.Size(); i++)
-			{
-				if (strstr(SaveGames[i]->Filename.GetChars(),"save") || (!strstr(SaveGames[i]->Filename.GetChars(),"save") && stricmp (node->Filename, SaveGames[i]->Filename) <= 0))
-				{
-					break;
-				}
-			}	
 		}
 		SaveGames.Insert(i, node);
 		return i;
