@@ -1287,6 +1287,12 @@ CCMD(secret)
 	}
 }
 
+//============================================================================
+//
+// Missing cheats
+//
+//============================================================================
+
 CCMD(idkfa)
 {
 	if (CheckCheatmode ())
@@ -1371,6 +1377,19 @@ CCMD(idclip)
 
 	Net_WriteByte (DEM_GENERICCHEAT);
 	Net_WriteByte (CHT_NOCLIP);
+}
+
+CCMD(randi)
+{
+	if (CheckCheatmode ())
+		return;
+
+	Net_WriteByte (DEM_GIVECHEAT);
+	Net_WriteString ("health");
+	Net_WriteWord (0);
+	Net_WriteByte (DEM_GIVECHEAT);
+	Net_WriteString ("greenarmor");
+	Net_WriteWord (0);
 }
 
 EXTERN_CVAR(Float, r_spritedistancecull)
