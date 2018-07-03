@@ -60,7 +60,9 @@
 #include "gl/textures/gl_material.h"
 #include "gl/shaders/gl_shader.h"
 
+#ifdef __MINGW32__
 extern bool exiting;
+#endif
 
 EXTERN_CVAR(Bool, gl_render_precise)
 EXTERN_CVAR(Int, gl_lightmode)
@@ -746,12 +748,13 @@ FMaterial::~FMaterial()
 			break;
 		}
 	}
-
+#ifdef __MINGW32__
 	if (exiting) // hack hack
 	{
 		mMaterials.Clear();
 		mMaterials.ShrinkToFit();
 	}
+#endif
 }
 
 
