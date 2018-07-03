@@ -118,7 +118,9 @@
 
 // TYPES -------------------------------------------------------------------
 
+#ifdef __MINGW32__
 bool exiting = false;
+#endif
 
 class FBasicStartupScreen : public FStartupScreen
 {
@@ -1091,7 +1093,9 @@ void FStrifeStartupScreen::DrawStuff(int old_laser, int new_laser)
 
 void ST_Endoom()
 {
+#ifdef __MINGW32__
 	exiting = true;
+#endif
 
 	if (showendoom == 0) exit(0);
 
