@@ -39,8 +39,12 @@ bool AArtiHealingRadius::Use (bool pickup)
 
 	for (int i = 0; i < MAXPLAYERS; ++i)
 	{
-		if (playeringame[i] &&
-			players[i].mo != NULL &&
+		if (!playeringame[i])
+		{
+			continue;
+		}
+
+		if (players[i].mo != NULL &&
 			players[i].mo->health > 0 &&
 			players[i].mo->Distance2D (Owner) <= HEAL_RADIUS_DIST)
 		{
