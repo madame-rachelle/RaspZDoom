@@ -657,7 +657,7 @@ visplane_t *R_FindPlane (const secplane_t &height, FTextureID picnum, int lightl
 	}
 
 	// New visplane algorithm uses hash table -- killough
-	hash = isskybox ? MAXVISPLANES : visplane_hash (picnum.GetIndex(), lightlevel, height);
+	hash = isskybox ? (unsigned)MAXVISPLANES : visplane_hash (picnum.GetIndex(), lightlevel, height);
 
 	for (check = visplanes[hash]; check; check = check->next)	// killough
 	{
