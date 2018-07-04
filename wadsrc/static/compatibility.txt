@@ -852,3 +852,9 @@ CC3911090452D7C39EC8B3D97CEFDD6F // jenesis.wad map16
 	// Missing texture with hardware renderer because of wrongly lowered sector
 	setsectortag 483 0
 }
+
+5B8689912D21E91D899C61BBBDD44D7C // altar of evil.wad map01
+{
+	// Missing teleport destination on easy skill
+	setthingskills 115 31
+}
