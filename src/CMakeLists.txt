@@ -511,9 +511,9 @@ if (MSVC)
 	set( CMAKE_CXX_FLAGS "/MP ${CMAKE_CXX_FLAGS}" )
 endif (MSVC)
 
-if (MSVC)
+if ( MSVC AND NOT NO_ASM )
 set( CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO ${CMAKE_EXE_LINKER_FLAGS}" )
-endif (MSVC)
+endif()
 
 # Set up flags for GCC
 
