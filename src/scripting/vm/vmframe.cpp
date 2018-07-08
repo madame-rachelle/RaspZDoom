@@ -41,10 +41,6 @@
 #include "vmintern.h"
 #include "types.h"
 
-#ifdef __MINGW32__
-extern bool exiting; // for MinGW
-#endif
-
 cycle_t VMCycles[10];
 int VMCalls[10];
 
@@ -247,13 +243,6 @@ VMFrameStack::VMFrameStack()
 
 VMFrameStack::~VMFrameStack()
 {
-#ifdef __MINGW32__
-	if (exiting) // hack hack
-	{
-		Blocks = NULL;
-		UnusedBlocks = NULL;
-	}
-#endif
 	while (PopFrame() != NULL)
 	{ }
 	if (Blocks != NULL)
