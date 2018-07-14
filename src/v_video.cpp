@@ -182,8 +182,6 @@ bool	setmodeneeded = false;
 // [RH] Resolution to change to when setmodeneeded is true
 int		NewWidth, NewHeight, NewBits;
 
-void V_DrawPaletteTester(int pal);
-
 //==========================================================================
 //
 // DCanvas Constructor
@@ -609,6 +607,30 @@ DFrameBuffer::DFrameBuffer (int width, int height, bool bgra)
 
 	VideoWidth = width;
 	VideoHeight = height;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+void V_DrawPaletteTester(int paletteno)
+{
+	int blocksize = screen->GetHeight() / 50;
+
+	int t = paletteno;
+	int k = 0;
+	for (int i = 0; i < 16; ++i)
+	{
+		for (int j = 0; j < 16; ++j)
+		{
+			int palindex = (t > 1) ? translationtables[TRANSLATION_Standard][t - 2]->Remap[k] : k;
+			PalEntry pe = GPalette.BaseColors[palindex];
+			k++;
+			screen->Dim(pe, 1.f, j*blocksize, i*blocksize, blocksize, blocksize);
+		}
+	}
 }
 
 //==========================================================================
