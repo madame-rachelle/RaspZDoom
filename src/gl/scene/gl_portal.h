@@ -68,7 +68,15 @@ public:
 	static bool	inskybox;
 
 private:
-	void DrawPortalStencil();
+
+	enum
+	{
+		STP_Stencil,
+		STP_DepthClear,
+		STP_DepthRestore,
+		STP_AllInOne
+	};
+	void DrawPortalStencil(int pass);
 
 	AActor * savedviewactor;
 	ActorRenderFlags savedvisibility;
