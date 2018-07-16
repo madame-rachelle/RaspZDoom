@@ -299,7 +299,7 @@ void FDrawInfo::DrawFlat(GLFlat *flat, int pass, bool trans)	// trans only has m
 		{
 			gl_RenderState.SetMaterial(flat->gltexture, CLAMP_NONE, 0, -1, false);
 			gl_RenderState.SetPlaneTextureRotation(&plane, flat->gltexture);
-			DrawSubsectors(flat, pass, (pass == GLPASS_ALL || flat->dynlightindex > -1), false);
+			DrawSubsectors(flat, pass, (gl.lightmethod == LM_DIRECT || flat->dynlightindex > -1), false);
 			gl_RenderState.EnableTextureMatrix(false);
 		}
 		else
@@ -327,7 +327,7 @@ void FDrawInfo::DrawFlat(GLFlat *flat, int pass, bool trans)	// trans only has m
 		{
 			gl_RenderState.AlphaFunc(GL_GEQUAL, 0.f);
 			gl_RenderState.EnableTexture(false);
-			DrawSubsectors(flat, pass, false, true);
+			DrawSubsectors(flat, pass, (gl.lightmethod == LM_DIRECT || flat->dynlightindex > -1), true);
 			gl_RenderState.EnableTexture(true);
 		}
 		else 
@@ -352,7 +352,7 @@ void FDrawInfo::DrawFlat(GLFlat *flat, int pass, bool trans)	// trans only has m
 	case GLPASS_TEXONLY:
 		gl_RenderState.SetMaterial(flat->gltexture, CLAMP_NONE, 0, -1, false);
 		gl_RenderState.SetPlaneTextureRotation(&plane, flat->gltexture);
-		DrawSubsectors(flat, pass, false, false);
+		DrawSubsectors(flat, pass, (gl.lightmethod == LM_DIRECT || flat->dynlightindex > -1), false);
 		gl_RenderState.EnableTextureMatrix(false);
 		break;
 	}
