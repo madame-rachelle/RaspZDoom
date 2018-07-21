@@ -50,6 +50,7 @@ struct RenderContext
 	float glslversion;
 	int max_texturesize;
 	char * vendorstring;
+	char * modelstring;
 	bool legacyMode;
 	bool es;
 
