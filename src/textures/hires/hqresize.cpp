@@ -46,7 +46,7 @@
 
 CUSTOM_CVAR(Int, gl_texture_hqresize, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
-	if (self < 0 || self > 16)
+	if (self < 0 || self > 19)
 	{
 		self = 0;
 	}
@@ -388,8 +388,13 @@ unsigned char *FTexture::CreateUpsampledTextureBuffer (unsigned char *inputBuffe
 		case 13:
 		case 14:
 		case 15:
+		case 16:
+		case 17:
 			return xbrzHelper(xbrzOldScale, type - 11, inputBuffer, inWidth, inHeight, outWidth, outHeight );
-			
+
+		case 18:
+		case 19:
+			return xbrzHelper(xbrz::scale, type - 13, inputBuffer, inWidth, inHeight, outWidth, outHeight);
 		}
 	}
 	return inputBuffer;
