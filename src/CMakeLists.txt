@@ -637,6 +637,11 @@ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set( CMAKE_CXX_FLAGS "-Wno-unknown-pragmas -Wno-comment -Wno-format ${CMAKE_CXX_FLAGS}" )
 	endif()
 
+	# Add stack protection for MinGW.
+	if( MINGW )
+		set( CMAKE_CXX_FLAGS "-fstack-protector ${CMAKE_CXX_FLAGS}" )
+	endif()
+
 	if( NOT NO_STRIP )
 		set (CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -s" )
 		set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s" )
