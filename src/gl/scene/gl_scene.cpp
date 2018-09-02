@@ -674,21 +674,26 @@ sector_t * GLSceneDrawer::RenderViewpoint (AActor * camera, IntRect * bounds, fl
 		gl_RenderState.ApplyMatrices();
 
 		ProcessScene(di, toscreen);
-		if (mainview && toscreen) EndDrawScene(di, lviewsector); // do not call this for camera textures.
-
-		if (mainview && FGLRenderBuffers::IsEnabled())
+		if (mainview)
 		{
-			GLRenderer->PostProcessScene(FixedColormap, [&]() { if (gl_bloom && FixedColormap == CM_DEFAULT) DrawEndScene2D(di, lviewsector); });
+			if (FGLRenderBuffers::IsEnabled()) PostProcess.Clock();
+			if (toscreen) EndDrawScene(di, lviewsector); // do not call this for camera textures.
 
-			// This should be done after postprocessing, not before.
-			GLRenderer->mBuffers->BindCurrentFB();
-			glViewport(screen->mScreenViewport.left, screen->mScreenViewport.top, screen->mScreenViewport.width, screen->mScreenViewport.height);
-
-			if (!toscreen)
+			if (FGLRenderBuffers::IsEnabled())
 			{
-				gl_RenderState.mViewMatrix.loadIdentity();
-				gl_RenderState.mProjectionMatrix.ortho(screen->mScreenViewport.left, screen->mScreenViewport.width, screen->mScreenViewport.height, screen->mScreenViewport.top, -1.0f, 1.0f);
-				gl_RenderState.ApplyMatrices();
+				GLRenderer->PostProcessScene(FixedColormap, [&]() { if (gl_bloom && FixedColormap == CM_DEFAULT) DrawEndScene2D(di, lviewsector); });
+				PostProcess.Unclock();
+
+				// This should be done after postprocessing, not before.
+				GLRenderer->mBuffers->BindCurrentFB();
+				glViewport(screen->mScreenViewport.left, screen->mScreenViewport.top, screen->mScreenViewport.width, screen->mScreenViewport.height);
+
+				if (!toscreen)
+				{
+					gl_RenderState.mViewMatrix.loadIdentity();
+					gl_RenderState.mProjectionMatrix.ortho(screen->mScreenViewport.left, screen->mScreenViewport.width, screen->mScreenViewport.height, screen->mScreenViewport.top, -1.0f, 1.0f);
+					gl_RenderState.ApplyMatrices();
+				}
 			}
 		}
 		FDrawInfo::EndDrawInfo();
