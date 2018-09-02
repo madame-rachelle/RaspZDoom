@@ -743,7 +743,7 @@ begin:
 		NEXTOP;
 	OP(SRL_KR):
 		ASSERTD(a); ASSERTKD(B); ASSERTD(C);
-		reg.d[a] = (unsigned)konstd[B] >> C;
+		reg.d[a] = (unsigned)konstd[B] >> reg.d[C];
 		NEXTOP;
 
 	OP(SRA_RR):
