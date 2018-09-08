@@ -608,7 +608,7 @@ void FDrawInfo::RenderFogBoundaryCompat(GLWall *wall)
 	auto ztop = wall->ztop;
 	auto zbottom = wall->zbottom;
 
-	float fogdensity = hw_GetFogDensity(wall->lightlevel, Colormap.FadeColor, Colormap.FogDensity);
+	float fogdensity = hw_GetFogDensity(wall->lightlevel, Colormap.FadeColor, Colormap.FogDensity, Colormap.BlendFactor);
 
 	float dist1 = Dist2(r_viewpoint.Pos.X, r_viewpoint.Pos.Y, glseg.x1, glseg.y1);
 	float dist2 = Dist2(r_viewpoint.Pos.X, r_viewpoint.Pos.Y, glseg.x2, glseg.y2);
