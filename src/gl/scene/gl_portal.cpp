@@ -1104,10 +1104,12 @@ void GLHorizonPortal::DrawContents()
 	float vy= ViewPos.Y;
 
 	// Draw to some far away boundary
-	for(float x=-32768+vx; x<32768+vx; x+=4096)
+	for (int xx = -32768; xx < 32768; xx += 4096)
 	{
-		for(float y=-32768+vy; y<32768+vy;y+=4096)
+		float x = xx + vx;
+		for (int yy = -32768; yy < 32768; yy += 4096)
 		{
+			float y = yy + vy;
 			glBegin(GL_TRIANGLE_FAN);
 
 			glTexCoord2f(x / 64, -y / 64);
