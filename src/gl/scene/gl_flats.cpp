@@ -59,6 +59,7 @@ void FDrawInfo::SetupSubsectorLights(GLFlat *flat, int pass, subsector_t * sub, 
 	if (FixedColormap != CM_DEFAULT) return;
 	if (dli != NULL && *dli != -1)
 	{
+		if (flat->renderstyle == STYLE_Add && !level.lightadditivesurfaces) return;	// no lights on additively blended surfaces.
 		gl_RenderState.ApplyLightIndex(GLRenderer->mLights->GetIndex(*dli));
 		(*dli)++;
 		return;

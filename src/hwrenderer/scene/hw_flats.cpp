@@ -96,9 +96,9 @@ bool GLFlat::SetupSubsectorLights(int pass, subsector_t * sub, FDynLightData &li
 {
 	Plane p;
 
+	lightdata.Clear();
 	if (renderstyle == STYLE_Add && !level.lightadditivesurfaces) return false;	// no lights on additively blended surfaces.
 
-	lightdata.Clear();
 	FLightNode * node = sub->lighthead;
 	while (node)
 	{
