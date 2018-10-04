@@ -41,11 +41,11 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "g3.5.1_legacy"
+#define VERSIONSTR "pi0.0"
 
 // The version as seen in the Windows resource
-#define RC_FILEVERSION 3,5,1,0
-#define RC_PRODUCTVERSION 3,5,1,0
+#define RC_FILEVERSION 0,0,0,0
+#define RC_PRODUCTVERSION 0,0,0,0
 #define RC_PRODUCTVERSION2 VERSIONSTR
 // These are for content versioning.
 #define VER_MAJOR 3
@@ -86,13 +86,13 @@ const char *GetVersionString();
 #define SAVEVER 4552
 
 // This is so that derivates can use the same savegame versions without worrying about engine compatibility
-#define GAMESIG "GZDOOM"
-#define BASEWAD "gzdoom.pk3"
+#define GAMESIG "PIZDOOM"
+#define BASEWAD "pizdoom.pk3"
 #define OPTIONALWAD "zd_extra.pk3"
 
 // More stuff that needs to be different for derivatives.
-#define GAMENAME "GZDoom"
-#define GAMENAMELOWERCASE "gzdoom"
+#define GAMENAME "PiZDoom"
+#define GAMENAMELOWERCASE "pizdoom"
 #define FORUM_URL "http://forum.zdoom.org/"
 #define BUGS_FORUM_URL	"http://forum.zdoom.org/viewforum.php?f=2"
 
