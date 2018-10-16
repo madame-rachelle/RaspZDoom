@@ -74,6 +74,10 @@ DFrameBuffer *CreateGLSWFrameBuffer(int width, int height, bool bgra, bool fulls
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
+CUSTOM_CVAR(Bool, gl_allow_modern, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
+{
+	Printf("This won't take effect until " GAMENAME " is restarted.\n");
+}
 CUSTOM_CVAR(Bool, gl_debug, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
 	Printf("This won't take effect until " GAMENAME " is restarted.\n");
@@ -318,6 +322,11 @@ SystemFrameBuffer::SystemFrameBuffer (void *, int width, int height, int, int, b
 	UpdatePending = false;
 
 	const char *version = Args->CheckValue("-glversion");
+	if (version == NULL && !(gl_allow_modern))
+	{
+		version = "2.0";
+	}
+
 	if (version != NULL)
 	{
 		double gl_version = strtod(version, NULL) + 0.01;

@@ -39,6 +39,7 @@ void gl_PatchMenu();
 static TArray<FString>  m_Extensions;
 RenderContext gl;
 static double realglversion;	// this is public so the statistics code can access it.
+EXTERN_CVAR(Bool, gl_allow_modern)
 
 //==========================================================================
 //
@@ -138,6 +139,11 @@ void gl_LoadExtensions()
 	}
 
 	const char *version = Args->CheckValue("-glversion");
+	if (version == NULL && !(gl_allow_modern))
+	{
+		version = "2.0";
+	}
+
 	realglversion = strtod(glversion, NULL);
 
 
