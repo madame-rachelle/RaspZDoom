@@ -219,7 +219,7 @@ bool GLSprite::CalculateVertices(HWDrawInfo *di, FVector3 *v, DVector3 *vp)
 inline void GLSprite::PutSprite(HWDrawInfo *di, bool translucent)
 {
 	// That's a lot of checks...
-	if (modelframe && RenderStyle.BlendOp != STYLEOP_Shadow && gl_light_sprites && level.HasDynamicLights && di->FixedColormap == CM_DEFAULT && !fullbright && !(screen->hwcaps & RFL_NO_SHADERS))
+	if (modelframe && !modelframe->isVoxel && RenderStyle.BlendOp != STYLEOP_Shadow && gl_light_sprites && level.HasDynamicLights && di->FixedColormap == CM_DEFAULT && !fullbright && !(screen->hwcaps & RFL_NO_SHADERS))
 	{
 		hw_GetDynModelLight(actor, lightdata);
 		dynlightindex = di->UploadLights(lightdata);
