@@ -1689,15 +1689,10 @@ uint16_t MakeSkill(int flags)
 
 void P_LoadThings (MapData * map)
 {
-	int	lumplen = map->Size(ML_THINGS);
-	int numthings = lumplen / sizeof(mapthing_t);
-
-	char *mtp;
 	mapthing_t *mt;
-
-	mtp = new char[lumplen];
-	map->Read(ML_THINGS, mtp);
-	mt = (mapthing_t*)mtp;
+	auto mtp = map->Read(ML_THINGS);
+	int numthings = mtp.Size() / sizeof(mapthing_t);
+	mt = (mapthing_t*)mtp.Data();
 
 	MapThingsConverted.Resize(numthings);
 	FMapThing *mti = &MapThingsConverted[0];
@@ -1765,7 +1760,6 @@ void P_LoadThings (MapData * map)
 			if (flags & BTF_NOTSINGLE)			mti[i].flags &= ~MTF_SINGLE;
 		}
 	}
-	delete [] mtp;
 }
 
 //===========================================================================
@@ -2107,15 +2101,11 @@ void P_LoadLineDefs (MapData * map)
 {
 	int i, skipped;
 	line_t *ld;
-	int lumplen = map->Size(ML_LINEDEFS);
-	char * mldf;
 	maplinedef_t *mld;
 		
-	int numlines = lumplen / sizeof(maplinedef_t);
+	auto mldf = map->Read(ML_LINEDEFS);
+	int numlines = mldf.Size() / sizeof(maplinedef_t);
 	linemap.Resize(numlines);
-
-	mldf = new char[lumplen];
-	map->Read(ML_LINEDEFS, mldf);
 
 	// [RH] Count the number of sidedef references. This is the number of
 	// sidedefs we need. The actual number in the SIDEDEFS lump might be less.
@@ -2123,13 +2113,12 @@ void P_LoadLineDefs (MapData * map)
 
 	for (skipped = sidecount = i = 0; i < numlines; )
 	{
-		mld = ((maplinedef_t*)mldf) + i;
+		mld = ((maplinedef_t*)mldf.Data()) + i;
 		unsigned v1 = LittleShort(mld->v1);
 		unsigned v2 = LittleShort(mld->v2);
 
 		if (v1 >= level.vertexes.Size() || v2 >= level.vertexes.Size())
 		{
-			delete [] mldf;
 			I_Error ("Line %d has invalid vertices: %d and/or %d.\nThe map only contains %u vertices.", i+skipped, v1, v2, level.vertexes.Size());
 		}
 		else if (v1 == v2 ||
@@ -2162,7 +2151,7 @@ void P_LoadLineDefs (MapData * map)
 
 	P_AllocateSideDefs (map, sidecount);
 
-	mld = (maplinedef_t *)mldf;
+	mld = (maplinedef_t *)mldf.Data();
 	ld = &level.lines[0];
 	for (i = 0; i < numlines; i++, mld++, ld++)
 	{
@@ -2201,7 +2190,6 @@ void P_LoadLineDefs (MapData * map)
 		if (level.flags2 & LEVEL2_WRAPMIDTEX) ld->flags |= ML_WRAP_MIDTEX;
 		if (level.flags2 & LEVEL2_CHECKSWITCHRANGE) ld->flags |= ML_CHECKSWITCHRANGE;
 	}
-	delete[] mldf;
 }
 
 //===========================================================================
