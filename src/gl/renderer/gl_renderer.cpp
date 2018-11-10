@@ -60,6 +60,7 @@
 #include "hwrenderer/postprocessing/hw_presentshader.h"
 #include "hwrenderer/postprocessing/hw_present3dRowshader.h"
 #include "hwrenderer/postprocessing/hw_shadowmapshader.h"
+#include "hwrenderer/scene/hw_fakeflat.h"
 #include "gl/shaders/gl_postprocessshaderinstance.h"
 #include "gl/stereo3d/gl_stereo3d.h"
 #include "gl/textures/gl_samplers.h"
@@ -301,6 +302,8 @@ sector_t *FGLRenderer::RenderView(player_t* player)
 	}
 	else
 	{
+		hw_ClearFakeFlat();
+
 		checkBenchActive();
 
 		// reset statistics counters
@@ -373,6 +376,7 @@ void FGLRenderer::BindToFrameBuffer(FMaterial *mat)
 
 void FGLRenderer::RenderTextureView(FCanvasTexture *tex, AActor *Viewpoint, double FOV)
 {
+	// This doesn't need to clear the fake flat cache. It can be shared between camera textures and the main view of a scene.
 	FMaterial * gltex = FMaterial::ValidateTexture(tex, false);
 
 	int width = gltex->TextureWidth();

@@ -53,6 +53,7 @@
 #include "gl/scene/gl_drawinfo.h"
 #include "gl/scene/gl_portal.h"
 #include "gl/scene/gl_scenedrawer.h"
+#include "hwrenderer/scene/hw_fakeflat.h"
 #include "gl/stereo3d/gl_stereo3d.h"
 #include "hwrenderer/utility/scoped_view_shifter.h"
 
@@ -728,6 +729,7 @@ void GLSceneDrawer::WriteSavePic (player_t *player, FileWriter *file, int width,
 	// Switch to render buffers dimensioned for the savepic
 	GLRenderer->mBuffers = GLRenderer->mSaveBuffers;
 
+	hw_ClearFakeFlat();
 	P_FindParticleSubsectors();	// make sure that all recently spawned particles have a valid subsector.
 	SetFixedColormap(player);
 	gl_RenderState.SetVertexBuffer(GLRenderer->mVBO);
