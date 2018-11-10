@@ -167,7 +167,7 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 		gl_RenderState.EnableGlow(true);
 		gl_RenderState.SetGlowParams(wall->topglowcolor, wall->bottomglowcolor);
 	}
-	gl_RenderState.SetGlowPlanes(wall->topplane, wall->bottomplane);
+	gl_RenderState.SetGlowPlanes(wall->frontsector->ceilingplane, wall->frontsector->floorplane);
 	gl_RenderState.SetMaterial(wall->gltexture, wall->flags & 3, 0, -1, false);
 
 	if (wall->type == RENDERWALL_M2SNF)
@@ -194,7 +194,7 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 
 		for (unsigned i = 0; i < wall->lightlist->Size(); i++)
 		{
-			secplane_t &lowplane = i == (*wall->lightlist).Size() - 1 ? wall->bottomplane : (*wall->lightlist)[i + 1].plane;
+			secplane_t &lowplane = i == (*wall->lightlist).Size() - 1 ? wall->frontsector->floorplane : (*wall->lightlist)[i + 1].plane;
 			// this must use the exact same calculation method as GLWall::Process etc.
 			float low1 = lowplane.ZatPoint(wall->vertexes[0]);
 			float low2 = lowplane.ZatPoint(wall->vertexes[1]);
@@ -503,7 +503,7 @@ void FDrawInfo::DrawDecal(GLDecal *gldecal)
 
 		for (unsigned k = 0; k < lightlist.Size(); k++)
 		{
-			secplane_t &lowplane = k == lightlist.Size() - 1 ? gldecal->bottomplane : lightlist[k + 1].plane;
+			secplane_t &lowplane = k == lightlist.Size() - 1 ? gldecal->frontsector->floorplane : lightlist[k + 1].plane;
 
 			DecalVertex *dv = gldecal->dv;
 			float low1 = lowplane.ZatPoint(dv[1].x, dv[1].y);
