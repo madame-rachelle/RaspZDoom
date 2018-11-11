@@ -157,6 +157,20 @@ void FDrawInfo::RenderMirrorSurface(GLWall *wall)
 //
 //==========================================================================
 
+static const uint8_t renderwalltotier[] =
+{
+	side_t::none,
+	side_t::top,
+	side_t::mid,
+	side_t::mid,
+	side_t::bottom,
+	side_t::none,
+	side_t::none,
+	side_t::mid,
+	side_t::none,
+	side_t::mid,
+};
+
 void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 {
 	int tmode = gl_RenderState.GetTextureMode();
@@ -166,8 +180,8 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 	{
 		gl_RenderState.EnableGlow(true);
 		gl_RenderState.SetGlowParams(wall->topglowcolor, wall->bottomglowcolor);
+		gl_RenderState.SetGlowPlanes(wall->frontsector->ceilingplane, wall->frontsector->floorplane);
 	}
-	gl_RenderState.SetGlowPlanes(wall->frontsector->ceilingplane, wall->frontsector->floorplane);
 	gl_RenderState.SetMaterial(wall->gltexture, wall->flags & 3, 0, -1, false);
 
 	if (wall->type == RENDERWALL_M2SNF)
@@ -178,8 +192,41 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 		}
 		mDrawer->SetFog(255, 0, nullptr, false);
 	}
-	gl_RenderState.SetObjectColor(wall->seg->frontsector->SpecialColors[sector_t::walltop] | 0xff000000);
-	gl_RenderState.SetObjectColor2(wall->seg->frontsector->SpecialColors[sector_t::wallbottom] | 0xff000000);
+	if (wall->type != RENDERWALL_COLOR)
+	{
+		auto side = wall->seg->sidedef;
+		auto tierndx = renderwalltotier[wall->type];
+		auto &tier = side->textures[tierndx];
+		PalEntry color1 = side->GetSpecialColor(tierndx, side_t::walltop, wall->frontsector);
+		PalEntry color2 = side->GetSpecialColor(tierndx, side_t::wallbottom, wall->frontsector);
+		gl_RenderState.SetObjectColor(color1);
+		gl_RenderState.SetObjectColor2(color2);
+		if (color1 != color2)
+		{
+			// Do gradient setup only if there actually is a gradient.
+
+			gl_RenderState.EnableGradient(true);
+			if ((tier.flags & side_t::part::ClampGradient) && wall->backsector)
+			{
+				if (tierndx == side_t::top)
+				{
+					gl_RenderState.SetGradientPlanes(wall->frontsector->ceilingplane, wall->backsector->ceilingplane);
+				}
+				else if (tierndx == side_t::mid)
+				{
+					gl_RenderState.SetGradientPlanes(wall->backsector->ceilingplane, wall->backsector->floorplane);
+				}
+				else // side_t::bottom:
+				{
+					gl_RenderState.SetGradientPlanes(wall->backsector->floorplane, wall->frontsector->floorplane);
+				}
+			}
+			else
+			{
+				gl_RenderState.SetGradientPlanes(wall->frontsector->ceilingplane, wall->frontsector->floorplane);
+			}
+		}
+	}
 
 	float absalpha = fabsf(wall->alpha);
 	if (wall->lightlist == nullptr)
@@ -201,7 +248,7 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 
 			if (low1 < wall->ztop[0] || low2 < wall->ztop[1])
 			{
-				int thisll = (*wall->lightlist)[i].caster != NULL ? hw_ClampLight(*(*wall->lightlist)[i].p_lightlevel) : wall->lightlevel;
+				int thisll = (*wall->lightlist)[i].caster != nullptr ? hw_ClampLight(*(*wall->lightlist)[i].p_lightlevel) : wall->lightlevel;
 				FColormap thiscm;
 				thiscm.FadeColor = wall->Colormap.FadeColor;
 				thiscm.FogDensity = wall->Colormap.FogDensity;
@@ -220,6 +267,7 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 	gl_RenderState.SetObjectColor2(0);
 	gl_RenderState.SetTextureMode(tmode);
 	gl_RenderState.EnableGlow(false);
+	gl_RenderState.EnableGradient(false);
 }
 
 //==========================================================================
