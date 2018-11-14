@@ -145,15 +145,30 @@ void GLPortal::DrawPortalStencil(int pass)
 	{
 		if (pass == STP_AllInOne) glDepthMask(false);
 		else if (pass == STP_DepthRestore) glDepthRange(1, 1);
-		GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILTOP_INDEX, 4);
-		GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILBOTTOM_INDEX, 4);
+
+		if (planesused & (1 << sector_t::floor))
+		{
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
+		}
+		if (planesused & (1 << sector_t::ceiling))
+		{
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
+		}
 		if (pass == STP_DepthRestore) glDepthRange(0, 1);
 	}
 }
-
-
-
-
 
 
 //-----------------------------------------------------------------------------
@@ -512,6 +527,14 @@ bool GLPortal::RenderFirstSkyPortal(int recursion)
 			{
 				best=p;
 				bestindex=i;
+			}
+
+			// If the portal area contains the current camera viewpoint, let's always use it because it's likely to give the largest area.
+			if (p->boundingBox.Contains(r_viewpoint.Pos))
+			{
+				best = p;
+				bestindex = i;
+				break;
 			}
 		}
 	}

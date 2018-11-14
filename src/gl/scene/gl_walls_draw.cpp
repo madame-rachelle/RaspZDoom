@@ -416,9 +416,9 @@ void FDrawInfo::AddMirrorSurface(GLWall *w)
 //
 //==========================================================================
 
-void FDrawInfo::AddPortal(GLWall *wall, int ptype)
+void FDrawInfo::AddPortal(GLWall *wall, int ptype, int plane)
 {
-	GLPortal * portal;
+	GLPortal * portal = nullptr;
 
 	wall->MakeVertices(this, false);
 	switch (ptype)
@@ -492,6 +492,11 @@ void FDrawInfo::AddPortal(GLWall *wall, int ptype)
 		break;
 	}
 	wall->vertcount = 0;
+
+	if (plane != -1 && portal)
+	{
+		portal->planesused |= (1<<plane);
+	}
 }
 
 //==========================================================================

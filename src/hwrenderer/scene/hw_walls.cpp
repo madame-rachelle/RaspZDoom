@@ -208,9 +208,9 @@ void GLWall::PutWall(HWDrawInfo *di, bool translucent)
 	flags &= ~GLWF_TRANSLUCENT;
 }
 
-void GLWall::PutPortal(HWDrawInfo *di, int ptype)
+void GLWall::PutPortal(HWDrawInfo *di, int ptype, int plane)
 {
-	di->AddPortal(this, ptype);
+	di->AddPortal(this, ptype, plane);
 }
 
 //==========================================================================
@@ -472,7 +472,7 @@ bool GLWall::DoHorizon(HWDrawInfo *di, seg_t * seg,sector_t * fs, vertex_t * v1,
 
 			if (di->FixedColormap) hi.colormap.Clear();
 			horizon = &hi;
-			PutPortal(di, PORTALTYPE_HORIZON);
+			PutPortal(di, PORTALTYPE_HORIZON, -1);
 		}
 		ztop[1] = ztop[0] = zbottom[0];
 	} 
@@ -501,7 +501,7 @@ bool GLWall::DoHorizon(HWDrawInfo *di, seg_t * seg,sector_t * fs, vertex_t * v1,
 
 			if (di->FixedColormap) hi.colormap.Clear();
 			horizon = &hi;
-			PutPortal(di, PORTALTYPE_HORIZON);
+			PutPortal(di, PORTALTYPE_HORIZON, -1);
 		}
 	}
 	return true;
@@ -758,7 +758,7 @@ void GLWall::DoTexture(HWDrawInfo *di, int _type,seg_t * seg, int peg,
 
 	if (seg->linedef->special == Line_Mirror && _type == RENDERWALL_M1S && gl_mirrors)
 	{
-		PutPortal(di, PORTALTYPE_MIRROR);
+		PutPortal(di, PORTALTYPE_MIRROR, -1);
 	}
 	else
 	{
@@ -1592,7 +1592,7 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 			ztop[1] = zceil[1];
 			zbottom[0] = zfloor[0];
 			zbottom[1] = zfloor[1];
-			PutPortal(di, PORTALTYPE_LINETOLINE);
+			PutPortal(di, PORTALTYPE_LINETOLINE, -1);
 		}
 		else if (seg->linedef->GetTransferredPortal())
 		{
@@ -1699,7 +1699,7 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 			ztop[1] = bch2;
 			zbottom[0] = bfh1;
 			zbottom[1] = bfh2;
-			PutPortal(di, PORTALTYPE_LINETOLINE);
+			PutPortal(di, PORTALTYPE_LINETOLINE, -1);
 		}
 		else if (backsector->e->XFloor.ffloors.Size() || frontsector->e->XFloor.ffloors.Size())
 		{
