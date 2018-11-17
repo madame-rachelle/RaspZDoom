@@ -77,7 +77,7 @@ public:
 	}
 	bool isMasked() const
 	{
-		return !!sourcetex->bMasked;
+		return sourcetex->bMasked;
 	}
 	bool isExpanded() const
 	{
