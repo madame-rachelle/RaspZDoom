@@ -175,26 +175,6 @@ void AInventory::MarkPrecacheSounds() const
 
 //===========================================================================
 //
-// AInventory :: Use
-//
-//===========================================================================
-
-bool AInventory::CallUse(bool pickup)
-{
-	IFVIRTUAL(AInventory, Use)
-	{
-		VMValue params[2] = { (DObject*)this, pickup };
-		int retval;
-		VMReturn ret(&retval);
-		VMCall(func, params, 2, &ret, 1);
-		return !!retval;
-	}
-	return false;
-}
-
-
-//===========================================================================
-//
 //
 //===========================================================================
 static int StaticLastMessageTic;
@@ -275,25 +255,6 @@ PalEntry AInventory::CallGetBlend()
 		return retval;
 	}
 	else return 0;
-}
-
-//===========================================================================
-//
-// AInventory :: PrevItem
-//
-// Returns the previous item.
-//
-//===========================================================================
-
-AInventory *AInventory::PrevItem ()
-{
-	AInventory *item = Owner->Inventory;
-
-	while (item != NULL && item->Inventory != this)
-	{
-		item = item->Inventory;
-	}
-	return item;
 }
 
 //===========================================================================
