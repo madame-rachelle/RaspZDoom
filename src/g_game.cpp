@@ -1331,7 +1331,7 @@ void G_PlayerFinishLevel (int player, EFinishLevelType mode, int flags)
 		{
 			if (!(it->ObjectFlags & OF_EuthanizeMe))
 			{
-				it->DepleteOrDestroy();
+				DepleteOrDestroy(item);
 			}
 		}
 	}
