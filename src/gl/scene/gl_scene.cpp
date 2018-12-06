@@ -56,6 +56,7 @@
 #include "hwrenderer/scene/hw_fakeflat.h"
 #include "gl/stereo3d/gl_stereo3d.h"
 #include "hwrenderer/utility/scoped_view_shifter.h"
+#include "vm.h"
 
 //==========================================================================
 //
@@ -591,7 +592,14 @@ void GLSceneDrawer::SetFixedColormap (player_t *player)
 			auto litetype = PClass::FindActor(NAME_PowerLightAmp);
 			for(AInventory * in = cplayer->mo->Inventory; in; in = in->Inventory)
 			{
-				PalEntry color = in->CallGetBlend ();
+				PalEntry color = 0;
+
+				IFVIRTUALPTR(in, AInventory, GetBlend)
+				{
+					VMValue params[1] = { in };
+					VMReturn ret((int*)&color.d);
+					VMCall(func, params, 1, &ret, 1);
+				}
 
 				// Need special handling for light amplifiers 
 				if (in->IsKindOf(torchtype))
