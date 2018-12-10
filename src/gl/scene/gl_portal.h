@@ -80,7 +80,7 @@ private:
 		STP_DepthRestore,
 		STP_AllInOne
 	};
-	void DrawPortalStencil(int pass);
+	void DrawPortalStencil(FDrawInfo *di, int pass);
 
 	AActor * savedviewactor;
 	ActorRenderFlags savedvisibility;
