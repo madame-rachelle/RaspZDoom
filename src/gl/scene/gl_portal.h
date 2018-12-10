@@ -55,7 +55,6 @@ class GLPortal : public IPortal
 	static TArray<GLPortal *> portals;
 	static int recursion;
 	static unsigned int QueryObject;
-
 protected:
 	static TArray<float> planestack;
 	static int MirrorFlag;
@@ -68,9 +67,6 @@ public:
 	static int inupperstack;
 	static bool	inskybox;
 
-	FBoundingBox boundingBox;
-	int planesused = 0;
-
 private:
 
 	enum
@@ -80,7 +76,7 @@ private:
 		STP_DepthRestore,
 		STP_AllInOne
 	};
-	void DrawPortalStencil(FDrawInfo *di, int pass);
+	void DrawPortalStencil(int pass);
 
 	AActor * savedviewactor;
 	ActorRenderFlags savedvisibility;
@@ -126,8 +122,6 @@ public:
 	void AddLine(GLWall * l)
 	{
 		lines.Push(*l);
-		boundingBox.AddToBox(DVector2(l->glseg.x1, l->glseg.y1));
-		boundingBox.AddToBox(DVector2(l->glseg.x2, l->glseg.y2));
 	}
 
 	static int GetRecursion()

@@ -91,22 +91,6 @@ public:
 	int BoxOnLineSide (const line_t *ld) const;
 
 	void Set(int index, double value) {m_Box[index] = value;}
-	
-	bool Contains(const FBoundingBox & other) const
-	{
-		return m_Box[BOXLEFT] <= other.m_Box[BOXLEFT] && m_Box[BOXTOP] <= other.m_Box[BOXTOP] && m_Box[BOXRIGHT] >= other.m_Box[BOXRIGHT] && m_Box[BOXBOTTOM] >= other.m_Box[BOXBOTTOM];
-	}
-
-	bool Contains(double x, double y) const
-	{
-		return m_Box[BOXLEFT] <= x && m_Box[BOXTOP] <= y && m_Box[BOXRIGHT] >= x && m_Box[BOXBOTTOM] >= y;
-	}
-
-	template <class T>
-	bool Contains(const T &vec) const
-	{
-		return m_Box[BOXLEFT] <= vec.X && m_Box[BOXTOP] <= vec.Y && m_Box[BOXRIGHT] >= vec.X && m_Box[BOXBOTTOM] >= vec.Y;
-	}
 
 protected:
 	double m_Box[4];
