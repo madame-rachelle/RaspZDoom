@@ -146,33 +146,25 @@ void GLPortal::DrawPortalStencil(FDrawInfo *di, int pass)
 		if (pass == STP_AllInOne) glDepthMask(false);
 		else if (pass == STP_DepthRestore) glDepthRange(1, 1);
 
-		if (di != nullptr)
+		if (planesused & (1 << sector_t::floor))
 		{
-			if (planesused & (1 << sector_t::floor))
-			{
-				auto verts = di->AllocVertices(4);
-				auto ptr = verts.first;
-				ptr[0].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Top(), 0, 0);
-				ptr[1].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Top(), 0, 0);
-				ptr[2].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
-				ptr[3].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
-				GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
-			}
-			if (planesused & (1 << sector_t::ceiling))
-			{
-				auto verts = di->AllocVertices(4);
-				auto ptr = verts.first;
-				ptr[0].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Top(), 0, 0);
-				ptr[1].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Top(), 0, 0);
-				ptr[2].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
-				ptr[3].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
-				GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
-			}
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
 		}
-		else
+		if (planesused & (1 << sector_t::ceiling))
 		{
-			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILTOP_INDEX, 4);
-			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILBOTTOM_INDEX, 4);
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
 		}
 		if (pass == STP_DepthRestore) glDepthRange(0, 1);
 	}
@@ -339,7 +331,7 @@ inline void GLPortal::ClearClipper(FDrawInfo *di)
 // End
 //
 //-----------------------------------------------------------------------------
-void GLPortal::End(bool usestencil)
+void GLPortal::End(bool usestencil, FDrawInfo *outer_di)
 {
 	bool needdepth = NeedDepthBuffer();
 
@@ -368,7 +360,7 @@ void GLPortal::End(bool usestencil)
 				// first step: reset the depth buffer to max. depth
 				glDepthRange(1, 1);							// always
 				glDepthFunc(GL_ALWAYS);						// write the farthest depth value
-				DrawPortalStencil(nullptr, STP_DepthClear);
+				DrawPortalStencil(outer_di, STP_DepthClear);
 			}
 			else
 			{
@@ -380,7 +372,7 @@ void GLPortal::End(bool usestencil)
 			glDepthRange(0, 1);
 			glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 			glStencilFunc(GL_EQUAL, recursion, ~0);		// draw sky into stencil
-			DrawPortalStencil(nullptr, STP_DepthRestore);
+			DrawPortalStencil(outer_di, STP_DepthRestore);
 			glDepthFunc(GL_LESS);
 
 
@@ -423,7 +415,7 @@ void GLPortal::End(bool usestencil)
 			gl_RenderState.BlendFunc(GL_ONE, GL_ZERO);
 			gl_RenderState.BlendEquation(GL_FUNC_ADD);
 			gl_RenderState.Apply();
-			DrawPortalStencil(nullptr, STP_DepthRestore);
+			DrawPortalStencil(outer_di, STP_DepthRestore);
 			gl_RenderState.SetEffect(EFF_NONE);
 			gl_RenderState.EnableTexture(true);
 		}

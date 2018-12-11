@@ -96,7 +96,7 @@ protected:
 	virtual ~GLPortal() { }
 
 	bool Start(bool usestencil, bool doquery, FDrawInfo *outer_di, FDrawInfo **pDi);
-	void End(bool usestencil);
+	void End(bool usestencil, FDrawInfo *outer_di);
 	virtual void DrawContents(FDrawInfo *di)=0;
 	virtual void * GetSource() const =0;	// GetSource MUST be implemented!
 	void ClearClipper(FDrawInfo *di);
@@ -119,7 +119,7 @@ public:
 		if (Start(usestencil, doquery, outer_di, &di))
 		{
 			DrawContents(di);
-			End(usestencil);
+			End(usestencil, outer_di);
 		}
 	}
 
