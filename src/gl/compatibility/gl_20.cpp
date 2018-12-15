@@ -901,7 +901,7 @@ void GLSceneDrawer::RenderMultipassStuff(FDrawInfo *di)
 		{
 			gl_RenderState.BlendFunc(GL_ONE, GL_ONE);
 			glDepthFunc(GL_EQUAL);
-			if (level.lightmode == 8) gl_RenderState.SetSoftLightLevel(255);
+			if (level.lightmode >= 8) gl_RenderState.SetSoftLightLevel(255);
 			di->dldrawlists[GLLDL_WALLS_PLAIN].DrawWalls(di, GLPASS_LIGHTTEX);
 			di->dldrawlists[GLLDL_WALLS_MASKED].DrawWalls(di, GLPASS_LIGHTTEX);
 			di->dldrawlists[GLLDL_FLATS_PLAIN].DrawFlats(di, GLPASS_LIGHTTEX);
