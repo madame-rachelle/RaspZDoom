@@ -48,6 +48,7 @@
 #include "textures/warpbuffer.h"
 #include "hwrenderer/textures/hw_material.h"
 #include "hwrenderer/textures/hw_ihwtexture.h"
+#include "g_levellocals.h"
 
 FTexture *CreateBrightmapTexture(FTexture*);
 
@@ -1666,6 +1667,6 @@ void FTexCoordInfo::GetFromTexture(FTexture *tex, float x, float y)
 		mScale.Y = -mScale.Y;
 		mRenderHeight = -mRenderHeight;
 	}
-	mWorldPanning = tex->bWorldPanning;
+	mWorldPanning = tex->bWorldPanning || (level.flags3 & LEVEL3_FORCEWORLDPANNING);
 	mWidth = tex->GetWidth();
 }
