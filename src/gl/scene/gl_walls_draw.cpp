@@ -192,7 +192,7 @@ void FDrawInfo::RenderTexturedWall(GLWall *wall, int rflags)
 		}
 		mDrawer->SetFog(255, 0, nullptr, false);
 	}
-	if (wall->type != RENDERWALL_COLOR)
+	if (wall->type != RENDERWALL_COLOR && wall->seg->sidedef != nullptr)
 	{
 		auto side = wall->seg->sidedef;
 		auto tierndx = renderwalltotier[wall->type];
