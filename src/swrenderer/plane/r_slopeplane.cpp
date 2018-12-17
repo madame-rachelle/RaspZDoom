@@ -171,7 +171,7 @@ namespace swrenderer
 
 		// [RH] set foggy flag
 		basecolormap = colormap;
-		bool foggy = level.fadeto || basecolormap->Fade || (level.flags & LEVEL_HASFADETABLE);;
+		foggy = level.fadeto || basecolormap->Fade || (level.flags & LEVEL_HASFADETABLE);;
 
 		planelightfloat = (Thread->Light->SlopePlaneGlobVis(foggy) * lxscale * lyscale) / (fabs(pl->height.ZatPoint(Thread->Viewport->viewpoint.Pos) - Thread->Viewport->viewpoint.Pos.Z)) / 65536.f;
 
@@ -194,7 +194,7 @@ namespace swrenderer
 		{
 			drawerargs.SetLight(basecolormap, 0, 0);
 			plane_shade = true;
-			planeshade = LightVisibility::LightLevelToShade(pl->lightlevel, foggy, viewport);
+			lightlevel = pl->lightlevel;
 		}
 
 		// Hack in support for 1 x Z and Z x 1 texture sizes
@@ -212,7 +212,7 @@ namespace swrenderer
 
 	void RenderSlopePlane::RenderLine(int y, int x1, int x2)
 	{
-		drawerargs.DrawTiltedSpan(Thread, y, x1, x2, plane_sz, plane_su, plane_sv, plane_shade, planeshade, planelightfloat, pviewx, pviewy, basecolormap);
+		drawerargs.DrawTiltedSpan(Thread, y, x1, x2, plane_sz, plane_su, plane_sv, plane_shade, lightlevel, foggy, planelightfloat, pviewx, pviewy, basecolormap);
 
 		if (r_modelscene)
 		{

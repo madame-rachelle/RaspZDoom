@@ -71,7 +71,7 @@ EXTERN_CVAR(Bool, r_fullbrightignoresectorcolor);
 
 namespace swrenderer
 {
-	void RenderWallSprite::Project(RenderThread *thread, AActor *thing, const DVector3 &pos, FTexture *pic, const DVector2 &scale, int renderflags, int spriteshade, bool foggy, FDynamicColormap *basecolormap)
+	void RenderWallSprite::Project(RenderThread *thread, AActor *thing, const DVector3 &pos, FTexture *pic, const DVector2 &scale, int renderflags, int lightlevel, bool foggy, FDynamicColormap *basecolormap)
 	{
 		FWallCoords wallc;
 		double x1, x2;
@@ -140,7 +140,7 @@ namespace swrenderer
 		vis->wallc = wallc;
 		vis->foggy = foggy;
 
-		vis->Light.SetColormap(thread->Light->SpriteVis(tz, foggy), spriteshade, basecolormap, false, false, false);
+		vis->Light.SetColormap(thread, tz, lightlevel, foggy, basecolormap, false, false, false, false, false);
 
 		thread->SpriteList->Push(vis);
 	}
@@ -189,7 +189,6 @@ namespace swrenderer
 
 		SpriteDrawerArgs drawerargs;
 
-		int shade = LightVisibility::LightLevelToShade(spr->sector->lightlevel, spr->foggy, thread->Viewport.get());
 		float lightleft = float(thread->Light->WallVis(spr->wallc.sz1, foggy));
 		float lightstep = float((thread->Light->WallVis(spr->wallc.sz2, foggy) - lightleft) / (spr->wallc.sx2 - spr->wallc.sx1));
 		float light = lightleft + (x1 - spr->wallc.sx1) * lightstep;
@@ -243,7 +242,7 @@ namespace swrenderer
 			{
 				if (calclighting)
 				{ // calculate lighting
-					drawerargs.SetLight(usecolormap, light, shade);
+					drawerargs.SetLight(usecolormap, light, spr->sector->lightlevel, spr->foggy, thread->Viewport.get());
 				}
 				if (!translucentPass->ClipSpriteColumnWithPortals(x, spr))
 					DrawColumn(thread, drawerargs, x, WallSpriteTile, walltexcoords, texturemid, maskedScaleY, sprflipvert, mfloorclip, mceilingclip, spr->RenderStyle);
