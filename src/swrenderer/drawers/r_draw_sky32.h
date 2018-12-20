@@ -39,6 +39,7 @@ namespace swrenderer
 		void Execute(DrawerThread *thread) override
 		{
 			uint32_t *dest = (uint32_t *)args.Dest();
+			int count = args.Count();
 			int pitch = args.Viewport()->RenderTarget->GetPitch();
 			const uint32_t *source0 = (const uint32_t *)args.FrontTexturePixels();
 			int textureheight0 = args.FrontTextureHeight();
@@ -49,10 +50,6 @@ namespace swrenderer
 			uint32_t solid_top = args.SolidTopColor();
 			uint32_t solid_bottom = args.SolidBottomColor();
 			bool fadeSky = args.FadeSky();
-
-			int num_cores = thread->num_cores;
-			int skipped = thread->skipped_by_thread(args.DestY());
-			int count = skipped + thread->count_for_thread(args.DestY(), args.Count()) * num_cores;
 
 			// Find bands for top solid color, top fade, center textured, bottom fade, bottom solid color:
 			int start_fade = 2; // How fast it should fade out
@@ -66,6 +63,8 @@ namespace swrenderer
 			start_fadebottom_y = clamp(start_fadebottom_y, 0, count);
 			end_fadebottom_y = clamp(end_fadebottom_y, 0, count);
 
+			int num_cores = thread->num_cores;
+			int skipped = thread->skipped_by_thread(args.DestY());
 			dest = thread->dest_for_thread(args.DestY(), pitch, dest);
 			frac += fracstep * skipped;
 			fracstep *= num_cores;
@@ -172,6 +171,7 @@ namespace swrenderer
 		void Execute(DrawerThread *thread) override
 		{
 			uint32_t *dest = (uint32_t *)args.Dest();
+			int count = args.Count();
 			int pitch = args.Viewport()->RenderTarget->GetPitch();
 			const uint32_t *source0 = (const uint32_t *)args.FrontTexturePixels();
 			const uint32_t *source1 = (const uint32_t *)args.BackTexturePixels();
@@ -180,11 +180,7 @@ namespace swrenderer
 
 			int32_t frac = args.TextureVPos();
 			int32_t fracstep = args.TextureVStep();
-
-			int num_cores = thread->num_cores;
-			int skipped = thread->skipped_by_thread(args.DestY());
-			int count = skipped + thread->count_for_thread(args.DestY(), args.Count()) * num_cores;
-
+			
 			uint32_t solid_top = args.SolidTopColor();
 			uint32_t solid_bottom = args.SolidBottomColor();
 			bool fadeSky = args.FadeSky();
@@ -201,6 +197,8 @@ namespace swrenderer
 			start_fadebottom_y = clamp(start_fadebottom_y, 0, count);
 			end_fadebottom_y = clamp(end_fadebottom_y, 0, count);
 
+			int num_cores = thread->num_cores;
+			int skipped = thread->skipped_by_thread(args.DestY());
 			dest = thread->dest_for_thread(args.DestY(), pitch, dest);
 			frac += fracstep * skipped;
 			fracstep *= num_cores;
