@@ -166,6 +166,64 @@ double GetUDMFFloat(int type, int index, FName key);
 FString GetUDMFString(int type, int index, FName key);
 
 
+struct EDMapthing
+{
+	int recordnum;
+	int tid;
+	int type;
+	double height;
+	int args[5];
+	uint16_t skillfilter;
+	uint32_t flags;
+};
+
+struct EDLinedef
+{
+	int recordnum;
+	int special;
+	int tag;
+	int id;
+	int args[5];
+	double alpha;
+	uint32_t flags;
+	uint32_t activation;
+};
+
+
+
+struct EDSector
+{
+	int recordnum;
+
+	uint32_t flags;
+	uint32_t flagsRemove;
+	uint32_t flagsAdd;
+
+	int damageamount;
+	int damageinterval;
+	FName damagetype;
+	uint8_t leaky;
+	uint8_t leakyadd;
+	uint8_t leakyremove;
+	int floorterrain;
+	int ceilingterrain;
+
+	uint32_t color;
+
+	uint32_t damageflags;
+	uint32_t damageflagsAdd;
+	uint32_t damageflagsRemove;
+
+	bool flagsSet;
+	bool damageflagsSet;
+	bool colorSet;
+
+	// colormaptop//bottom cannot be used because ZDoom has no corresponding properties.
+	double xoffs[2], yoffs[2];
+	DAngle angle[2];
+	uint32_t portalflags[2];
+	double Overlayalpha[2];
+};
 
 struct sidei_t	// [RH] Only keep BOOM sidedef init stuff around for init
 {
@@ -216,6 +274,10 @@ class MapLoader
 	int sidecount;
 	TArray<int>		linemap;
 
+	TMap<int, EDLinedef> EDLines;
+	TMap<int, EDSector> EDSectors;
+	TMap<int, EDMapthing> EDThings;
+
 	void SlopeLineToPoint(int lineid, const DVector3 &pos, bool slopeCeil);
 	void CopyPlane(int tag, sector_t *dest, bool copyCeil);
 	void CopyPlane(int tag, const DVector2 &pos, bool copyCeil);
@@ -223,6 +285,11 @@ class MapLoader
 	void VavoomSlope(sector_t * sec, int id, const DVector3 &pos, int which);
 	void SetSlopesFromVertexHeights(FMapThing *firstmt, FMapThing *lastmt, const int *oldvertextable);
 	void AlignPlane(sector_t *sec, line_t *line, int which);
+
+	void InitED();
+	void ProcessEDMapthing(FMapThing *mt, int recordnum);
+	void ProcessEDLinedef(line_t *line, int recordnum);
+	void ProcessEDSector(sector_t *sec, int recordnum);
 
 	int checkGLVertex(int num);
 	int checkGLVertex3(int num);
@@ -257,6 +324,8 @@ class MapLoader
 	void AddToList(uint8_t *hitlist, FTextureID texid, int bitmask);
 
 public:
+	void LoadMapinfoACSLump();
+	void ProcessEDSectors();
 
 	void FloodZones();
 	void LoadVertexes(MapData * map);
