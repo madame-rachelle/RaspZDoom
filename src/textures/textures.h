@@ -687,11 +687,12 @@ private:
 	TArray<int> FirstTextureForFile;
 	TArray<TArray<uint8_t> > BuildTileData;
 
-	TArray<FAnimDef *> mAnimations;
 	TArray<FSwitchDef *> mSwitchDefs;
 	TArray<FDoorAnimation> mAnimatedDoors;
 
 public:
+	TArray<FAnimDef *> mAnimations;
+	
 	bool HasGlobalBrightmap;
 	FRemapTable GlobalBrightmap;
 	short sintable[2048];	// for texture warping
