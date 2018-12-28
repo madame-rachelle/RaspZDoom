@@ -146,6 +146,11 @@ void GLPortal::DrawPortalStencil(FDrawInfo *di, int pass)
 		if (pass == STP_AllInOne) glDepthMask(false);
 		else if (pass == STP_DepthRestore) glDepthRange(1, 1);
 
+		if (planesused != 0)
+		{
+			GLRenderer->mVBO->Map();
+		}
+
 		if (planesused & (1 << sector_t::floor))
 		{
 			auto verts = di->AllocVertices(4);
@@ -166,6 +171,12 @@ void GLPortal::DrawPortalStencil(FDrawInfo *di, int pass)
 			ptr[3].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
 			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
 		}
+
+		if (planesused != 0)
+		{
+			GLRenderer->mVBO->Unmap();
+		}
+
 		if (pass == STP_DepthRestore) glDepthRange(0, 1);
 	}
 }
