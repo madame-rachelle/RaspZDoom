@@ -96,6 +96,11 @@ CUSTOM_CVAR(Int, vid_maxfps, 200, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 CUSTOM_CVAR(Int, vid_rendermode, 4, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
+	if (self < 0 || self > 4)
+	{
+		self = 4;
+	}
+
 	if (usergame)
 	{
 		// [SP] Update pitch limits to the netgame/gamesim.
@@ -106,6 +111,7 @@ CUSTOM_CVAR(Int, vid_rendermode, 4, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOIN
 	// No further checks needed. All this changes now is which scene drawer the render backend calls.
 }
 
+CVAR(Int, vid_renderer, 1, 0)	// for some stupid mods which threw caution out of the window...
 
 
 EXTERN_CVAR(Bool, r_blendmethod)

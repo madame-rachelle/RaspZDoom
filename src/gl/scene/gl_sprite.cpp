@@ -100,10 +100,8 @@ void FDrawInfo::DrawSprite(GLSprite *sprite, int pass)
 		{
 			gl_RenderState.AlphaFunc(GL_GEQUAL, 0.f);
 		}
-		else
-		{
-			gl_RenderState.AlphaFunc(GL_GEQUAL, gl_mask_sprite_threshold);
-		}
+		else if (!sprite->gltexture || !sprite->gltexture->tex->GetTranslucency()) gl_RenderState.AlphaFunc(GL_GEQUAL, gl_mask_sprite_threshold);
+		else gl_RenderState.AlphaFunc(GL_GREATER, 0.f);
 
 		if (RenderStyle.BlendOp == STYLEOP_Shadow)
 		{
@@ -211,8 +209,8 @@ void FDrawInfo::DrawSprite(GLSprite *sprite, int pass)
 		gl_RenderState.EnableSplit(true);
 	}
 
-	secplane_t bottomp = { { 0, 0, -1. }, sprite->bottomclip };
-	secplane_t topp = { { 0, 0, -1. }, sprite->topclip };
+	secplane_t bottomp = { { 0, 0, -1. }, sprite->bottomclip, 1. };
+	secplane_t topp = { { 0, 0, -1. }, sprite->topclip, 1. };
 	for (unsigned i = 0; i < iter; i++)
 	{
 		if (lightlist)

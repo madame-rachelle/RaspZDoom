@@ -464,10 +464,9 @@ bool FSerializer::OpenReader(FCompressedBuffer *input)
 	}
 	else
 	{
-		char *unpacked = new char[input->mSize];
-		input->Decompress(unpacked);
-		r = new FReader(unpacked, input->mSize);
-		delete[] unpacked;
+		TArray<char> unpacked(input->mSize);
+		input->Decompress(unpacked.Data());
+		r = new FReader(unpacked.Data(), input->mSize);
 	}
 	return true;
 }
@@ -1586,16 +1585,12 @@ FSerializer &Serialize(FSerializer &arc, const char *key, DObject *&value, DObje
 	if (retcode) *retcode = true;
 	if (arc.isWriting())
 	{
-		if (value != nullptr)
+		if (value != nullptr && !(value->ObjectFlags & (OF_EuthanizeMe | OF_Transient)))
 		{
 			int ndx;
 			if (value == WP_NOCHANGE)
 			{
 				ndx = -1;
-			}
-			else if (value->ObjectFlags & (OF_EuthanizeMe | OF_Transient))
-			{
-				return arc;
 			}
 			else
 			{

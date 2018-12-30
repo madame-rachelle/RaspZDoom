@@ -247,6 +247,7 @@ enum ELevelFlags : unsigned int
 	LEVEL3_NOCOLOREDSPRITELIGHTING = 0x00000010,	// draw sprites only with color-less light
 	LEVEL3_EXITNORMALUSED		= 0x00000020,
 	LEVEL3_EXITSECRETUSED		= 0x00000040,
+	LEVEL3_FORCEWORLDPANNING	= 0x00000080,	// Forces the world panning flag for all textures, even those without it explicitly set.
 };
 
 
@@ -507,7 +508,7 @@ void G_ChangeLevel(const char *levelname, int position, int flags, int nextSkill
 void G_StartTravel ();
 int G_FinishTravel ();
 
-void G_DoLoadLevel (int position, bool autosave);
+void G_DoLoadLevel (int position, bool autosave, bool newGame);
 
 void G_InitLevelLocals (void);
 

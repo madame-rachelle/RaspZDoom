@@ -153,8 +153,7 @@ static WeaponLighting GetWeaponLighting(sector_t *viewsector, const DVector3 &po
 	}
 	else
 	{
-		sector_t fs;
-		auto fakesec = hw_FakeFlat(viewsector, &fs, in_area, false);
+		auto fakesec = hw_FakeFlat(viewsector, in_area, false);
 
 		// calculate light level for weapon sprites
 		l.lightlevel = hw_ClampLight(fakesec->lightlevel);
@@ -192,7 +191,7 @@ static WeaponLighting GetWeaponLighting(sector_t *viewsector, const DVector3 &po
 
 		l.lightlevel = hw_CalcLightLevel(l.lightlevel, getExtraLight(), true, 0);
 
-		if (level.lightmode == 8 || l.lightlevel < 92)
+		if (level.lightmode >= 8 || l.lightlevel < 92)
 		{
 			// Korshun: the way based on max possible light level for sector like in software renderer.
 			double min_L = 36.0 / 31.0 - ((l.lightlevel / 255.0) * (63.0 / 31.0)); // Lightlevel in range 0-63
@@ -365,21 +364,7 @@ bool HUDSprite::GetWeaponRect(HWDrawInfo *di, DPSprite *psp, float sx, float sy,
 	x2 += viewwindowx;
 
 	// killough 12/98: fix psprite positioning problem
-	ftexturemid = 100.f - sy - r.top;
-
-	AWeapon * wi = player->ReadyWeapon;
-	if (wi && wi->YAdjust != 0)
-	{
-		float fYAd = wi->YAdjust;
-		if (screenblocks >= 11)
-		{
-			ftexturemid -= fYAd;
-		}
-		else
-		{
-			ftexturemid -= float(StatusBar->GetDisplacement()) * fYAd;
-		}
-	}
+	ftexturemid = 100.f - sy - r.top - psp->GetYAdjust(screenblocks >= 11);
 
 	scale = (SCREENHEIGHT*vw) / (SCREENWIDTH * 200.0f);
 	y1 = viewwindowy + vh / 2 - (ftexturemid * scale);
@@ -445,7 +430,7 @@ void HWDrawInfo::PreparePlayerSprites(sector_t * viewsector, area_t in_area)
 	// hack alert! Rather than changing everything in the underlying lighting code let's just temporarily change
 	// light mode here to draw the weapon sprite.
 	int oldlightmode = level.lightmode;
-	if (level.lightmode == 8) level.lightmode = 2;
+	if (level.lightmode >= 8) level.lightmode = 2;
 
 	for (DPSprite *psp = player->psprites; psp != nullptr && psp->GetID() < PSP_TARGETCENTER; psp = psp->GetNext())
 	{

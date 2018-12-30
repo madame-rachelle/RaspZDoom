@@ -63,7 +63,7 @@ static void matrixToGL(const VSMatrix &mat, int loc)
 void FRenderState::Reset()
 {
 	mTextureEnabled = true;
-	mClipLineEnabled = mSplitEnabled = mBrightmapEnabled = mFogEnabled = mGlowEnabled = false;
+	mClipLineEnabled = mSplitEnabled = mGradientEnabled = mBrightmapEnabled = mFogEnabled = mGlowEnabled = false;
 	mColorMask[0] = mColorMask[1] = mColorMask[2] = mColorMask[3] = true;
 	currentColorMask[0] = currentColorMask[1] = currentColorMask[2] = currentColorMask[3] = true;
 	mFogColor.d = -1;
@@ -103,6 +103,8 @@ void FRenderState::Reset()
 	mGlowBottom.Set(0.0f, 0.0f, 0.0f, 0.0f);
 	mGlowTopPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
 	mGlowBottomPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
+	mGradientTopPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
+	mGradientBottomPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
 	mSplitTopPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
 	mSplitBottomPlane.Set(0.0f, 0.0f, 0.0f, 0.0f);
 	mClipLine.Set(0.0f, 0.0f, 0.0f, 0.0f);
@@ -160,14 +162,13 @@ bool FRenderState::ApplyShader()
 
 	activeShader->muDesaturation.Set(mDesaturation / 255.f);
 	activeShader->muFogEnabled.Set(fogset);
-	activeShader->muPalLightLevels.Set(static_cast<int>(gl_bandedswlight) | (static_cast<int>(gl_fogmode) << 8));
+	activeShader->muPalLightLevels.Set(static_cast<int>(gl_bandedswlight) | (static_cast<int>(gl_fogmode) << 8) | (static_cast<int>(gl_lightmode) << 16));
 	activeShader->muGlobVis.Set(GLRenderer->mGlobVis / 32.0f);
 	activeShader->muTextureMode.Set(mTextureMode == TM_MODULATE && mTempTM == TM_OPAQUE ? TM_OPAQUE : mTextureMode);
 	activeShader->muCameraPos.Set(mCameraPos.vec);
 	activeShader->muLightParms.Set(mLightParms);
 	activeShader->muFogColor.Set(mFogColor);
 	activeShader->muObjectColor.Set(mObjectColor);
-	activeShader->muObjectColor2.Set(mObjectColor2);
 	activeShader->muDynLightColor.Set(mDynColor.vec);
 	activeShader->muInterpolationFactor.Set(mInterpolationFactor);
 	activeShader->muClipHeight.Set(mClipHeight);
@@ -184,6 +185,8 @@ bool FRenderState::ApplyShader()
 	{
 		activeShader->muGlowTopColor.Set(mGlowTop.vec);
 		activeShader->muGlowBottomColor.Set(mGlowBottom.vec);
+		activeShader->muGlowTopPlane.Set(mGlowTopPlane.vec);
+		activeShader->muGlowBottomPlane.Set(mGlowBottomPlane.vec);
 		activeShader->currentglowstate = 1;
 	}
 	else if (activeShader->currentglowstate)
@@ -193,10 +196,18 @@ bool FRenderState::ApplyShader()
 		activeShader->muGlowBottomColor.Set(nulvec);
 		activeShader->currentglowstate = 0;
 	}
-	if (mGlowEnabled || mObjectColor2.a != 0)
+
+	if (mGradientEnabled)
 	{
-		activeShader->muGlowTopPlane.Set(mGlowTopPlane.vec);
-		activeShader->muGlowBottomPlane.Set(mGlowBottomPlane.vec);
+		activeShader->muObjectColor2.Set(mObjectColor2);
+		activeShader->muGradientTopPlane.Set(mGradientTopPlane.vec);
+		activeShader->muGradientBottomPlane.Set(mGradientBottomPlane.vec);
+		activeShader->currentgradientstate = 1;
+	}
+	else if (activeShader->currentgradientstate)
+	{
+		activeShader->muObjectColor2.Set(0);
+		activeShader->currentgradientstate = 0;
 	}
 
 	if (mSplitEnabled)

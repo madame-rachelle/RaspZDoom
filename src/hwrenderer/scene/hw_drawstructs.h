@@ -183,7 +183,6 @@ public:
 	};
 
 
-	secplane_t topplane, bottomplane;	// we need to save these to pass them to the shader for calculating glows.
 
 	// these are not the same as ytop and ybottom!!!
 	float zceil[2];
@@ -195,10 +194,11 @@ public:
 public:
 	seg_t * seg;			// this gives the easiest access to all other structs involved
 	subsector_t * sub;		// For polyobjects
+	sector_t *frontsector, *backsector;
 //private:
 
 	void PutWall(HWDrawInfo *di, bool translucent);
-	void PutPortal(HWDrawInfo *di, int ptype);
+	void PutPortal(HWDrawInfo *di, int ptype, int plane);
 	void CheckTexturePosition(FTexCoordInfo *tci);
 
 	void Put3DWall(HWDrawInfo *di, lightlist_t * lightlist, bool translucent);
@@ -259,19 +259,6 @@ public:
 	int CountVertices();
 
 public:
-	GLWall() {}
-
-	GLWall(const GLWall &other)
-	{
-		memcpy(this, &other, sizeof(GLWall));
-	}
-
-	GLWall & operator=(const GLWall &other)
-	{
-		memcpy(this, &other, sizeof(GLWall));
-		return *this;
-	}
-
 	void Process(HWDrawInfo *di, seg_t *seg, sector_t *frontsector, sector_t *backsector);
 	void ProcessLowerMiniseg(HWDrawInfo *di, seg_t *seg, sector_t *frontsector, sector_t *backsector);
 
@@ -317,20 +304,6 @@ public:
 	void Process(HWDrawInfo *di, sector_t * model, int whichplane, bool notexture);
 	void SetFrom3DFloor(F3DFloor *rover, bool top, bool underside);
 	void ProcessSector(HWDrawInfo *di, sector_t * frontsector);
-	
-	GLFlat() {}
-
-	GLFlat(const GLFlat &other)
-	{
-		memcpy(this, &other, sizeof(GLFlat));
-	}
-
-	GLFlat & operator=(const GLFlat &other)
-	{
-		memcpy(this, &other, sizeof(GLFlat));
-		return *this;
-	}
-
 };
 
 //==========================================================================
@@ -381,23 +354,9 @@ public:
 	bool CalculateVertices(HWDrawInfo *di, FVector3 *v, DVector3 *vp);
 
 public:
-
-	GLSprite() {}
 	void PutSprite(HWDrawInfo *di, bool translucent);
 	void Process(HWDrawInfo *di, AActor* thing,sector_t * sector, area_t in_area, int thruportal = false);
 	void ProcessParticle (HWDrawInfo *di, particle_t *particle, sector_t *sector);//, int shade, int fakeside)
-
-	GLSprite(const GLSprite &other)
-	{
-		memcpy(this, &other, sizeof(GLSprite));
-	}
-
-	GLSprite & operator=(const GLSprite &other)
-	{
-		memcpy(this, &other, sizeof(GLSprite));
-		return *this;
-	}
-
 };
 
 
@@ -423,7 +382,7 @@ struct GLDecal
 	int rellight;
 	float alpha;
 	FColormap Colormap;
-	secplane_t bottomplane;
+	sector_t *frontsector;
 	FVector3 Normal;
 
 };

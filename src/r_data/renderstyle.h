@@ -63,6 +63,9 @@ enum ERenderStyle
 	STYLE_AddShaded,		// Treat patch data as alpha values for alphacolor
 	STYLE_Multiply,			// Multiply source with destination (HW renderer only.)
 	STYLE_InverseMultiply,	// Multiply source with inverse of destination (HW renderer only.)
+	STYLE_ColorBlend,		// Use color intensity as transparency factor
+	STYLE_Source,			// No blending (only used internally)
+	STYLE_ColorAdd,			// Use color intensity as transparency factor and blend additively.
 
 	STYLE_Count
 };
@@ -141,6 +144,7 @@ union FRenderStyle
 
 	inline FRenderStyle &operator= (ERenderStyle legacy);
 	bool operator==(const FRenderStyle &o) const { return AsDWORD == o.AsDWORD; }
+	bool operator!=(const FRenderStyle &o) const { return AsDWORD != o.AsDWORD; }
 	void CheckFuzz();
 	bool IsVisible(double alpha) const throw();
 private:

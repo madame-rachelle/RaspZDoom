@@ -77,7 +77,11 @@ struct UserShaderDesc
 	FString shader;
 	MaterialShaderIndex shaderType;
 	FString defines;
+	bool disablealphatest = false;
 };
+
+extern TArray<UserShaderDesc> usershaders;
+
 
 struct FloatRect
 {
@@ -217,6 +221,7 @@ enum FTextureFormat : uint32_t
 	TEX_Count
 };
 
+
 // Base texture class
 class FTexture
 {
@@ -269,7 +274,7 @@ public:
 	uint8_t bComplex:1;		// Will be used to mark extended MultipatchTextures that have to be
 							// fully composited before subjected to any kind of postprocessing instead of
 							// doing it per patch.
-	uint8_t bMultiPatch:1;		// This is a multipatch texture (we really could use real type info for textures...)
+	uint8_t bMultiPatch:2;		// This is a multipatch texture (we really could use real type info for textures...)
 	uint8_t bKeepAround:1;		// This texture was used as part of a multi-patch texture. Do not free it.
 	uint8_t bFullNameTexture : 1;
 	uint8_t bBrightmapChecked : 1;				// Set to 1 if brightmap has been checked
@@ -682,11 +687,12 @@ private:
 	TArray<int> FirstTextureForFile;
 	TArray<TArray<uint8_t> > BuildTileData;
 
-	TArray<FAnimDef *> mAnimations;
 	TArray<FSwitchDef *> mSwitchDefs;
 	TArray<FDoorAnimation> mAnimatedDoors;
 
 public:
+	TArray<FAnimDef *> mAnimations;
+	
 	bool HasGlobalBrightmap;
 	FRemapTable GlobalBrightmap;
 	short sintable[2048];	// for texture warping
@@ -800,6 +806,24 @@ public:
 };
 
 extern FTextureManager TexMan;
+
+struct FTexCoordInfo
+{
+	int mRenderWidth;
+	int mRenderHeight;
+	int mWidth;
+	FVector2 mScale;
+	FVector2 mTempScale;
+	bool mWorldPanning;
+
+	float FloatToTexU(float v) const { return v / mRenderWidth; }
+	float FloatToTexV(float v) const { return v / mRenderHeight; }
+	float RowOffset(float ofs) const;
+	float TextureOffset(float ofs) const;
+	float TextureAdjustWidth() const;
+	void GetFromTexture(FTexture *tex, float x, float y);
+};
+
 
 #endif
 

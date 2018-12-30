@@ -121,14 +121,8 @@ enum
 	// namespace for each game
 };
 
-void SetTexture (sector_t *sector, int index, int position, const char *name, FMissingTextureTracker &, bool truncate);
-void P_ProcessSideTextures(bool checktranmap, side_t *sd, sector_t *sec, intmapsidedef_t *msd, int special, int tag, short *alpha, FMissingTextureTracker &);
-void P_AdjustLine (line_t *ld);
-void P_FinishLoadingLineDef(line_t *ld, int alpha);
-void SpawnMapThing(int index, FMapThing *mt, int position);
 extern bool		ForceNodeBuild;
 extern TArray<FMapThing> MapThingsConverted;
-extern TArray<int>		linemap;
 
 
 #define CHECK_N(f) if (!(namespace_bits&(f))) break;
@@ -373,15 +367,6 @@ int GetUDMFInt(int type, int index, FName key)
 	return 0;
 }
 
-DEFINE_ACTION_FUNCTION(FLevelLocals, GetUDMFInt)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
-	PARAM_INT(type);
-	PARAM_INT(index);
-	PARAM_NAME(key);
-	ACTION_RETURN_INT(GetUDMFInt(type, index, key));
-}
-
 double GetUDMFFloat(int type, int index, FName key)
 {
 	assert(type >=0 && type <=3);
@@ -397,15 +382,6 @@ double GetUDMFFloat(int type, int index, FName key)
 		}
 	}
 	return 0;
-}
-
-DEFINE_ACTION_FUNCTION(FLevelLocals, GetUDMFFloat)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
-	PARAM_INT(type);
-	PARAM_INT(index);
-	PARAM_NAME(key);
-	ACTION_RETURN_FLOAT(GetUDMFFloat(type, index, key));
 }
 
 FString GetUDMFString(int type, int index, FName key)
@@ -424,16 +400,6 @@ FString GetUDMFString(int type, int index, FName key)
 	}
 	return "";
 }
-
-DEFINE_ACTION_FUNCTION(FLevelLocals, GetUDMFString)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
-	PARAM_INT(type);
-	PARAM_INT(index);
-	PARAM_NAME(key);
-	ACTION_RETURN_STRING(GetUDMFString(type, index, key));
-}
-
 
 //===========================================================================
 //
@@ -454,6 +420,7 @@ class UDMFParser : public UDMFParserBase
 	bool isTranslated;
 	bool isExtended;
 	bool floordrop;
+	MapLoader *loader;
 
 	TArray<line_t> ParsedLines;
 	TArray<side_t> ParsedSides;
@@ -466,10 +433,10 @@ class UDMFParser : public UDMFParserBase
 	FMissingTextureTracker &missingTex;
 
 public:
-	UDMFParser(FMissingTextureTracker &missing)
-		: missingTex(missing)
+	UDMFParser(MapLoader *ld, FMissingTextureTracker &missing)
+		: loader(ld), missingTex(missing)
 	{
-		linemap.Clear();
+		loader->linemap.Clear();
 	}
 
   void ReadUserKey(FUDMFKey &ukey) {
@@ -739,6 +706,15 @@ public:
 				case NAME_Subtractive:
 					th->RenderStyle = STYLE_Subtract;
 					break;
+				case NAME_ColorBlend:
+					th->RenderStyle = STYLE_ColorBlend;
+					break;
+				case NAME_ColorAdd:
+					th->RenderStyle = STYLE_ColorAdd;
+					break;
+				case NAME_Multiply:
+					th->RenderStyle = STYLE_Multiply;
+					break;
 				default:
 					break;
 				}
@@ -793,7 +769,7 @@ public:
 					FUDMFKey ukey;
 					ukey.Key = key;
 					ReadUserKey(ukey);
-					MapThingsUserData.Push(ukey);
+					loader->MapThingsUserData.Push(ukey);
 				}
 				break;
 			}
@@ -1120,6 +1096,21 @@ public:
 				tagstring = CheckString(key);
 				break;
 
+			case NAME_Health:
+				ld->health = CheckInt(key);
+				break;
+
+			case NAME_DamageSpecial:
+				Flag(ld->activation, SPAC_Damage, key);
+				break;
+
+			case NAME_DeathSpecial:
+				Flag(ld->activation, SPAC_Death, key);
+				break;
+
+			case NAME_HealthGroup:
+				ld->healthgroup = CheckInt(key);
+				break;
 
 			default:
 				break;
@@ -1208,6 +1199,7 @@ public:
 		{
 			FName key = ParseKey();
 			switch(key)
+
 			{
 			case NAME_Offsetx:
 				texOfs[0] = CheckInt(key);
@@ -1319,6 +1311,79 @@ public:
 				Flag(sd->Flags, WALLF_NOAUTODECALS, key);
 				continue;
 
+			case NAME_nogradient_top:
+				Flag(sd->textures[side_t::top].flags, side_t::part::NoGradient, key);
+				break;
+
+			case NAME_flipgradient_top:
+				Flag(sd->textures[side_t::top].flags, side_t::part::FlipGradient, key);
+				break;
+
+			case NAME_clampgradient_top:
+				Flag(sd->textures[side_t::top].flags, side_t::part::ClampGradient, key);
+				break;
+
+			case NAME_useowncolors_top:
+				Flag(sd->textures[side_t::top].flags, side_t::part::UseOwnColors, key);
+				break;
+
+			case NAME_uppercolor_top:
+				sd->SetSpecialColor(side_t::top, 0, CheckInt(key));
+				break;
+
+			case NAME_lowercolor_top:
+				sd->SetSpecialColor(side_t::top, 1, CheckInt(key));
+				break;
+
+			case NAME_nogradient_mid:
+				Flag(sd->textures[side_t::mid].flags, side_t::part::NoGradient, key);
+				break;
+
+			case NAME_flipgradient_mid:
+				Flag(sd->textures[side_t::mid].flags, side_t::part::FlipGradient, key);
+				break;
+
+			case NAME_clampgradient_mid:
+				Flag(sd->textures[side_t::mid].flags, side_t::part::ClampGradient, key);
+				break;
+
+			case NAME_useowncolors_mid:
+				Flag(sd->textures[side_t::mid].flags, side_t::part::UseOwnColors, key);
+				break;
+
+			case NAME_uppercolor_mid:
+				sd->SetSpecialColor(side_t::mid, 0, CheckInt(key));
+				break;
+
+			case NAME_lowercolor_mid:
+				sd->SetSpecialColor(side_t::mid, 1, CheckInt(key));
+				break;
+
+			case NAME_nogradient_bottom:
+				Flag(sd->textures[side_t::bottom].flags, side_t::part::NoGradient, key);
+				break;
+
+			case NAME_flipgradient_bottom:
+				Flag(sd->textures[side_t::bottom].flags, side_t::part::FlipGradient, key);
+				break;
+
+			case NAME_clampgradient_bottom:
+				Flag(sd->textures[side_t::bottom].flags, side_t::part::ClampGradient, key);
+				break;
+
+			case NAME_useowncolors_bottom:
+				Flag(sd->textures[side_t::bottom].flags, side_t::part::UseOwnColors, key);
+				break;
+
+			case NAME_uppercolor_bottom:
+				sd->SetSpecialColor(side_t::bottom, 0, CheckInt(key));
+				break;
+
+			case NAME_lowercolor_bottom:
+				sd->SetSpecialColor(side_t::bottom, 1, CheckInt(key));
+				break;
+
+
 			default:
 				break;
 
@@ -1361,7 +1426,6 @@ public:
 		double scroll_floor_x = 0;
 		double scroll_floor_y = 0;
 		FName scroll_floor_type = NAME_None;
-
 
 		memset(sec, 0, sizeof(*sec));
 		sec->lightlevel = 160;
@@ -1408,11 +1472,11 @@ public:
 				continue;
 
 			case NAME_Texturefloor:
-				SetTexture(sec, index, sector_t::floor, CheckString(key), missingTex, false);
+				loader->SetTexture(sec, index, sector_t::floor, CheckString(key), missingTex, false);
 				continue;
 
 			case NAME_Textureceiling:
-				SetTexture(sec, index, sector_t::ceiling, CheckString(key), missingTex, false);
+				loader->SetTexture(sec, index, sector_t::ceiling, CheckString(key), missingTex, false);
 				continue;
 
 			case NAME_Lightlevel:
@@ -1768,6 +1832,30 @@ public:
 				// These two are used by Eternity for something I do not understand.
 				//case NAME_portal_ceil_useglobaltex:
 				//case NAME_portal_floor_useglobaltex:
+
+				case NAME_HealthFloor:
+					sec->healthfloor = CheckInt(key);
+					break;
+
+				case NAME_HealthCeiling:
+					sec->healthceiling = CheckInt(key);
+					break;
+
+				case NAME_Health3D:
+					sec->health3d = CheckInt(key);
+					break;
+
+				case NAME_HealthFloorGroup:
+					sec->healthfloorgroup = CheckInt(key);
+					break;
+
+				case NAME_HealthCeilingGroup:
+					sec->healthceilinggroup = CheckInt(key);
+					break;
+
+				case NAME_Health3DGroup:
+					sec->health3dgroup = CheckInt(key);
+					break;
 					
 				default:
 					break;
@@ -1940,7 +2028,7 @@ public:
 					sidecount++;
 				if (ParsedLines[i].sidedef[1] != NULL)
 					sidecount++;
-				linemap.Push(i+skipped);
+				loader->linemap.Push(i+skipped);
 				i++;
 			}
 		}
@@ -1969,7 +2057,7 @@ public:
 						sides[side].sector = &level.sectors[intptr_t(sides[side].sector)];
 						lines[line].sidedef[sd] = &sides[side];
 
-						P_ProcessSideTextures(!isExtended, &sides[side], sides[side].sector, &ParsedSideTextures[mapside],
+						loader->ProcessSideTextures(!isExtended, &sides[side], sides[side].sector, &ParsedSideTextures[mapside],
 							lines[line].special, lines[line].args[0], &tempalpha[sd], missingTex);
 
 						side++;
@@ -1981,8 +2069,8 @@ public:
 				}
 			}
 
-			P_AdjustLine(&lines[line]);
-			P_FinishLoadingLineDef(&lines[line], tempalpha[0]);
+			lines[line].AdjustLine();
+			loader->FinishLoadingLineDef(&lines[line], tempalpha[0]);
 		}
 
 		const int sideDelta = level.sides.Size() - side;
@@ -2006,15 +2094,11 @@ public:
 
 	void ParseTextMap(MapData *map)
 	{
-		char *buffer = new char[map->Size(ML_TEXTMAP)];
-
 		isTranslated = true;
 		isExtended = false;
 		floordrop = false;
 
-		map->Read(ML_TEXTMAP, buffer);
-		sc.OpenMem(Wads.GetLumpFullName(map->lumpnum), buffer, map->Size(ML_TEXTMAP));
-		delete [] buffer;
+		sc.OpenMem(Wads.GetLumpFullName(map->lumpnum), map->Read(ML_TEXTMAP));
 		sc.SetCMode(true);
 		if (sc.CheckString("namespace"))
 		{
@@ -2093,17 +2177,17 @@ public:
 			if (sc.Compare("thing"))
 			{
 				FMapThing th;
-				unsigned userdatastart = MapThingsUserData.Size();
+				unsigned userdatastart = loader->MapThingsUserData.Size();
 				ParseThing(&th);
 				MapThingsConverted.Push(th);
-				if (userdatastart < MapThingsUserData.Size())
+				if (userdatastart < loader->MapThingsUserData.Size())
 				{ // User data added
-					MapThingsUserDataIndex[MapThingsConverted.Size()-1] = userdatastart;
+					loader->MapThingsUserDataIndex[MapThingsConverted.Size()-1] = userdatastart;
 					// Mark end of the user data for this map thing
 					FUDMFKey ukey;
 					ukey.Key = NAME_None;
 					ukey = 0;
-					MapThingsUserData.Push(ukey);
+					loader->MapThingsUserData.Push(ukey);
 				}
 			}
 			else if (sc.Compare("linedef"))
@@ -2133,7 +2217,7 @@ public:
 				vertexdata_t vd;
 				ParseVertex(&vt, &vd);
 				ParsedVertices.Push(vt);
-				vertexdatas.Push(vd);
+				loader->vertexdatas.Push(vd);
 			}
 			else
 			{
@@ -2180,9 +2264,9 @@ public:
 	}
 };
 
-void P_ParseTextMap(MapData *map, FMissingTextureTracker &missingtex)
+void MapLoader::ParseTextMap(MapData *map, FMissingTextureTracker &missingtex)
 {
-	UDMFParser parse(missingtex);
+	UDMFParser parse(this, missingtex);
 
 	parse.ParseTextMap(map);
 }

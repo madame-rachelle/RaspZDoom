@@ -53,8 +53,10 @@
 #include "gl/scene/gl_drawinfo.h"
 #include "gl/scene/gl_portal.h"
 #include "gl/scene/gl_scenedrawer.h"
+#include "hwrenderer/scene/hw_fakeflat.h"
 #include "gl/stereo3d/gl_stereo3d.h"
 #include "hwrenderer/utility/scoped_view_shifter.h"
+#include "vm.h"
 
 //==========================================================================
 //
@@ -272,7 +274,7 @@ void GLSceneDrawer::RenderScene(FDrawInfo *di, int recursion)
 	RenderAll.Clock();
 
 	glDepthMask(true);
-	if (!gl_no_skyclear) GLPortal::RenderFirstSkyPortal(recursion);
+	if (!gl_no_skyclear) GLPortal::RenderFirstSkyPortal(recursion, di);
 
 	gl_RenderState.SetCameraPos(r_viewpoint.Pos.X, r_viewpoint.Pos.Y, r_viewpoint.Pos.Z);
 
@@ -470,7 +472,7 @@ void GLSceneDrawer::DrawScene(FDrawInfo *di, int drawmode)
 	// Handle all portals after rendering the opaque objects but before
 	// doing all translucent stuff
 	recursion++;
-	GLPortal::EndFrame();
+	GLPortal::EndFrame(di);
 	recursion--;
 	RenderTranslucent(di);
 }
@@ -588,9 +590,16 @@ void GLSceneDrawer::SetFixedColormap (player_t *player)
 		{
 			auto torchtype = PClass::FindActor(NAME_PowerTorch);
 			auto litetype = PClass::FindActor(NAME_PowerLightAmp);
-			for(AInventory * in = cplayer->mo->Inventory; in; in = in->Inventory)
+			for(AActor *in = cplayer->mo->Inventory; in; in = in->Inventory)
 			{
-				PalEntry color = in->CallGetBlend ();
+				PalEntry color = 0;
+
+				IFVIRTUALPTRNAME(in, NAME_Inventory, GetBlend)
+				{
+					VMValue params[1] = { in };
+					VMReturn ret((int*)&color.d);
+					VMCall(func, params, 1, &ret, 1);
+				}
 
 				// Need special handling for light amplifiers 
 				if (in->IsKindOf(torchtype))
@@ -728,6 +737,7 @@ void GLSceneDrawer::WriteSavePic (player_t *player, FileWriter *file, int width,
 	// Switch to render buffers dimensioned for the savepic
 	GLRenderer->mBuffers = GLRenderer->mSaveBuffers;
 
+	hw_ClearFakeFlat();
 	P_FindParticleSubsectors();	// make sure that all recently spawned particles have a valid subsector.
 	SetFixedColormap(player);
 	gl_RenderState.SetVertexBuffer(GLRenderer->mVBO);

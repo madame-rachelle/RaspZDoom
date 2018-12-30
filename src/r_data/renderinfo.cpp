@@ -392,7 +392,7 @@ static void AddToVertex(const sector_t * sec, TArray<int> & list)
 
 static void InitVertexData()
 {
-	auto vt_sectorlists = new TArray<int>[level.vertexes.Size()];
+	TArray<TArray<int>> vt_sectorlists(level.vertexes.Size(), true);
 
 	for(auto &line : level.lines)
 	{
@@ -437,8 +437,6 @@ static void InitVertexData()
 			vert.numsectors=0;
 		}
 	}
-
-	delete [] vt_sectorlists;
 }
 
 //==========================================================================
@@ -478,15 +476,15 @@ static int segcmp(const void *a, const void *b)
 static void PrepareSegs()
 {
 	auto numsides = level.sides.Size();
-	int *segcount = new int[numsides];
+	TArray<int> segcount(numsides, true);
 	int realsegs = 0;
 
 	// count the segs
-	memset(segcount, 0, numsides * sizeof(int));
+	memset(segcount.Data(), 0, numsides * sizeof(int));
 
 	for(auto &seg : level.segs)
 	{
-		if (seg.sidedef == NULL) continue;	// miniseg
+		if (seg.sidedef == nullptr) continue;	// miniseg
 		int sidenum = seg.sidedef->Index();
 
 		realsegs++;
@@ -509,7 +507,6 @@ static void PrepareSegs()
 		level.sides[i].segs = level.sides[i-1].segs + segcount[i-1];
 		level.sides[i].numsegs = 0;
 	}
-	delete [] segcount;
 
 	// assign the segs
 	for (auto &seg : level.segs)
@@ -535,8 +532,8 @@ void InitRenderInfo()
 	PrepareSegs();
 	PrepareSectorData();
 	InitVertexData();
-	int *checkmap = new int[level.vertexes.Size()];
-	memset(checkmap, -1, sizeof(int)*level.vertexes.Size());
+	TArray<int> checkmap(level.vertexes.Size());
+	memset(checkmap.Data(), -1, sizeof(int)*level.vertexes.Size());
 	for(auto &sec : level.sectors) 
 	{
 		int i = sec.sectornum;
@@ -565,11 +562,6 @@ void InitRenderInfo()
 			}
 		}
 	}
-	delete[] checkmap;
-
-#if 0
-	gl_CreateSections();
-#endif
 }
 
 

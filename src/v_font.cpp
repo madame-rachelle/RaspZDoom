@@ -87,6 +87,7 @@ The FON2 header is followed by variable length data:
 #include "cmdlib.h"
 #include "sc_man.h"
 #include "hu_stuff.h"
+#include "gstrings.h"
 #include "v_text.h"
 #include "vm.h"
 
@@ -335,14 +336,6 @@ FFont *V_GetFont(const char *name)
 	return font;
 }
 
-DEFINE_ACTION_FUNCTION(FFont, GetFont)
-{
-	PARAM_PROLOGUE;
-	PARAM_NAME(name);
-	ACTION_RETURN_POINTER(V_GetFont(name.GetChars()));
-}
-
-
 //==========================================================================
 //
 // FFont :: FFont
@@ -356,7 +349,7 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 	int i;
 	FTextureID lump;
 	char buffer[12];
-	FTexture **charlumps;
+	TArray<FTexture*> charLumps;
 	int maxyoffs;
 	bool doomtemplate = gameinfo.gametype & GAME_DoomChex ? strncmp (nametemplate, "STCFN", 5) == 0 : false;
 	bool stcfn121 = false;
@@ -364,7 +357,7 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 	noTranslate = notranslate;
 	Lump = fdlump;
 	Chars = new CharData[count];
-	charlumps = new FTexture *[count];
+	charLumps.Resize(count);
 	PatchRemap = new uint8_t[256];
 	FirstChar = first;
 	LastChar = first + count - 1;
@@ -380,7 +373,7 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 
 	for (i = 0; i < count; i++)
 	{
-		charlumps[i] = NULL;
+		charLumps[i] = NULL;
 		mysnprintf (buffer, countof(buffer), nametemplate, i + start);
 
 		lump = TexMan.CheckForTexture(buffer, ETextureType::MiscPatch);
@@ -394,7 +387,7 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 				!TexMan.CheckForTexture("STCFN122", ETextureType::MiscPatch).isValid())
 			{
 				// insert the incorrectly named '|' graphic in its correct position.
-				if (count > 124-start) charlumps[124-start] = TexMan[lump];
+				if (count > 124-start) charLumps[124-start] = TexMan[lump];
 				lump.SetInvalid();
 				stcfn121 = true;
 			}
@@ -407,7 +400,7 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 			{
 				// set the lump here only if it represents a valid texture
 				if (i != 124-start || !stcfn121)
-					charlumps[i] = pic;
+					charLumps[i] = pic;
 
 				int height = pic->GetScaledHeight();
 				int yoffs = pic->GetScaledTopOffset(0);
@@ -424,10 +417,10 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 			}
 		}
 
-		if (charlumps[i] != NULL)
+		if (charLumps[i] != nullptr)
 		{
-			if (!noTranslate) Chars[i].Pic = new FFontChar1 (charlumps[i]);
-			else Chars[i].Pic = charlumps[i];
+			if (!noTranslate) Chars[i].Pic = new FFontChar1 (charLumps[i]);
+			else Chars[i].Pic = charLumps[i];
 			Chars[i].XMove = Chars[i].Pic->GetScaledWidth();
 		}
 		else
@@ -453,8 +446,6 @@ FFont::FFont (const char *name, const char *nametemplate, int first, int count, 
 	FixXMoves();
 
 	if (!noTranslate) LoadTranslations();
-
-	delete[] charlumps;
 }
 
 //==========================================================================
@@ -527,13 +518,6 @@ FFont *FFont::FindFont (FName name)
 		font = font->Next;
 	}
 	return nullptr;
-}
-
-DEFINE_ACTION_FUNCTION(FFont, FindFont)
-{
-	PARAM_PROLOGUE;
-	PARAM_NAME(name);
-	ACTION_RETURN_POINTER(FFont::FindFont(name));
 }
 
 //==========================================================================
@@ -857,17 +841,21 @@ int FFont::GetCharWidth (int code) const
 	return (code < 0) ? SpaceWidth : Chars[code - FirstChar].XMove;
 }
 
-DEFINE_ACTION_FUNCTION(FFont, GetCharWidth)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FFont);
-	PARAM_INT(code);
-	ACTION_RETURN_INT(self->GetCharWidth(code));
-}
+//==========================================================================
+//
+// 
+//
+//==========================================================================
 
-DEFINE_ACTION_FUNCTION(FFont, GetHeight)
+double GetBottomAlignOffset(FFont *font, int c)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(FFont);
-	ACTION_RETURN_INT(self->GetHeight());
+	int w;
+	FTexture *tex_zero = font->GetChar('0', &w);
+	FTexture *texc = font->GetChar(c, &w);
+	double offset = 0;
+	if (texc) offset += texc->GetScaledTopOffsetDouble(0);
+	if (tex_zero) offset += -tex_zero->GetScaledTopOffsetDouble(0) + tex_zero->GetScaledHeightDouble();
+	return offset;
 }
 
 //==========================================================================
@@ -913,13 +901,6 @@ int FFont::StringWidth(const uint8_t *string) const
 	}
 
 	return MAX(maxw, w);
-}
-
-DEFINE_ACTION_FUNCTION(FFont, StringWidth)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FFont);
-	PARAM_STRING(str);
-	ACTION_RETURN_INT(self->StringWidth(str));
 }
 
 //==========================================================================
@@ -2539,13 +2520,6 @@ EColorRange V_FindFontColor (FName name)
 	return CR_UNTRANSLATED;
 }
 
-DEFINE_ACTION_FUNCTION(FFont, FindFontColor)
-{
-	PARAM_PROLOGUE;
-	PARAM_NAME(code);
-	ACTION_RETURN_INT((int)V_FindFontColor(code));
-}
-
 //==========================================================================
 //
 // V_LogColorFromColorRange
@@ -2720,8 +2694,3 @@ void V_ClearFonts()
 	SmallFont = SmallFont2 = BigFont = ConFont = IntermissionFont = NULL;
 }
 
-DEFINE_ACTION_FUNCTION(FFont, GetCursor)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(FFont);
-	ACTION_RETURN_STRING(FString(self->GetCursor()));
-}

@@ -49,6 +49,7 @@
 #include "v_video.h"
 #include "v_text.h"
 #include "cmdlib.h"
+#include "doomerrors.h"
 
 // On the Alpha, accessing the shorts directly if they aren't aligned on a
 // 4-byte boundary causes unaligned access warnings. Why it does this at
@@ -234,7 +235,7 @@ FMultiPatchTexture::FMultiPatchTexture (const void *texdef, FPatchLookup *patchl
 	int i;
 
 	mtexture.d = (const maptexture_t *)texdef;
-	bMultiPatch = true;
+	bMultiPatch = 1;
 
 	if (strife)
 	{
@@ -713,7 +714,7 @@ FTexture *FMultiPatchTexture::GetRedirect()
 
 FTexture *FMultiPatchTexture::GetRawTexture()
 {
-	return NumParts == 1 ? Parts->Texture : this;
+	return NumParts == 1 && UseType == ETextureType::Wall && bMultiPatch == 1 && Scale == Parts->Texture->Scale ? Parts->Texture : this;
 }
 
 //==========================================================================
@@ -954,7 +955,15 @@ void FMultiPatchTexture::ParsePatch(FScanner &sc, TexPart & part, TexInit &init)
 					do
 					{
 						sc.MustGetString();
-						part.Translation->AddToTranslation(sc.String);
+
+						try
+						{
+							part.Translation->AddToTranslation(sc.String);
+						}
+						catch (CRecoverableError &err)
+						{
+							sc.ScriptMessage("Error in translation '%s':\n" TEXTCOLOR_YELLOW "%s\n", sc.String, err.GetMessage());
+						}
 					}
 					while (sc.CheckString(","));
 				}
@@ -1071,7 +1080,7 @@ FMultiPatchTexture::FMultiPatchTexture (FScanner &sc, ETextureType usetype)
 	TArray<TexInit> inits;
 	bool bSilent = false;
 
-	bMultiPatch = true;
+	bMultiPatch = 2;
 	sc.SetCMode(true);
 	sc.MustGetString();
 	const char* textureName = NULL;

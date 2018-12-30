@@ -124,7 +124,7 @@ void GLPortal::ClearScreen()
 // DrawPortalStencil
 //
 //-----------------------------------------------------------------------------
-void GLPortal::DrawPortalStencil(int pass)
+void GLPortal::DrawPortalStencil(FDrawInfo *di, int pass)
 {
 	if (mPrimIndices.Size() == 0)
 	{
@@ -145,15 +145,41 @@ void GLPortal::DrawPortalStencil(int pass)
 	{
 		if (pass == STP_AllInOne) glDepthMask(false);
 		else if (pass == STP_DepthRestore) glDepthRange(1, 1);
-		GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILTOP_INDEX, 4);
-		GLRenderer->mVBO->RenderArray(GL_TRIANGLE_FAN, FFlatVertexBuffer::STENCILBOTTOM_INDEX, 4);
+
+		if (planesused != 0)
+		{
+			GLRenderer->mVBO->Map();
+		}
+
+		if (planesused & (1 << sector_t::floor))
+		{
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), -32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
+		}
+		if (planesused & (1 << sector_t::ceiling))
+		{
+			auto verts = di->AllocVertices(4);
+			auto ptr = verts.first;
+			ptr[0].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[1].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Top(), 0, 0);
+			ptr[2].Set((float)boundingBox.Left(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			ptr[3].Set((float)boundingBox.Right(), 32767.f, (float)boundingBox.Bottom(), 0, 0);
+			GLRenderer->mVBO->RenderArray(GL_TRIANGLE_STRIP, verts.second, 4);
+		}
+
+		if (planesused != 0)
+		{
+			GLRenderer->mVBO->Unmap();
+		}
+
 		if (pass == STP_DepthRestore) glDepthRange(0, 1);
 	}
 }
-
-
-
-
 
 
 //-----------------------------------------------------------------------------
@@ -162,7 +188,7 @@ void GLPortal::DrawPortalStencil(int pass)
 //
 //-----------------------------------------------------------------------------
 
-bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
+bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo *outer_di, FDrawInfo **pDi)
 {
 	*pDi = nullptr;
 	rendered_portals++;
@@ -198,7 +224,7 @@ bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
 				}
 				else doquery = false;	// some kind of error happened
 
-				DrawPortalStencil(STP_Stencil);
+				DrawPortalStencil(outer_di, STP_Stencil);
 
 				glEndQuery(GL_SAMPLES_PASSED);
 
@@ -208,7 +234,7 @@ bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
 				glDepthMask(true);							// enable z-buffer again
 				glDepthRange(1, 1);
 				glDepthFunc(GL_ALWAYS);
-				DrawPortalStencil(STP_DepthClear);
+				DrawPortalStencil(outer_di, STP_DepthClear);
 
 				// set normal drawing mode
 				gl_RenderState.EnableTexture(true);
@@ -241,7 +267,7 @@ bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
 				// Note: We must draw the stencil with z-write enabled here because there is no second pass!
 
 				glDepthMask(true);
-				DrawPortalStencil(STP_AllInOne);
+				DrawPortalStencil(outer_di, STP_AllInOne);
 				glStencilFunc(GL_EQUAL, recursion + 1, ~0);		// draw sky into stencil
 				glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);		// this stage doesn't modify the stencil
 				gl_RenderState.EnableTexture(true);
@@ -249,6 +275,7 @@ bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
 				gl_RenderState.SetEffect(EFF_NONE);
 				glDisable(GL_DEPTH_TEST);
 				glDepthMask(false);							// don't write to Z-buffer!
+				*pDi = outer_di;
 			}
 		}
 		recursion++;
@@ -265,6 +292,7 @@ bool GLPortal::Start(bool usestencil, bool doquery, FDrawInfo **pDi)
 		{
 			glDepthMask(false);
 			glDisable(GL_DEPTH_TEST);
+			*pDi = outer_di;
 		}
 	}
 
@@ -314,7 +342,7 @@ inline void GLPortal::ClearClipper(FDrawInfo *di)
 // End
 //
 //-----------------------------------------------------------------------------
-void GLPortal::End(bool usestencil)
+void GLPortal::End(bool usestencil, FDrawInfo *outer_di)
 {
 	bool needdepth = NeedDepthBuffer();
 
@@ -343,7 +371,7 @@ void GLPortal::End(bool usestencil)
 				// first step: reset the depth buffer to max. depth
 				glDepthRange(1, 1);							// always
 				glDepthFunc(GL_ALWAYS);						// write the farthest depth value
-				DrawPortalStencil(STP_DepthClear);
+				DrawPortalStencil(outer_di, STP_DepthClear);
 			}
 			else
 			{
@@ -355,7 +383,7 @@ void GLPortal::End(bool usestencil)
 			glDepthRange(0, 1);
 			glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 			glStencilFunc(GL_EQUAL, recursion, ~0);		// draw sky into stencil
-			DrawPortalStencil(STP_DepthRestore);
+			DrawPortalStencil(outer_di, STP_DepthRestore);
 			glDepthFunc(GL_LESS);
 
 
@@ -398,7 +426,7 @@ void GLPortal::End(bool usestencil)
 			gl_RenderState.BlendFunc(GL_ONE, GL_ZERO);
 			gl_RenderState.BlendEquation(GL_FUNC_ADD);
 			gl_RenderState.Apply();
-			DrawPortalStencil(STP_DepthRestore);
+			DrawPortalStencil(outer_di, STP_DepthRestore);
 			gl_RenderState.SetEffect(EFF_NONE);
 			gl_RenderState.EnableTexture(true);
 		}
@@ -446,7 +474,7 @@ static FString indent;
 //
 //-----------------------------------------------------------------------------
 
-void GLPortal::EndFrame()
+void GLPortal::EndFrame(FDrawInfo *outer_di)
 {
 	GLPortal * p;
 
@@ -469,7 +497,7 @@ void GLPortal::EndFrame()
 		}
 		if (p->lines.Size() > 0)
 		{
-			p->RenderPortal(true, usequery);
+			p->RenderPortal(true, usequery, outer_di);
 		}
 		delete p;
 	}
@@ -491,7 +519,7 @@ void GLPortal::EndFrame()
 // the GPU and there's rarely more than one sky visible at a time.
 //
 //-----------------------------------------------------------------------------
-bool GLPortal::RenderFirstSkyPortal(int recursion)
+bool GLPortal::RenderFirstSkyPortal(int recursion, FDrawInfo *outer_di)
 {
 	GLPortal * p;
 	GLPortal * best = nullptr;
@@ -513,13 +541,21 @@ bool GLPortal::RenderFirstSkyPortal(int recursion)
 				best=p;
 				bestindex=i;
 			}
+
+			// If the portal area contains the current camera viewpoint, let's always use it because it's likely to give the largest area.
+			if (p->boundingBox.Contains(r_viewpoint.Pos))
+			{
+				best = p;
+				bestindex = i;
+				break;
+			}
 		}
 	}
 
 	if (best)
 	{
 		portals.Delete(bestindex);
-		best->RenderPortal(false, false);
+		best->RenderPortal(false, false, outer_di);
 		delete best;
 		return true;
 	}

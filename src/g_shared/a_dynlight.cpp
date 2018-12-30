@@ -324,7 +324,7 @@ void ADynamicLight::Tick()
 		if (scale == 0.f) scale = 1.f;
 		
 		intensity = Sector->lightlevel * scale;
-		intensity = clamp<float>(intensity, 0.f, 1024.f);
+		intensity = clamp<float>(intensity, 0.f, 255.f);
 		
 		m_currentRadius = intensity;
 		break;
@@ -426,6 +426,20 @@ void ADynamicLight::SetOffset(const DVector3 &pos)
 	UpdateLocation();
 }
 
+static void SetOffset(ADynamicLight *self, const DVector3 &pos)
+{
+	self->SetOffset(pos);
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(ADynamicLight, SetOffset, SetOffset)
+{
+	PARAM_SELF_PROLOGUE(ADynamicLight)
+	PARAM_FLOAT(x)
+	PARAM_FLOAT(y)
+	PARAM_FLOAT(z)
+	self->SetOffset(DVector3(x, y, z));
+	return 0;
+}
 
 //==========================================================================
 //

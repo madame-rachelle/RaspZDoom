@@ -183,8 +183,6 @@ public:
 	static float GetZFar() { return 65536.f; }
 };
 
-#include "hwrenderer/scene/hw_fakeflat.h"
-
 struct TexFilter_s
 {
 	int minfilter;

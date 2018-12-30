@@ -123,8 +123,6 @@ private:
 	subsector_t *currentsubsector;	// used by the line processing code.
 	sector_t *currentsector;
 
-    sector_t fakesec;    // this is a struct member because it gets used in recursively called functions so it cannot be put on the stack.
-
 	void UnclipSubsector(subsector_t *sub);
 	void AddLine(seg_t *seg, bool portalclip);
 	void PolySubsector(subsector_t * sub);
@@ -185,7 +183,7 @@ public:
     virtual void AddSubsectorToPortal(FSectorPortalGroup *portal, subsector_t *sub) = 0;
     
     virtual void AddWall(GLWall *w) = 0;
-	virtual void AddPortal(GLWall *w, int portaltype) = 0;
+	virtual void AddPortal(GLWall *w, int portaltype, int plane) = 0;
     virtual void AddMirrorSurface(GLWall *w) = 0;
 	virtual void AddFlat(GLFlat *flat, bool fog) = 0;
 	virtual void AddSprite(GLSprite *sprite, bool translucent) = 0;

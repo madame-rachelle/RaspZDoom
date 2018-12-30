@@ -85,7 +85,6 @@ void HWDrawInfo::AddLine (seg_t *seg, bool portalclip)
 #endif
 
 	sector_t * backsector = nullptr;
-	sector_t bs;
 
 	if (portalclip)
 	{
@@ -148,7 +147,7 @@ void HWDrawInfo::AddLine (seg_t *seg, bool portalclip)
 			// clipping checks are only needed when the backsector is not the same as the front sector
 			if (in_area == area_default) in_area = hw_CheckViewArea(seg->v1, seg->v2, seg->frontsector, seg->backsector);
 
-			backsector = hw_FakeFlat(seg->backsector, &bs, in_area, true);
+			backsector = hw_FakeFlat(seg->backsector, in_area, true);
 
 			if (hw_CheckClip(seg->sidedef, currentsector, backsector))
 			{
@@ -413,7 +412,6 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 	unsigned int i;
 	sector_t * sector;
 	sector_t * fakesector;
-	sector_t fake;
 	
 #ifdef _DEBUG
 	if (sub->sector->sectornum==931)
@@ -438,7 +436,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 	}
 	if (mClipper->IsBlocked()) return;	// if we are inside a stacked sector portal which hasn't unclipped anything yet.
 
-	fakesector=hw_FakeFlat(sector, &fake, in_area, false);
+	fakesector=hw_FakeFlat(sector, in_area, false);
 
 	if (mClipPortal)
 	{
@@ -511,7 +509,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 					sector = sub->render_sector;
 					// the planes of this subsector are faked to belong to another sector
 					// This means we need the heightsec parts and light info of the render sector, not the actual one.
-					fakesector = hw_FakeFlat(sector, &fake, in_area, false);
+					fakesector = hw_FakeFlat(sector, in_area, false);
 				}
 
 				uint8_t &srf = sectorrenderflags[sub->render_sector->sectornum];

@@ -40,6 +40,7 @@
 #include "gl/scene/gl_portal.h"
 #include "gl/scene/gl_scenedrawer.h"
 #include "gl/renderer/gl_renderstate.h"
+#include "hwrenderer/scene/hw_fakeflat.h"
 #include "gl/stereo3d/scoped_color_mask.h"
 #include "gl/renderer/gl_quaddrawer.h"
 #include "gl/dynlights/gl_lightbuffer.h"
@@ -392,9 +393,8 @@ void FDrawInfo::DrawFloodedPlane(wallseg * ws, float planez, sector_t * sec, boo
 void FDrawInfo::FloodUpperGap(seg_t * seg)
 {
 	wallseg ws;
-	sector_t ffake, bfake;
-	sector_t * fakefsector = hw_FakeFlat(seg->frontsector, &ffake, in_area, true);
-	sector_t * fakebsector = hw_FakeFlat(seg->backsector, &bfake, in_area, false);
+	sector_t * fakefsector = hw_FakeFlat(seg->frontsector, in_area, false);
+	sector_t * fakebsector = hw_FakeFlat(seg->backsector, in_area, true);
 
 	vertex_t * v1, * v2;
 
@@ -444,9 +444,8 @@ void FDrawInfo::FloodUpperGap(seg_t * seg)
 void FDrawInfo::FloodLowerGap(seg_t * seg)
 {
 	wallseg ws;
-	sector_t ffake, bfake;
-	sector_t * fakefsector = hw_FakeFlat(seg->frontsector, &ffake, in_area, true);
-	sector_t * fakebsector = hw_FakeFlat(seg->backsector, &bfake, in_area, false);
+	sector_t * fakefsector = hw_FakeFlat(seg->frontsector, in_area, false);
+	sector_t * fakebsector = hw_FakeFlat(seg->backsector, in_area, true);
 
 	vertex_t * v1, * v2;
 

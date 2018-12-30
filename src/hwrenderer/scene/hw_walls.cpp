@@ -179,10 +179,12 @@ void GLWall::PutWall(HWDrawInfo *di, bool translucent)
 		if (gltexture == NULL) return;
 		Colormap.Clear();
 	}
-    
-    if (di->FixedColormap != CM_DEFAULT || (Colormap.LightColor.isWhite() && lightlevel == 255))
-        flags &= ~GLWF_GLOW;
-    
+
+	if (di->FixedColormap != CM_DEFAULT || (Colormap.LightColor.isWhite() && lightlevel == 255))
+	{
+		flags &= ~GLWF_GLOW;
+	}
+
 	if (!(screen->hwcaps & RFL_BUFFER_STORAGE))
 	{
 		if (level.HasDynamicLights && di->FixedColormap == CM_DEFAULT && gltexture != nullptr && !(screen->hwcaps & RFL_NO_SHADERS))
@@ -208,9 +210,9 @@ void GLWall::PutWall(HWDrawInfo *di, bool translucent)
 	flags &= ~GLWF_TRANSLUCENT;
 }
 
-void GLWall::PutPortal(HWDrawInfo *di, int ptype)
+void GLWall::PutPortal(HWDrawInfo *di, int ptype, int plane)
 {
-	di->AddPortal(this, ptype);
+	di->AddPortal(this, ptype, plane);
 }
 
 //==========================================================================
@@ -472,7 +474,7 @@ bool GLWall::DoHorizon(HWDrawInfo *di, seg_t * seg,sector_t * fs, vertex_t * v1,
 
 			if (di->FixedColormap) hi.colormap.Clear();
 			horizon = &hi;
-			PutPortal(di, PORTALTYPE_HORIZON);
+			PutPortal(di, PORTALTYPE_HORIZON, -1);
 		}
 		ztop[1] = ztop[0] = zbottom[0];
 	} 
@@ -501,7 +503,7 @@ bool GLWall::DoHorizon(HWDrawInfo *di, seg_t * seg,sector_t * fs, vertex_t * v1,
 
 			if (di->FixedColormap) hi.colormap.Clear();
 			horizon = &hi;
-			PutPortal(di, PORTALTYPE_HORIZON);
+			PutPortal(di, PORTALTYPE_HORIZON, -1);
 		}
 	}
 	return true;
@@ -758,7 +760,7 @@ void GLWall::DoTexture(HWDrawInfo *di, int _type,seg_t * seg, int peg,
 
 	if (seg->linedef->special == Line_Mirror && _type == RENDERWALL_M1S && gl_mirrors)
 	{
-		PutPortal(di, PORTALTYPE_MIRROR);
+		PutPortal(di, PORTALTYPE_MIRROR, -1);
 	}
 	else
 	{
@@ -795,6 +797,7 @@ void GLWall::DoMidTexture(HWDrawInfo *di, seg_t * seg, bool drawfogboundary,
 	float texturetop, texturebottom;
 	bool wrap = (seg->linedef->flags&ML_WRAP_MIDTEX) || (seg->sidedef->Flags&WALLF_WRAP_MIDTEX);
 	bool mirrory = false;
+	float rowoffset = 0;
 
 	//
 	//
@@ -813,7 +816,7 @@ void GLWall::DoMidTexture(HWDrawInfo *di, seg_t * seg, bool drawfogboundary,
 			tci.mRenderHeight = -tci.mRenderHeight;
 			tci.mScale.Y = -tci.mScale.Y;
 		}
-		float rowoffset = tci.RowOffset(seg->sidedef->GetTextureYOffset(side_t::mid));
+		rowoffset = tci.RowOffset(seg->sidedef->GetTextureYOffset(side_t::mid));
 		if ((seg->linedef->flags & ML_DONTPEGBOTTOM) >0)
 		{
 			texturebottom = MAX(realfront->GetPlaneTexZ(sector_t::floor), realback->GetPlaneTexZ(sector_t::floor)) + rowoffset;
@@ -844,10 +847,10 @@ void GLWall::DoMidTexture(HWDrawInfo *di, seg_t * seg, bool drawfogboundary,
 		if (!tex || tex->UseType==ETextureType::Null)
 		{
 			if (front->GetTexture(sector_t::ceiling) == skyflatnum &&
-				back->GetTexture(sector_t::ceiling) == skyflatnum)
+				back->GetTexture(sector_t::ceiling) == skyflatnum && !wrap)
 			{
-				// intra-sky lines do not clip the texture at all if there's no upper texture
-				topleft = topright = wrap ? 1e16f : texturetop;
+				// intra-sky lines do not clip the texture at all if there's no upper texture.
+				topleft = topright = texturetop;
 			}
 			else
 			{
@@ -1469,6 +1472,8 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 	// note: we always have a valid sidedef and linedef reference when getting here.
 
 	this->seg = seg;
+	this->frontsector = frontsector;
+	this->backsector = backsector;
 	vertindex = 0;
 	vertcount = 0;
 
@@ -1562,8 +1567,6 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 
 
 	if (frontsector->GetWallGlow(topglowcolor, bottomglowcolor)) flags |= GLWF_GLOW;
-	topplane = frontsector->ceilingplane;
-	bottomplane = frontsector->floorplane;
 
 	zfloor[0] = ffh1 = segfront->floorplane.ZatPoint(v1);
 	zfloor[1] = ffh2 = segfront->floorplane.ZatPoint(v2);
@@ -1591,7 +1594,7 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 			ztop[1] = zceil[1];
 			zbottom[0] = zfloor[0];
 			zbottom[1] = zfloor[1];
-			PutPortal(di, PORTALTYPE_LINETOLINE);
+			PutPortal(di, PORTALTYPE_LINETOLINE, -1);
 		}
 		else if (seg->linedef->GetTransferredPortal())
 		{
@@ -1698,7 +1701,7 @@ void GLWall::Process(HWDrawInfo *di, seg_t *seg, sector_t * frontsector, sector_
 			ztop[1] = bch2;
 			zbottom[0] = bfh1;
 			zbottom[1] = bfh2;
-			PutPortal(di, PORTALTYPE_LINETOLINE);
+			PutPortal(di, PORTALTYPE_LINETOLINE, -1);
 		}
 		else if (backsector->e->XFloor.ffloors.Size() || frontsector->e->XFloor.ffloors.Size())
 		{
@@ -1773,6 +1776,8 @@ void GLWall::ProcessLowerMiniseg(HWDrawInfo *di, seg_t *seg, sector_t * frontsec
 	if (bfh > ffh)
 	{
 		this->seg = seg;
+		this->frontsector = frontsector;
+		this->backsector = backsector;
 		this->sub = NULL;
 
 		vertex_t * v1 = seg->v1;
@@ -1798,8 +1803,6 @@ void GLWall::ProcessLowerMiniseg(HWDrawInfo *di, seg_t *seg, sector_t * frontsec
 		Colormap = frontsector->Colormap;
 
 		if (frontsector->GetWallGlow(topglowcolor, bottomglowcolor)) flags |= GLWF_GLOW;
-		topplane = frontsector->ceilingplane;
-		bottomplane = frontsector->floorplane;
 		dynlightindex = -1;
 
 		zfloor[0] = zfloor[1] = ffh;

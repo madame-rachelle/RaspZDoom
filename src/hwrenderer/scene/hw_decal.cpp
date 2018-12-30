@@ -252,7 +252,7 @@ void GLWall::ProcessDecal(HWDrawInfo *di, DBaseDecal *decal, const FVector3 &nor
 
 	gldecal->alpha = decal->Alpha;
 	gldecal->zcenter = zpos - decalheight * 0.5f;
-	gldecal->bottomplane = bottomplane;
+	gldecal->frontsector = frontsector;
 	gldecal->Normal = normal;
 	gldecal->lightlist = lightlist;
 	memcpy(gldecal->dv, dv, sizeof(dv));

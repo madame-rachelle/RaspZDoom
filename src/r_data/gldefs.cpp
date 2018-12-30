@@ -870,6 +870,7 @@ class GLDefsParser
 			sc.ScriptError("Name longer than 8 characters: %s\n", sc.String);
 		}
 		frameName = sc.String;
+		frameName.ToUpper();
 
 		startDepth = ScriptDepth;
 
@@ -1154,6 +1155,15 @@ class GLDefsParser
 		tex->bDisableFullbright = disable_fullbright;
 	}
 
+	void SetShaderIndex(FTexture *tex, unsigned index)
+	{
+		auto desc = usershaders[index - FIRST_USER_SHADER];
+		if (desc.disablealphatest)
+		{
+			tex->bTranslucent = true;
+		}
+		tex->shaderindex = index;
+	}
 
 	//==========================================================================
 	//
@@ -1370,11 +1380,11 @@ class GLDefsParser
 					usershaders[i].shaderType == usershader.shaderType &&
 					!usershaders[i].defines.Compare(usershader.defines))
 				{
-					tex->shaderindex = i + FIRST_USER_SHADER;
+					SetShaderIndex(tex, i + FIRST_USER_SHADER);
 					return;
 				}
 			}
-			tex->shaderindex = usershaders.Push(usershader) + FIRST_USER_SHADER;
+			SetShaderIndex(tex, usershaders.Push(usershader) + FIRST_USER_SHADER);
 		}
 	}
 
@@ -1570,6 +1580,10 @@ class GLDefsParser
 					}
 					desc.defines.AppendFormat("#define %s %s\n", defineName.GetChars(), defineValue.GetChars());
 				}
+				else if (sc.Compare("disablealphatest"))
+				{
+					desc.disablealphatest = true;
+				}
 			}
 			if (!tex)
 			{
@@ -1607,11 +1621,11 @@ class GLDefsParser
 						usershaders[i].shaderType == desc.shaderType &&
 						!usershaders[i].defines.Compare(desc.defines))
 					{
-						tex->shaderindex = i + FIRST_USER_SHADER;
+						SetShaderIndex(tex, i + FIRST_USER_SHADER);
 						return;
 					}
 				}
-				tex->shaderindex = usershaders.Push(desc) + FIRST_USER_SHADER;
+				SetShaderIndex(tex, usershaders.Push(desc) + FIRST_USER_SHADER);
 			}
 		}
 	}
@@ -1753,7 +1767,7 @@ void ParseGLDefs()
 {
 	const char *defsLump = NULL;
 
-	LightDefaults.Clear();
+	LightDefaults.DeleteAndClear();
 	//gl_DestroyUserShaders(); function says 'todo'
 	switch (gameinfo.gametype)
 	{

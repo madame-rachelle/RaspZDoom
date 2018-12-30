@@ -119,7 +119,6 @@ extern void M_RestoreMode ();
 extern void M_SetDefaultMode ();
 extern void G_NewInit ();
 extern void SetupPlayerClasses ();
-extern void HUD_InitHud();
 void gl_PatchMenu();	// remove modern OpenGL options on old hardware.
 void DeinitMenus();
 const FIWADInfo *D_FindIWAD(TArray<FString> &wadfiles, const char *iwad, const char *basewad);
@@ -795,7 +794,7 @@ void D_Display ()
 		if (hud_althud && viewheight == SCREENHEIGHT && screenblocks > 10)
 		{
 			StatusBar->DrawBottomStuff (HUD_AltHud);
-			if (DrawFSHUD || automapactive) DrawHUD();
+			if (DrawFSHUD || automapactive) StatusBar->DrawAltHUD();
 			if (players[consoleplayer].camera && players[consoleplayer].camera->player && !automapactive)
 			{
 				StatusBar->DrawCrosshair();
@@ -1870,6 +1869,16 @@ static FString ParseGameInfo(TArray<FString> &pwads, const char *fn, const char 
 			sc.MustGetString();
 			DoomStartupInfo.Song = sc.String;
 		}
+		else if (!nextKey.CompareNoCase("LOADLIGHTS"))
+		{
+			sc.MustGetNumber();
+			DoomStartupInfo.LoadLights = !!sc.Number;
+		}
+		else if (!nextKey.CompareNoCase("LOADBRIGHTMAPS"))
+		{
+			sc.MustGetNumber();
+			DoomStartupInfo.LoadBrightmaps = !!sc.Number;
+		}
 		else
 		{
 			// Silently ignore unknown properties
@@ -1922,7 +1931,7 @@ static FString CheckGameInfo(TArray<FString> & pwads)
 				if (lmp->Namespace == ns_global && !stricmp(lmp->Name, "GAMEINFO"))
 				{
 					// Found one!
-					FString iwad = ParseGameInfo(pwads, resfile->Filename, (const char*)lmp->CacheLump(), lmp->LumpSize);
+					FString iwad = ParseGameInfo(pwads, resfile->FileName, (const char*)lmp->CacheLump(), lmp->LumpSize);
 					delete resfile;
 					return iwad;
 				}
@@ -2039,13 +2048,13 @@ static void AddAutoloadFiles(const char *autoname)
 	// [SP] Dialog reaction - load lights.pk3 and brightmaps.pk3 based on user choices
 	if (!(gameinfo.flags & GI_SHAREWARE))
 	{
-		if (autoloadlights)
+		if (DoomStartupInfo.LoadLights == 1 || (DoomStartupInfo.LoadLights != 0 && autoloadlights))
 		{
 			const char *lightswad = BaseFileSearch ("lights.pk3", NULL);
 			if (lightswad)
 				D_AddFile (allwads, lightswad);
 		}
-		if (autoloadbrightmaps)
+		if (DoomStartupInfo.LoadBrightmaps == 1 || (DoomStartupInfo.LoadBrightmaps != 0 && autoloadbrightmaps))
 		{
 			const char *bmwad = BaseFileSearch ("brightmaps.pk3", NULL);
 			if (bmwad)
@@ -2553,7 +2562,6 @@ void D_DoomMain (void)
 
 		//SBarInfo support. Note that the first SBARINFO lump contains the mugshot definition so it even needs to be read when a regular status bar is being used.
 		SBarInfo::Load();
-		HUD_InitHud();
 
 		if (!batchrun)
 		{
@@ -2729,11 +2737,12 @@ void D_DoomMain (void)
 		DestroyCVarsFlagged(CVAR_MOD);	// Delete any cvar left by mods
 		FS_Close();						// destroy the global FraggleScript.
 		DeinitMenus();
-		LightDefaults.Clear();			// this can leak heap memory if it isn't cleared.
+		LightDefaults.DeleteAndClear();			// this can leak heap memory if it isn't cleared.
 
 		// delete DoomStartupInfo data
-		DoomStartupInfo.Name = (const char*)0;
+		DoomStartupInfo.Name = "";
 		DoomStartupInfo.BkColor = DoomStartupInfo.FgColor = DoomStartupInfo.Type = 0;
+		DoomStartupInfo.LoadLights = DoomStartupInfo.LoadBrightmaps = -1;
 
 		GC::FullGC();					// clean up before taking down the object list.
 

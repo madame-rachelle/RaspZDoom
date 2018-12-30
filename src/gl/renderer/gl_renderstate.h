@@ -79,6 +79,7 @@ class FRenderState
 	bool mTextureEnabled;
 	bool mFogEnabled;
 	bool mGlowEnabled;
+	bool mGradientEnabled;
 	bool mSplitEnabled;
 	bool mClipLineEnabled;
 	bool mBrightmapEnabled;
@@ -106,6 +107,7 @@ class FRenderState
 	FStateVec4 mCameraPos;
 	FStateVec4 mGlowTop, mGlowBottom;
 	FStateVec4 mGlowTopPlane, mGlowBottomPlane;
+	FStateVec4 mGradientTopPlane, mGradientBottomPlane;
 	FStateVec4 mSplitTopPlane, mSplitBottomPlane;
 	FStateVec4 mClipLine;
 	PalEntry mFogColor;
@@ -283,6 +285,11 @@ public:
 		mGlowEnabled = on;
 	}
 
+	void EnableGradient(bool on)
+	{
+		mGradientEnabled = on;
+	}
+
 	void EnableSplit(bool on)
 	{
 		if (!(gl.flags & RFL_NO_CLIP_PLANES))
@@ -350,24 +357,32 @@ public:
 
 	void SetSoftLightLevel(int llevel, int blendfactor = 0)
 	{
-		if (level.lightmode == 8 && blendfactor == 0) mLightParms[3] = llevel / 255.f;
+		if (level.lightmode >= 8 && blendfactor == 0) mLightParms[3] = llevel / 255.f;
 		else mLightParms[3] = -1.f;
 	}
 
 	void SetGlowPlanes(const secplane_t &top, const secplane_t &bottom)
 	{
-		DVector3 tn = top.Normal();
-		DVector3 bn = bottom.Normal();
-		mGlowTopPlane.Set(tn.X, tn.Y, 1. / tn.Z, top.fD());
-		mGlowBottomPlane.Set(bn.X, bn.Y, 1. / bn.Z, bottom.fD());
+		auto &tn = top.Normal();
+		auto &bn = bottom.Normal();
+		mGlowTopPlane.Set((float)tn.X, (float)tn.Y, (float)top.negiC, (float)top.fD());
+		mGlowBottomPlane.Set((float)bn.X, (float)bn.Y, (float)bottom.negiC, (float)bottom.fD());
+	}
+
+	void SetGradientPlanes(const secplane_t &top, const secplane_t &bottom)
+	{
+		auto &tn = top.Normal();
+		auto &bn = bottom.Normal();
+		mGradientTopPlane.Set((float)tn.X, (float)tn.Y, (float)top.negiC, (float)top.fD());
+		mGradientBottomPlane.Set((float)bn.X, (float)bn.Y, (float)bottom.negiC, (float)bottom.fD());
 	}
 
 	void SetSplitPlanes(const secplane_t &top, const secplane_t &bottom)
 	{
-		DVector3 tn = top.Normal();
-		DVector3 bn = bottom.Normal();
-		mSplitTopPlane.Set(tn.X, tn.Y, 1. / tn.Z, top.fD());
-		mSplitBottomPlane.Set(bn.X, bn.Y, 1. / bn.Z, bottom.fD());
+		auto &tn = top.Normal();
+		auto &bn = bottom.Normal();
+		mSplitTopPlane.Set((float)tn.X, (float)tn.Y, (float)top.negiC, (float)top.fD());
+		mSplitBottomPlane.Set((float)bn.X, (float)bn.Y, (float)bottom.negiC, (float)bottom.fD());
 	}
 
 	void SetDynLight(float r, float g, float b)

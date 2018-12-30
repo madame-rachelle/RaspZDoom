@@ -200,7 +200,6 @@ enum
 	DTA_SrcWidth,
 	DTA_SrcHeight,
 	DTA_LegacyRenderStyle,	// takes an old-style STYLE_* constant instead of an FRenderStyle
-
 };
 
 enum
@@ -268,6 +267,7 @@ struct VMVa_List
 	VMValue *args;
 	int curindex;
 	int numargs;
+	const uint8_t *reginfo;
 };
 //
 // VIDEO
@@ -484,10 +484,10 @@ public:
 	void Clear(int left, int top, int right, int bottom, int palcolor, uint32_t color);
 
 	// Draws a line
-	void DrawLine(int x0, int y0, int x1, int y1, int palColor, uint32_t realcolor);
+	void DrawLine(int x0, int y0, int x1, int y1, int palColor, uint32_t realcolor, uint8_t alpha = 255);
 
 	// Draws a line with thickness
-	void DrawThickLine(int x0, int y0, int x1, int y1, double thickness, uint32_t realcolor);
+	void DrawThickLine(int x0, int y0, int x1, int y1, double thickness, uint32_t realcolor, uint8_t alpha = 255);
 
 	// Draws a single pixel
 	void DrawPixel(int x, int y, int palcolor, uint32_t rgbcolor);
@@ -531,7 +531,7 @@ public:
 	// Retrieves a buffer containing image data for a screenshot.
 	// Hint: Pitch can be negative for upside-down images, in which case buffer
 	// points to the last row in the buffer, which will be the first row output.
-	virtual void GetScreenshotBuffer(const uint8_t *&buffer, int &pitch, ESSType &color_type, float &gamma) {}
+	virtual TArray<uint8_t> GetScreenshotBuffer(int &pitch, ESSType &color_type, float &gamma) { return TArray<uint8_t>(); }
 
 	// The original size of the framebuffer as selected in the video menu.
 	int VideoWidth = 0;

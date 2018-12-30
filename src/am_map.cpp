@@ -871,7 +871,7 @@ CCMD(am_togglegrid)
 
 CCMD(am_toggletexture)
 {
-	if (am_textured && hasglnodes)
+	if (am_textured)
 	{
 		textured = !textured;
 		Printf ("%s\n", GStrings(textured ? "AMSTR_TEXON" : "AMSTR_TEXOFF"));
@@ -2921,8 +2921,8 @@ void AM_drawKeys ()
 	mpoint_t p;
 	DAngle	 angle;
 
-	TThinkerIterator<AInventory> it(NAME_Key);
-	AInventory *key;
+	TThinkerIterator<AActor> it(NAME_Key);
+	AActor *key;
 
 	while ((key = it.Next()) != NULL)
 	{
@@ -2943,7 +2943,6 @@ void AM_drawKeys ()
 			// Find the key's own color.
 			// Only works correctly if single-key locks have lower numbers than any-key locks.
 			// That is the case for all default keys, however.
-			int P_GetMapColorForKey (AInventory * key);
 			int c = P_GetMapColorForKey(key);
 
 			if (c >= 0)	color.FromRGB(RPART(c), GPART(c), BPART(c));
@@ -3043,8 +3042,7 @@ void AM_drawThings ()
 							}
 							else if (am_showkeys)
 							{
-								int P_GetMapColorForKey (AInventory * key);
-								int c = P_GetMapColorForKey(static_cast<AInventory *>(t));
+								int c = P_GetMapColorForKey(t);
 
 								if (c >= 0)	color.FromRGB(RPART(c), GPART(c), BPART(c));
 								else color = AMColors[AMColors.ThingColor_CountItem];
@@ -3192,11 +3190,7 @@ void AM_drawAuthorMarkers ()
 
 		while (marked != NULL)
 		{
-			// Use more correct info if we have GL nodes available
-			if (mark->args[1] == 0 ||
-				(mark->args[1] == 1 && (hasglnodes ?
-				 marked->subsector->flags & SSECMF_DRAWN :
-				 marked->Sector->MoreFlags & SECMF_DRAWN)))
+			if (mark->args[1] == 0 || (mark->args[1] == 1 && (marked->subsector->flags & SSECMF_DRAWN)))
 			{
 				DrawMarker (tex, marked->X(), marked->Y(), 0, flip, mark->Scale.X, mark->Scale.Y, mark->Translation,
 					mark->Alpha, mark->fillcolor, mark->RenderStyle);
@@ -3260,7 +3254,7 @@ void AM_Drawer (int bottom)
 	}
 	AM_activateNewScale();
 
-	if (am_textured && hasglnodes && textured && !viewactive)
+	if (am_textured && textured && !viewactive)
 		AM_drawSubsectors();
 
 	if (grid)	

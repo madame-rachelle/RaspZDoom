@@ -45,6 +45,7 @@
 
 #include "gstrings.h"
 #include "vm.h"
+#include "serializer.h"
 
 int ListGetInt(VMVa_List &tags);
 
@@ -190,8 +191,10 @@ DEFINE_ACTION_FUNCTION(_Screen, DrawChar)
 	PARAM_FLOAT(y);
 	PARAM_INT(chr);
 
+	PARAM_VA_POINTER(va_reginfo)	// Get the hidden type information array
+
 	if (!screen->HasBegun2D()) ThrowAbortException(X_OTHER, "Attempt to draw to screen outside a draw function");
-	VMVa_List args = { param + 5, 0, numparam - 5 };
+	VMVa_List args = { param + 5, 0, numparam - 6, va_reginfo + 5 };
 	screen->DrawChar(font, cr, x, y, chr, args);
 	return 0;
 }
@@ -215,8 +218,6 @@ void DFrameBuffer::DrawTextCommon(FFont *font, int normalcolor, double x, double
 	FRemapTable *range;
 	int			kerning;
 	FTexture *pic;
-
-	assert(string[0] != '$');
 
 	if (parms.celly == 0) parms.celly = font->GetHeight() + 1;
 	parms.celly *= parms.scaley;
@@ -320,8 +321,10 @@ DEFINE_ACTION_FUNCTION(_Screen, DrawText)
 	PARAM_FLOAT(y);
 	PARAM_STRING(chr);
 
+	PARAM_VA_POINTER(va_reginfo)	// Get the hidden type information array
+
 	if (!screen->HasBegun2D()) ThrowAbortException(X_OTHER, "Attempt to draw to screen outside a draw function");
-	VMVa_List args = { param + 5, 0, numparam - 5 };
+	VMVa_List args = { param + 5, 0, numparam - 6, va_reginfo + 5 };
 	const char *txt = chr[0] == '$' ? GStrings(&chr[1]) : chr.GetChars();
 	screen->DrawText(font, cr, x, y, txt, args);
 	return 0;
@@ -345,7 +348,7 @@ static void breakit (FBrokenLines *line, FFont *font, const uint8_t *start, cons
 	line->Width = font->StringWidth (line->Text);
 }
 
-FBrokenLines *V_BreakLines (FFont *font, int maxwidth, const uint8_t *string, bool preservecolor, unsigned int *count)
+TArray<FBrokenLines> V_BreakLines (FFont *font, int maxwidth, const uint8_t *string, bool preservecolor)
 {
 	TArray<FBrokenLines> Lines(128);
 
@@ -448,71 +451,63 @@ FBrokenLines *V_BreakLines (FFont *font, int maxwidth, const uint8_t *string, bo
 			}
 		}
 	}
-
-	// Make a copy of the broken lines and return them
-	FBrokenLines *broken = new FBrokenLines[Lines.Size() + 1];
-
-	for (unsigned ii = 0; ii < Lines.Size(); ++ii)
-	{
-		broken[ii] = Lines[ii];
-	}
-	broken[Lines.Size()].Width = -1;
-	if (count != nullptr)
-	{
-		*count = Lines.Size();
-	}
-
-	return broken;
+	return Lines;
 }
 
-void V_FreeBrokenLines (FBrokenLines *lines)
+FSerializer &Serialize(FSerializer &arc, const char *key, FBrokenLines& g, FBrokenLines *def)
 {
-	if (lines)
+	if (arc.BeginObject(key))
 	{
-		delete[] lines;
+		arc("text", g.Text)
+			("width", g.Width)
+			.EndObject();
 	}
+	return arc;
 }
+
+
 
 class DBrokenLines : public DObject
 {
-	DECLARE_ABSTRACT_CLASS(DBrokenLines, DObject)
+	DECLARE_CLASS(DBrokenLines, DObject)
 
 public:
-	FBrokenLines *mBroken;
-	unsigned int mCount;
+	TArray<FBrokenLines> mBroken;
 
-	DBrokenLines(FBrokenLines *broken, unsigned int count)
+	DBrokenLines() = default;
+
+	DBrokenLines(TArray<FBrokenLines> &broken)
 	{
-		mBroken = broken;
-		mCount = count;
+		mBroken = std::move(broken);
 	}
 
-	void OnDestroy() override
+	void Serialize(FSerializer &arc) override
 	{
-		V_FreeBrokenLines(mBroken);
+		arc("lines", mBroken);
 	}
 };
 
-IMPLEMENT_CLASS(DBrokenLines, true, false);
+IMPLEMENT_CLASS(DBrokenLines, false, false);
 
 DEFINE_ACTION_FUNCTION(DBrokenLines, Count)
 {
 	PARAM_SELF_PROLOGUE(DBrokenLines);
-	ACTION_RETURN_INT(self->mCount);
+	ACTION_RETURN_INT(self->mBroken.Size());
 }
 
 DEFINE_ACTION_FUNCTION(DBrokenLines, StringWidth)
 {
 	PARAM_SELF_PROLOGUE(DBrokenLines);
 	PARAM_INT(index);
-	ACTION_RETURN_INT((unsigned)index >= self->mCount? -1 : self->mBroken[index].Width);
+	ACTION_RETURN_INT((unsigned)index >= self->mBroken.Size()? -1 : self->mBroken[index].Width);
 }
 
 DEFINE_ACTION_FUNCTION(DBrokenLines, StringAt)
 {
+
 	PARAM_SELF_PROLOGUE(DBrokenLines);
 	PARAM_INT(index);
-	ACTION_RETURN_STRING((unsigned)index >= self->mCount? -1 : self->mBroken[index].Text);
+	ACTION_RETURN_STRING((unsigned)index >= self->mBroken.Size() ? -1 : self->mBroken[index].Text);
 }
 
 DEFINE_ACTION_FUNCTION(FFont, BreakLines)
@@ -521,7 +516,6 @@ DEFINE_ACTION_FUNCTION(FFont, BreakLines)
 	PARAM_STRING(text);
 	PARAM_INT(maxwidth);
 
-	unsigned int count;
-	FBrokenLines *broken = V_BreakLines(self, maxwidth, text, true, &count);
-	ACTION_RETURN_OBJECT(Create<DBrokenLines>(broken, count));
+	auto broken = V_BreakLines(self, maxwidth, text, true);
+	ACTION_RETURN_OBJECT(Create<DBrokenLines>(broken));
 }

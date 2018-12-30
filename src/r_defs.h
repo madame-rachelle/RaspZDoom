@@ -266,17 +266,23 @@ struct FRemapTable;
 
 enum
 {
-	SECSPAC_Enter		= 1,	// Trigger when player enters
-	SECSPAC_Exit		= 2,	// Trigger when player exits
-	SECSPAC_HitFloor	= 4,	// Trigger when player hits floor
-	SECSPAC_HitCeiling	= 8,	// Trigger when player hits ceiling
-	SECSPAC_Use			= 16,	// Trigger when player uses
-	SECSPAC_UseWall		= 32,	// Trigger when player uses a wall
-	SECSPAC_EyesDive	= 64,	// Trigger when player eyes go below fake floor
-	SECSPAC_EyesSurface = 128,	// Trigger when player eyes go above fake floor
-	SECSPAC_EyesBelowC	= 256,	// Trigger when player eyes go below fake ceiling
-	SECSPAC_EyesAboveC	= 512,	// Trigger when player eyes go above fake ceiling
-	SECSPAC_HitFakeFloor= 1024,	// Trigger when player hits fake floor
+	SECSPAC_Enter		= 1<< 0,	// Trigger when player enters
+	SECSPAC_Exit		= 1<< 1,	// Trigger when player exits
+	SECSPAC_HitFloor	= 1<< 2,	// Trigger when player hits floor
+	SECSPAC_HitCeiling	= 1<< 3,	// Trigger when player hits ceiling
+	SECSPAC_Use			= 1<< 4,	// Trigger when player uses
+	SECSPAC_UseWall		= 1<< 5,	// Trigger when player uses a wall
+	SECSPAC_EyesDive	= 1<< 6,	// Trigger when player eyes go below fake floor
+	SECSPAC_EyesSurface = 1<< 7,	// Trigger when player eyes go above fake floor
+	SECSPAC_EyesBelowC	= 1<< 8,	// Trigger when player eyes go below fake ceiling
+	SECSPAC_EyesAboveC	= 1<< 9,	// Trigger when player eyes go above fake ceiling
+	SECSPAC_HitFakeFloor= 1<<10,	// Trigger when player hits fake floor
+	SECSPAC_DamageFloor = 1<<11,	// Trigger when floor is damaged
+	SECSPAC_DamageCeiling=1<<12,	// Trigger when ceiling is damaged
+	SECSPAC_DeathFloor	= 1<<13,	// Trigger when floor has 0 hp
+	SECSPAC_DeathCeiling= 1<<14,	// Trigger when ceiling has 0 hp
+	SECSPAC_Damage3D	= 1<<15,	// Trigger when controlled 3d floor is damaged
+	SECSPAC_Death3D		= 1<<16		// Trigger when controlled 3d floor has 0 hp
 };
 
 struct secplane_t
@@ -318,7 +324,7 @@ public:
 		return !normal.XY().isZero();
 	}
 
-	DVector3 Normal() const
+	const DVector3 &Normal() const
 	{
 		return normal;
 	}
@@ -588,16 +594,6 @@ struct secspecial_t
 	short damageinterval;	// Interval for damage application
 	short leakydamage;		// chance of leaking through radiation suit
 	int Flags;
-
-	secspecial_t()
-	{
-		Clear();
-	}
-
-	void Clear()
-	{
-		memset(this, 0, sizeof(*this));
-	}
 };
 
 FSerializer &Serialize(FSerializer &arc, const char *key, secspecial_t &spec, secspecial_t *def);
@@ -625,34 +621,19 @@ public:
 	}
 
 	bool IsLinked(sector_t *other, bool ceiling) const;
-	double FindLowestFloorSurrounding(vertex_t **v) const;
-	double FindHighestFloorSurrounding(vertex_t **v) const;
-	double FindNextHighestFloor(vertex_t **v) const;
-	double FindNextLowestFloor(vertex_t **v) const;
-	double FindLowestCeilingSurrounding(vertex_t **v) const;			// jff 2/04/98
-	double FindHighestCeilingSurrounding(vertex_t **v) const;			// jff 2/04/98
-	double FindNextLowestCeiling(vertex_t **v) const;					// jff 2/04/98
-	double FindNextHighestCeiling(vertex_t **v) const;					// jff 2/04/98
-	double FindShortestTextureAround() const;							// jff 2/04/98
-	double FindShortestUpperAround() const;								// jff 2/04/98
-	sector_t *FindModelFloorSector(double floordestheight) const;		// jff 2/04/98
-	sector_t *FindModelCeilingSector(double floordestheight) const;		// jff 2/04/98
-	int FindMinSurroundingLight (int max) const;
+
 	sector_t *NextSpecialSector (int type, sector_t *prev) const;		// [RH]
-	double FindLowestCeilingPoint(vertex_t **v) const;
-	double FindHighestFloorPoint(vertex_t **v) const;
 	void RemoveForceField();
 	int Index() const;
 
 	void AdjustFloorClip () const;
-	void SetColor(int r, int g, int b, int desat);
-	void SetFade(int r, int g, int b);
+	void SetColor(PalEntry pe, int desat);
+	void SetFade(PalEntry pe);
 	void SetFogDensity(int dens);
-	void SetSpecialColor(int num, int r, int g, int b);
-	void SetSpecialColor(int num, PalEntry rgb);
 	void ClosestPoint(const DVector2 &pos, DVector2 &out) const;
-	int GetFloorLight () const;
-	int GetCeilingLight () const;
+
+	int GetFloorLight() const;
+	int GetCeilingLight() const;
 
 	sector_t *GetHeightSec() const
 	{
@@ -920,6 +901,17 @@ public:
 		Flags &= ~SECF_SPECIALFLAGS;
 	}
 
+	void SetSpecialColor(int slot, int r, int g, int b)
+	{
+		SpecialColors[slot] = PalEntry(255, r, g, b);
+	}
+
+	void SetSpecialColor(int slot, PalEntry rgb)
+	{
+		rgb.a = 255;
+		SpecialColors[slot] = rgb;
+	}
+
 	inline bool PortalBlocksView(int plane);
 	inline bool PortalBlocksSight(int plane);
 	inline bool PortalBlocksMovement(int plane);
@@ -958,10 +950,6 @@ public:
 	void SetSpecial(const secspecial_t *spec);
 	bool PlaneMoving(int pos);
 
-	// Portal-aware height calculation
-	double HighestCeilingAt(const DVector2 &a, sector_t **resultsec = NULL);
-	double LowestFloorAt(const DVector2 &a, sector_t **resultsec = NULL);
-
 	inline double HighestCeilingAt(AActor *a, sector_t **resultsec = NULL);
 	inline double LowestFloorAt(AActor *a, sector_t **resultsec = NULL);
 
@@ -969,9 +957,6 @@ public:
 	{
 		return floorplane.Normal() == -ceilingplane.Normal() && floorplane.D == -ceilingplane.D;
 	}
-
-	double NextHighestCeilingAt(double x, double y, double bottomz, double topz, int flags = 0, sector_t **resultsec = NULL, F3DFloor **resultffloor = NULL);
-	double NextLowestFloorAt(double x, double y, double z, int flags = 0, double steph = 0, sector_t **resultsec = NULL, F3DFloor **resultffloor = NULL);
 
 	// Member variables
 	double		CenterFloor() const { return floorplane.ZatPoint(centerspot); }
@@ -1099,6 +1084,15 @@ public:
 		INVALIDATE_OTHER = 2
 	};
 
+	// [ZZ] these are for destructible sectors.
+	//      default is 0, which means no special behavior
+	int				healthfloor;
+	int				healthceiling;
+	int				health3d;
+	int				healthfloorgroup;
+	int				healthceilinggroup;
+	int				health3dgroup;
+
 };
 
 struct ReverbContainer;
@@ -1132,16 +1126,31 @@ struct side_t
 	{
 		top=0,
 		mid=1,
-		bottom=2
+		bottom=2,
+		none = 1,	// this is just for clarification in a mapping table
+	};
+	enum EColorSlot
+	{
+		walltop = 0,
+		wallbottom = 1,
 	};
 	struct part
 	{
+		enum EPartFlags
+		{
+			NoGradient = 1,
+			FlipGradient = 2,
+			ClampGradient = 4,
+			UseOwnColors = 8,
+		};
 		double xOffset;
 		double yOffset;
 		double xScale;
 		double yScale;
 		TObjPtr<DInterpolation*> interpolation;
 		FTextureID texture;
+		int flags;
+		PalEntry SpecialColors[2];
 
 		void InitFrom(const part &other)
 		{
@@ -1264,6 +1273,28 @@ struct side_t
 		textures[which].yScale *= delta;
 	}
 
+	void SetSpecialColor(int which, int slot, int r, int g, int b)
+	{
+		textures[which].SpecialColors[slot] = PalEntry(255, r, g, b);
+	}
+
+	void SetSpecialColor(int which, int slot, PalEntry rgb)
+	{
+		rgb.a = 255;
+		textures[which].SpecialColors[slot] = rgb;
+	}
+
+	// Note that the sector being passed in here may not be the actual sector this sidedef belongs to
+	// (either for polyobjects or FakeFlat'ed temporaries.)
+	PalEntry GetSpecialColor(int which, int slot, sector_t *frontsector) const
+	{
+		auto &part = textures[which];
+		if (part.flags & part::NoGradient) slot = 0;
+		if (part.flags & part::FlipGradient) slot ^= 1;
+		return (part.flags & part::UseOwnColors) ? part.SpecialColors[slot] : frontsector->SpecialColors[sector_t::walltop + slot];
+	}
+
+
 	DInterpolation *SetInterpolation(int position);
 	void StopInterpolation(int position);
 
@@ -1316,6 +1347,8 @@ struct line_t
 	unsigned	portalindex;
 	unsigned	portaltransferred;
 	AutomapLineStyle automapstyle;
+	int			health;		// [ZZ] for destructible geometry (0 = no special behavior)
+	int			healthgroup; // [ZZ] this is the "destructible object" id
 
 	DVector2 Delta() const
 	{
@@ -1333,12 +1366,14 @@ struct line_t
 	}
 
 	FSectorPortal *GetTransferredPortal();
+	void AdjustLine();
 
 	inline FLinePortal *getPortal() const;
 	inline bool isLinePortal() const;
 	inline bool isVisualPortal() const;
 	inline line_t *getPortalDestination() const;
 	inline int getPortalAlignment() const;
+	inline bool hitSkyWall(AActor* mo) const;
 
 	int Index() const;
 };
@@ -1531,6 +1566,11 @@ inline sector_t *P_PointInSector(double X, double Y)
 	return P_PointInSubsector(X, Y)->sector;
 }
 
+inline sector_t *P_PointInSectorXY(double X, double Y)	// This is for the benefit of unambiguously looking up this function's address
+{
+	return P_PointInSubsector(X, Y)->sector;
+}
+
 inline bool FBoundingBox::inRange(const line_t *ld) const
 {
 	return Left() < ld->bbox[BOXRIGHT] &&
@@ -1548,5 +1588,58 @@ inline void FColormap::CopyFrom3DLight(lightlist_t *light)
 		CopyFog(light->extra_colormap);
 	}
 }
+
+double FindLowestFloorSurrounding(const sector_t *sec, vertex_t **v);
+double FindHighestFloorSurrounding(const sector_t *sec, vertex_t **v);
+double FindNextHighestFloor(const sector_t *sec, vertex_t **v);
+double FindNextLowestFloor(const sector_t *sec, vertex_t **v);
+double FindLowestCeilingSurrounding(const sector_t *sec, vertex_t **v);			// jff 2/04/98
+double FindHighestCeilingSurrounding(const sector_t *sec, vertex_t **v);			// jff 2/04/98
+double FindNextLowestCeiling(const sector_t *sec, vertex_t **v);					// jff 2/04/98
+double FindNextHighestCeiling(const sector_t *sec, vertex_t **v);					// jff 2/04/98
+int FindMinSurroundingLight (const sector_t *sec, int max);
+double FindHighestFloorPoint(const sector_t *sec, vertex_t **v);
+
+double FindShortestTextureAround(sector_t *sector);					// jff 2/04/98
+double FindShortestUpperAround(sector_t *sector);					// jff 2/04/98
+sector_t *FindModelFloorSector(sector_t *sec, double floordestheight);		// jff 2/04/98
+sector_t *FindModelCeilingSector(sector_t *sec, double floordestheight);		// jff 2/04/98
+double FindLowestCeilingPoint(const sector_t *sec, vertex_t **v);
+
+double NextHighestCeilingAt(sector_t *sec, double x, double y, double bottomz, double topz, int flags = 0, sector_t **resultsec = NULL, F3DFloor **resultffloor = NULL);
+double NextLowestFloorAt(sector_t *sec, double x, double y, double z, int flags = 0, double steph = 0, sector_t **resultsec = NULL, F3DFloor **resultffloor = NULL);
+
+// This setup is to allow the VM call directily into the implementation.
+// With a member function this may be subject to OS implementation details, e.g. on Windows 32 bit members use a different calling convention than regular functions.
+void RemoveForceField(sector_t *sec);
+int PlaneMoving(sector_t *sector, int pos);
+void TransferSpecial(sector_t *self, sector_t *model);
+void GetSpecial(sector_t *self, secspecial_t *spec);
+void SetSpecial(sector_t *self, const secspecial_t *spec);
+int GetTerrain(const sector_t *, int pos);
+void CheckPortalPlane(sector_t *sector, int plane);
+void AdjustFloorClip(const sector_t *sector);
+void SetColor(sector_t *sector, int color, int desat);
+void SetFade(sector_t *sector, int color);
+int GetFloorLight(const sector_t *);
+int GetCeilingLight(const sector_t *);
+double GetFriction(const sector_t *self, int plane, double *movefac);
+double HighestCeilingAt(sector_t *sec, double x, double y, sector_t **resultsec = nullptr);
+double LowestFloorAt(sector_t *sec, double x, double y, sector_t **resultsec = nullptr);
+
+inline void sector_t::RemoveForceField() { return ::RemoveForceField(this); }
+inline bool sector_t::PlaneMoving(int pos) { return !!::PlaneMoving(this, pos); }
+inline void sector_t::TransferSpecial(sector_t *model) { return ::TransferSpecial(this, model); }
+inline void sector_t::GetSpecial(secspecial_t *spec) { ::GetSpecial(this, spec); }
+inline void sector_t::SetSpecial(const secspecial_t *spec) { ::SetSpecial(this, spec); }
+inline int sector_t::GetTerrain(int pos) const { return ::GetTerrain(this, pos); }
+inline void sector_t::CheckPortalPlane(int plane) { return ::CheckPortalPlane(this, plane); }
+inline void sector_t::AdjustFloorClip() const { ::AdjustFloorClip(this); }
+inline void sector_t::SetColor(PalEntry pe, int desat) { ::SetColor(this, pe, desat); }
+inline void sector_t::SetFade(PalEntry pe) { ::SetFade(this, pe); }
+inline int sector_t::GetFloorLight() const { return ::GetFloorLight(this); }
+inline int sector_t::GetCeilingLight() const { return ::GetCeilingLight(this); }
+inline double sector_t::GetFriction(int plane, double *movefac) const { return ::GetFriction(this, plane, movefac); }
+
 
 #endif

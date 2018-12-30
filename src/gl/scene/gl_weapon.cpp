@@ -95,7 +95,7 @@ void FDrawInfo::DrawPlayerSprites(bool hudModelStep)
 	s3d::Stereo3DMode::getCurrentMode().AdjustPlayerSprites();
 
 	int oldlightmode = level.lightmode;
-	if (!hudModelStep && level.lightmode == 8) level.lightmode = 2;	// Software lighting cannot handle 2D content so revert to lightmode 2 for that.
+	if (!hudModelStep && level.lightmode >= 8) level.lightmode = 2;	// Software lighting cannot handle 2D content so revert to lightmode 2 for that.
 	for(auto &hudsprite : hudsprites)
 	{
 		if ((!!hudsprite.mframe) == hudModelStep)

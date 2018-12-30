@@ -115,7 +115,8 @@ if( WIN32 )
 		comdlg32
 		ws2_32
 		setupapi
-		oleaut32 )
+		oleaut32
+		dbghelp )
 
 	if( NOT ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		set( ZDOOM_LIBS ${ZDOOM_LIBS} DelayImp )
@@ -459,8 +460,8 @@ add_custom_target( revision_check ALL
 # Libraries ZDoom needs
 
 message( STATUS "Fluid synth libs: ${FLUIDSYNTH_LIBRARIES}" )
-set( ZDOOM_LIBS ${ZDOOM_LIBS} "${ZLIB_LIBRARIES}" "${JPEG_LIBRARIES}" "${BZIP2_LIBRARIES}" "${GME_LIBRARIES}" "${CMAKE_DL_LIBS}" )
-include_directories( "${ZLIB_INCLUDE_DIR}" "${BZIP2_INCLUDE_DIR}" "${LZMA_INCLUDE_DIR}" "${JPEG_INCLUDE_DIR}" "${GME_INCLUDE_DIR}" )
+set( ZDOOM_LIBS ${ZDOOM_LIBS} "${ZLIB_LIBRARIES}" "${JPEG_LIBRARIES}" "${BZIP2_LIBRARIES}" "${GME_LIBRARIES}" "${ASMJIT_LIBRARIES}" "${CMAKE_DL_LIBS}" )
+include_directories( "${ZLIB_INCLUDE_DIR}" "${BZIP2_INCLUDE_DIR}" "${LZMA_INCLUDE_DIR}" "${JPEG_INCLUDE_DIR}" "${GME_INCLUDE_DIR}" "${ASMJIT_INCLUDE_DIR}" )
 
 if( SNDFILE_FOUND )
     set( ZDOOM_LIBS ${ZDOOM_LIBS} "${SNDFILE_LIBRARIES}" )
@@ -953,6 +954,7 @@ set (PCH_SOURCES
 	p_actionfunctions.cpp
 	p_ceiling.cpp
 	p_conversation.cpp
+	p_destructible.cpp
 	p_doors.cpp
 	p_effect.cpp
 	p_enemy.cpp
@@ -965,6 +967,7 @@ set (PCH_SOURCES
 	p_map.cpp
 	p_maputl.cpp
 	p_mobj.cpp
+	p_openmap.cpp
 	p_pillar.cpp
 	p_plats.cpp
 	p_pspr.cpp
@@ -1002,6 +1005,7 @@ set (PCH_SOURCES
 	s_sound.cpp
 	serializer.cpp
 	sc_man.cpp
+	scriptutil.cpp
 	st_stuff.cpp
 	statistics.cpp
 	stats.cpp
@@ -1164,6 +1168,9 @@ set (PCH_SOURCES
 	r_data/models/models_ue1.cpp
 	r_data/models/models_obj.cpp
 	scripting/symbols.cpp
+	scripting/vmiterators.cpp
+	scripting/vmthunks.cpp
+	scripting/vmthunks_actors.cpp
 	scripting/types.cpp
 	scripting/thingdef.cpp
 	scripting/thingdef_data.cpp
@@ -1179,6 +1186,14 @@ set (PCH_SOURCES
 	scripting/decorate/thingdef_states.cpp
 	scripting/vm/vmexec.cpp
 	scripting/vm/vmframe.cpp
+	scripting/vm/jit.cpp
+	scripting/vm/jit_runtime.cpp
+	scripting/vm/jit_call.cpp
+	scripting/vm/jit_flow.cpp
+	scripting/vm/jit_load.cpp
+	scripting/vm/jit_math.cpp
+	scripting/vm/jit_move.cpp
+	scripting/vm/jit_store.cpp
 	scripting/zscript/ast.cpp
 	scripting/zscript/zcc_compile.cpp
 	scripting/zscript/zcc_parser.cpp

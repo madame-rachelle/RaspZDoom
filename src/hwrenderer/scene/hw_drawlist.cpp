@@ -33,6 +33,7 @@
 #include "hwrenderer/scene/hw_drawstructs.h"
 #include "hwrenderer/scene/hw_drawlist.h"
 #include "hwrenderer/utility/hw_clock.h"
+#include "hw_fakeflat.h"
 
 FMemArena RenderDataAllocator(1024*1024);	// Use large blocks to reduce allocation time.
 
@@ -574,7 +575,7 @@ inline int HWDrawList::CompareSprites(SortNode * a,SortNode * b)
 	int res = s1->depth - s2->depth;
 
 	if (res != 0) return -res;
-	else return (i_compatflags & COMPATF_SPRITESORT)? s1->index-s2->index : s2->index-s1->index;
+	else return (i_compatflags & COMPATF_SPRITESORT)? s2->index-s1->index : s1->index-s2->index;
 }
 
 //==========================================================================
