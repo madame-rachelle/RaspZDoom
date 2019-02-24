@@ -797,11 +797,12 @@ static inline bool MustForcePain(AActor *target, AActor *inflictor)
 
 static inline bool isFakePain(AActor *target, AActor *inflictor, int damage)
 {
-	return ((target->flags7 & MF7_ALLOWPAIN && damage > 0) || (inflictor && (inflictor->flags7 & MF7_CAUSEPAIN)));
+	return (((target->flags7 & MF7_ALLOWPAIN || target->flags5 & MF5_NODAMAGE) && damage > 0) || 
+			(inflictor && (inflictor->flags7 & MF7_CAUSEPAIN)));
 }
 
 // [MC] Completely ripped out of DamageMobj to make it less messy.
-static void ReactToDamage(AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags)
+static void ReactToDamage(AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, int originaldamage)
 {
 	bool justhit = false;
 	int painchance = 0;
@@ -827,7 +828,7 @@ static void ReactToDamage(AActor *target, AActor *inflictor, AActor *source, int
 	// Are we attempting to cause pain?
 	if (!noPain)
 	{
-		fakedPain = (isFakePain(target, inflictor, damage));
+		fakedPain = (isFakePain(target, inflictor, originaldamage));
 		forcedPain = (MustForcePain(target, inflictor));
 	}
 
@@ -1456,7 +1457,7 @@ static int DoDamageMobj(AActor *target, AActor *inflictor, AActor *source, int d
 	bool needevent = true;
 	int realdamage = DamageMobj(target, inflictor, source, damage, mod, flags, angle, needevent);
 	if (realdamage >= 0) //Keep this check separated. Mods relying upon negative numbers may break otherwise.
-		ReactToDamage(target, inflictor, source, realdamage, mod, flags);
+		ReactToDamage(target, inflictor, source, realdamage, mod, flags, damage);
 
 	if (realdamage > 0 && needevent)
 	{
